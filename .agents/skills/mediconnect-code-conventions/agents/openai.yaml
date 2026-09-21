@@ -1,0 +1,4 @@
+interface:
+  display_name: "MediConnect Code Conventions"
+  short_description: "Keep MediConnect naming and source structure consistent"
+  default_prompt: "Use $mediconnect-code-conventions to create or review source code according to the MediConnect project conventions."
