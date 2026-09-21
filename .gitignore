@@ -6,6 +6,7 @@ node_modules/
 .env
 .env.*
 !.env.example
+!**/.env.example
 
 # Next.js
 .next/
@@ -64,3 +65,6 @@ Desktop.ini
 
 # Package manager archives
 *.tgz
+
+next-env.d.ts
+package-lock.json.*
