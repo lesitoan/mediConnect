@@ -58,6 +58,9 @@ Desktop.ini
 *.db
 *.db-journal
 
+# Prisma generated client
+apps/api/src/generated/prisma/
+
 # Local certificates and secrets
 *.pem
 *.key
