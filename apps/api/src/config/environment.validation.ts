@@ -1,6 +1,11 @@
 import Joi from 'joi';
 
 const environmentSchema = Joi.object<Record<string, unknown>>({
+  DATABASE_URL: Joi.string()
+    .uri({
+      scheme: ['postgres', 'postgresql'],
+    })
+    .required(),
   NODE_ENV: Joi.string()
     .valid('development', 'test', 'production')
     .default('development'),
