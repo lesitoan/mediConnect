@@ -2,25 +2,31 @@
   "name": "mediconnect",
   "version": "0.1.0",
   "private": true,
-  "description": "A microservices-based healthcare management platform.",
+  "description": "A healthcare management platform for patients and medical staff.",
   "packageManager": "npm@10.9.0",
   "engines": {
-    "node": ">=20.9.0"
+    "node": ">=20.11.0"
   },
   "workspaces": [
     "apps/*",
-    "apps/services/*",
     "packages/*"
   ],
   "scripts": {
     "dev": "turbo run dev",
     "dev:web": "turbo run dev --filter=patient-web --filter=staff-web",
+    "dev:api": "turbo run dev --filter=api",
     "dev:patient-web": "turbo run dev --filter=patient-web",
     "dev:staff-web": "turbo run dev --filter=staff-web",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "check-types": "turbo run check-types",
     "test": "turbo run test"
+  },
+  "overrides": {
+    "typescript-eslint": "8.50.0",
+    "@nestjs/platform-express": {
+      "multer": "2.3.0"
+    }
   },
   "devDependencies": {
     "turbo": "^2.11.2"
