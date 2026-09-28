@@ -10,6 +10,7 @@ const environmentSchema = Joi.object<Record<string, unknown>>({
     .valid('development', 'test', 'production')
     .default('development'),
   PORT: Joi.number().port().default(4000),
+  SWAGGER_ENABLED: Joi.boolean().default(false),
   LOG_LEVEL: Joi.string()
     .valid('fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent')
     .default('info'),
