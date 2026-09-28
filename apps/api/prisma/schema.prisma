@@ -8,3 +8,574 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+model User {
+  id              String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  fullName        String     @map("full_name") @db.VarChar(255)
+  email           String     @db.VarChar(255)
+  phone           String?    @db.VarChar(20)
+  passwordHash    String?    @map("password_hash") @db.VarChar(255)
+  role            UserRole
+  status          UserStatus @default(PENDING_VERIFICATION)
+  emailVerifiedAt DateTime?  @map("email_verified_at") @db.Timestamptz(6)
+  createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  patient               Patient?               @relation("PatientUserId")
+  createdMedicalRecords PatientMedicalRecord[] @relation("PatientMedicalRecordCreatedBy")
+  doctor                Doctor?                @relation("DoctorUserId")
+  createdSchedules      DoctorSchedule[]       @relation("DoctorScheduleCreatedBy")
+  reviewedLeaveRequests LeaveRequest[]         @relation("LeaveRequestReviewedBy")
+  createdAppointments   Appointment[]          @relation("AppointmentCreatedBy")
+  cancelledAppointments Appointment[]          @relation("AppointmentCancelledBy")
+  processedPayments     PaymentTransaction[]   @relation("PaymentTransactionProcessedBy")
+  notifications         Notification[]         @relation("NotificationUserId")
+  authIdentities        UserAuthIdentity[]     @relation("UserAuthIdentityUserId")
+  authSessions          AuthSession[]          @relation("AuthSessionUserId")
+
+  @@map("users")
+}
+
+model Patient {
+  id                    String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                String?        @unique @map("user_id") @db.Uuid
+  patientCode           String         @unique @map("patient_code") @db.VarChar(20)
+  fullName              String         @map("full_name") @db.VarChar(255)
+  dateOfBirth           DateTime?      @map("date_of_birth") @db.Date
+  gender                PatientGender?
+  phone                 String?        @db.VarChar(20)
+  email                 String?        @db.VarChar(255)
+  address               String?        @db.Text
+  emergencyContactName  String?        @map("emergency_contact_name") @db.VarChar(255)
+  emergencyContactPhone String?        @map("emergency_contact_phone") @db.VarChar(20)
+  createdAt             DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user               User?                  @relation("PatientUserId", fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  medicalRecords     PatientMedicalRecord[] @relation("PatientMedicalRecordPatientId")
+  appointments       Appointment[]          @relation("AppointmentPatientId")
+  aiConversationLogs AiConversationLog[]    @relation("AiConversationLogPatientId")
+
+  @@index([phone])
+  @@index([fullName])
+  @@map("patients")
+}
+
+model PatientMedicalRecord {
+  id                        String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  patientId                 String                     @map("patient_id") @db.Uuid
+  recordType                MedicalRecordType          @map("record_type")
+  name                      String                     @db.VarChar(255)
+  description               String?                    @db.Text
+  reaction                  String?                    @db.Text
+  severity                  AllergySeverity?
+  status                    PatientMedicalRecordStatus @default(PENDING_CONFIRMATION)
+  createdBy                 String?                    @map("created_by") @db.Uuid
+  confirmedBy               String?                    @map("confirmed_by") @db.Uuid
+  confirmedInConsultationId String?                    @map("confirmed_in_consultation_id") @db.Uuid
+  confirmedAt               DateTime?                  @map("confirmed_at") @db.Timestamptz(6)
+  createdAt                 DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                 DateTime                   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  patient                 Patient       @relation("PatientMedicalRecordPatientId", fields: [patientId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  createdByUser           User?         @relation("PatientMedicalRecordCreatedBy", fields: [createdBy], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  confirmedByDoctor       Doctor?       @relation("PatientMedicalRecordConfirmedBy", fields: [confirmedBy], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  confirmedInConsultation Consultation? @relation("PatientMedicalRecordConfirmedInConsultationId", fields: [confirmedInConsultationId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([patientId, recordType, status])
+  @@index([createdBy])
+  @@index([confirmedBy])
+  @@index([confirmedInConsultationId])
+  @@map("patient_medical_records")
+}
+
+model Specialty {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code        String   @unique @db.VarChar(20)
+  name        String   @unique @db.VarChar(255)
+  description String?  @db.Text
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  doctors           Doctor[]           @relation("DoctorSpecialtyId")
+  careSessions      CareSession[]      @relation("CareSessionSpecialtyId")
+  incomingReferrals InternalReferral[] @relation("InternalReferralTargetSpecialtyId")
+
+  @@map("specialties")
+}
+
+model Doctor {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String   @unique @map("user_id") @db.Uuid
+  specialtyId   String   @map("specialty_id") @db.Uuid
+  doctorCode    String   @unique @map("doctor_code") @db.VarChar(20)
+  qualification String?  @db.Text
+  bio           String?  @db.Text
+  avatarUrl     String?  @map("avatar_url") @db.VarChar(500)
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  confirmedMedicalRecords PatientMedicalRecord[] @relation("PatientMedicalRecordConfirmedBy")
+  user                    User                   @relation("DoctorUserId", fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  specialty               Specialty              @relation("DoctorSpecialtyId", fields: [specialtyId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  schedules               DoctorSchedule[]       @relation("DoctorScheduleDoctorId")
+  leaveRequests           LeaveRequest[]         @relation("LeaveRequestDoctorId")
+  requestedReferrals      InternalReferral[]     @relation("InternalReferralRequestedDoctorId")
+
+  @@index([specialtyId, isActive])
+  @@map("doctors")
+}
+
+model DoctorSchedule {
+  id                  String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  doctorId            String               @map("doctor_id") @db.Uuid
+  startsAt            DateTime             @map("starts_at") @db.Timestamptz(6)
+  endsAt              DateTime             @map("ends_at") @db.Timestamptz(6)
+  scheduleType        ScheduleType         @map("schedule_type")
+  status              DoctorScheduleStatus @default(DRAFT)
+  slotDurationMinutes Int                  @map("slot_duration_minutes") @db.SmallInt
+  createdBy           String               @map("created_by") @db.Uuid
+  publishedAt         DateTime?            @map("published_at") @db.Timestamptz(6)
+  createdAt           DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  doctor          Doctor            @relation("DoctorScheduleDoctorId", fields: [doctorId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  createdByUser   User              @relation("DoctorScheduleCreatedBy", fields: [createdBy], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  overtimeRequest LeaveRequest?     @relation("LeaveRequestCreatedScheduleId")
+  slots           AppointmentSlot[] @relation("AppointmentSlotDoctorScheduleId")
+
+  @@index([doctorId, startsAt])
+  @@index([createdBy])
+  @@map("doctor_schedules")
+}
+
+model LeaveRequest {
+  id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  doctorId          String             @map("doctor_id") @db.Uuid
+  requestType       LeaveRequestType   @default(OVERTIME) @map("request_type")
+  startsAt          DateTime           @map("starts_at") @db.Timestamptz(6)
+  endsAt            DateTime           @map("ends_at") @db.Timestamptz(6)
+  reason            String             @db.Text
+  status            LeaveRequestStatus @default(PENDING)
+  createdScheduleId String?            @unique @map("created_schedule_id") @db.Uuid
+  reviewedBy        String?            @map("reviewed_by") @db.Uuid
+  reviewedAt        DateTime?          @map("reviewed_at") @db.Timestamptz(6)
+  rejectionReason   String?            @map("rejection_reason") @db.Text
+  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  doctor          Doctor          @relation("LeaveRequestDoctorId", fields: [doctorId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  createdSchedule DoctorSchedule? @relation("LeaveRequestCreatedScheduleId", fields: [createdScheduleId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  reviewedByUser  User?           @relation("LeaveRequestReviewedBy", fields: [reviewedBy], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([doctorId, startsAt])
+  @@index([status, createdAt])
+  @@index([reviewedBy])
+  @@map("leave_requests")
+}
+
+model AppointmentSlot {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  doctorScheduleId String   @map("doctor_schedule_id") @db.Uuid
+  startsAt         DateTime @map("starts_at") @db.Timestamptz(6)
+  endsAt           DateTime @map("ends_at") @db.Timestamptz(6)
+  isBlocked        Boolean  @default(false) @map("is_blocked")
+  blockReason      String?  @map("block_reason") @db.Text
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  doctorSchedule DoctorSchedule @relation("AppointmentSlotDoctorScheduleId", fields: [doctorScheduleId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  careSessions   CareSession[]  @relation("CareSessionAppointmentSlotId")
+
+  @@unique([doctorScheduleId, startsAt])
+  @@map("appointment_slots")
+}
+
+model Appointment {
+  id                 String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  appointmentCode    String                   @unique @map("appointment_code") @db.VarChar(20)
+  patientId          String                   @map("patient_id") @db.Uuid
+  bookingSource      AppointmentBookingSource @map("booking_source")
+  status             AppointmentStatus        @default(CONFIRMED)
+  rescheduleCount    Int                      @default(0) @map("reschedule_count") @db.SmallInt
+  createdBy          String                   @map("created_by") @db.Uuid
+  cancellationReason String?                  @map("cancellation_reason") @db.Text
+  cancelledBy        String?                  @map("cancelled_by") @db.Uuid
+  cancelledAt        DateTime?                @map("cancelled_at") @db.Timestamptz(6)
+  createdAt          DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime                 @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  patient         Patient       @relation("AppointmentPatientId", fields: [patientId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  createdByUser   User          @relation("AppointmentCreatedBy", fields: [createdBy], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  cancelledByUser User?         @relation("AppointmentCancelledBy", fields: [cancelledBy], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  careSessions    CareSession[] @relation("CareSessionAppointmentId")
+  invoices        Invoice[]     @relation("InvoiceAppointmentId")
+
+  @@index([patientId, createdAt])
+  @@index([status, createdAt])
+  @@index([createdBy])
+  @@index([cancelledBy])
+  @@map("appointments")
+}
+
+model CareSession {
+  id                 String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  appointmentId      String                   @map("appointment_id") @db.Uuid
+  appointmentSlotId  String                   @map("appointment_slot_id") @db.Uuid
+  specialtyId        String                   @map("specialty_id") @db.Uuid
+  incomingReferralId String?                  @unique @map("incoming_referral_id") @db.Uuid
+  status             CareSessionStatus        @default(SCHEDULED)
+  checkedInAt        DateTime?                @map("checked_in_at") @db.Timestamptz(6)
+  queueDate          DateTime?                @map("queue_date") @db.Date
+  queueNumber        Int?                     @map("queue_number")
+  queuePosition      Int?                     @map("queue_position")
+  priorityType       CareSessionPriorityType? @map("priority_type")
+  createdAt          DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime                 @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  appointment      Appointment       @relation("CareSessionAppointmentId", fields: [appointmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  appointmentSlot  AppointmentSlot   @relation("CareSessionAppointmentSlotId", fields: [appointmentSlotId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  specialty        Specialty         @relation("CareSessionSpecialtyId", fields: [specialtyId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  incomingReferral InternalReferral? @relation("CareSessionIncomingReferralId", fields: [incomingReferralId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  consultation     Consultation?     @relation("ConsultationCareSessionId")
+
+  @@index([appointmentId])
+  @@index([status, queueDate, queuePosition])
+  @@index([appointmentSlotId])
+  @@index([specialtyId])
+  @@map("care_sessions")
+}
+
+model Consultation {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  careSessionId  String    @unique @map("care_session_id") @db.Uuid
+  clinicalNotes  String?   @map("clinical_notes") @db.Text
+  prescription   Json?     @db.JsonB
+  labOrderNotes  String?   @map("lab_order_notes") @db.Text
+  labResultNotes String?   @map("lab_result_notes") @db.Text
+  followUpDate   DateTime? @map("follow_up_date") @db.Date
+  startedAt      DateTime? @map("started_at") @db.Timestamptz(6)
+  completedAt    DateTime? @map("completed_at") @db.Timestamptz(6)
+  lockedAt       DateTime? @map("locked_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  confirmedMedicalRecords PatientMedicalRecord[] @relation("PatientMedicalRecordConfirmedInConsultationId")
+  careSession             CareSession            @relation("ConsultationCareSessionId", fields: [careSessionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  diagnoses               Diagnosis[]            @relation("DiagnosisConsultationId")
+  outgoingReferrals       InternalReferral[]     @relation("InternalReferralSourceConsultationId")
+  review                  Review?                @relation("ReviewConsultationId")
+
+  @@map("consultations")
+}
+
+model Diagnosis {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  consultationId String   @map("consultation_id") @db.Uuid
+  diagnosisName  String   @map("diagnosis_name") @db.VarChar(500)
+  diagnosisCode  String?  @map("diagnosis_code") @db.VarChar(30)
+  isPrimary      Boolean  @default(false) @map("is_primary")
+  notes          String?  @db.Text
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  consultation Consultation @relation("DiagnosisConsultationId", fields: [consultationId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([consultationId])
+  @@map("diagnoses")
+}
+
+model InternalReferral {
+  id                   String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sourceConsultationId String                   @map("source_consultation_id") @db.Uuid
+  targetSpecialtyId    String                   @map("target_specialty_id") @db.Uuid
+  requestedDoctorId    String?                  @map("requested_doctor_id") @db.Uuid
+  reason               String                   @db.Text
+  priority             InternalReferralPriority @default(NORMAL)
+  status               InternalReferralStatus   @default(PENDING)
+  cancelledAt          DateTime?                @map("cancelled_at") @db.Timestamptz(6)
+  cancellationReason   String?                  @map("cancellation_reason") @db.Text
+  createdAt            DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime                 @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  targetCareSession  CareSession? @relation("CareSessionIncomingReferralId")
+  sourceConsultation Consultation @relation("InternalReferralSourceConsultationId", fields: [sourceConsultationId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  targetSpecialty    Specialty    @relation("InternalReferralTargetSpecialtyId", fields: [targetSpecialtyId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  requestedDoctor    Doctor?      @relation("InternalReferralRequestedDoctorId", fields: [requestedDoctorId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([targetSpecialtyId, status, createdAt])
+  @@index([sourceConsultationId])
+  @@index([requestedDoctorId])
+  @@map("internal_referrals")
+}
+
+model Invoice {
+  id                    String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  invoiceCode           String        @unique @map("invoice_code") @db.VarChar(30)
+  appointmentId         String        @map("appointment_id") @db.Uuid
+  currency              String        @default("VND") @db.Char(3)
+  chargeDetails         Json          @default("[]") @map("charge_details") @db.JsonB
+  totalAmount           Decimal       @map("total_amount") @db.Decimal(14, 2)
+  status                InvoiceStatus @default(OPEN)
+  paymentGraceUntil     DateTime?     @map("payment_grace_until") @db.Timestamptz(6)
+  refundRequestedAmount Decimal?      @map("refund_requested_amount") @db.Decimal(14, 2)
+  refundRequestedAt     DateTime?     @map("refund_requested_at") @db.Timestamptz(6)
+  refundReason          String?       @map("refund_reason") @db.Text
+  createdAt             DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  appointment  Appointment          @relation("InvoiceAppointmentId", fields: [appointmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  transactions PaymentTransaction[] @relation("PaymentTransactionInvoiceId")
+
+  @@index([appointmentId, createdAt])
+  @@map("invoices")
+}
+
+model PaymentTransaction {
+  id                    String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  invoiceId             String?                    @map("invoice_id") @db.Uuid
+  provider              PaymentTransactionProvider
+  externalTransactionId String?                    @map("external_transaction_id") @db.VarChar(100)
+  idempotencyKey        String                     @unique @map("idempotency_key") @db.VarChar(100)
+  transactionType       PaymentTransactionType     @map("transaction_type")
+  amount                Decimal                    @db.Decimal(14, 2)
+  status                PaymentTransactionStatus
+  processedBy           String?                    @map("processed_by") @db.Uuid
+  occurredAt            DateTime                   @map("occurred_at") @db.Timestamptz(6)
+  webhookPayload        Json?                      @map("webhook_payload") @db.JsonB
+  reconciliationNote    String?                    @map("reconciliation_note") @db.Text
+  createdAt             DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime                   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  invoice         Invoice? @relation("PaymentTransactionInvoiceId", fields: [invoiceId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  processedByUser User?    @relation("PaymentTransactionProcessedBy", fields: [processedBy], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([provider, externalTransactionId])
+  @@index([invoiceId, status, transactionType])
+  @@index([status, createdAt])
+  @@index([processedBy])
+  @@map("payment_transactions")
+}
+
+model Review {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  consultationId String   @unique @map("consultation_id") @db.Uuid
+  doctorRating   Int      @map("doctor_rating") @db.SmallInt
+  serviceRating  Int      @map("service_rating") @db.SmallInt
+  comment        String?  @db.Text
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  consultation Consultation @relation("ReviewConsultationId", fields: [consultationId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@map("reviews")
+}
+
+model Notification {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId           String    @map("user_id") @db.Uuid
+  notificationType String    @map("notification_type") @db.VarChar(50)
+  title            String    @db.VarChar(255)
+  content          String    @db.Text
+  referenceType    String?   @map("reference_type") @db.VarChar(50)
+  referenceId      String?   @map("reference_id") @db.Uuid
+  readAt           DateTime? @map("read_at") @db.Timestamptz(6)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation("NotificationUserId", fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("notifications")
+}
+
+model AiConversationLog {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  patientId String    @map("patient_id") @db.Uuid
+  messages  Json      @default("[]") @db.JsonB
+  startedAt DateTime  @default(now()) @map("started_at") @db.Timestamptz(6)
+  endedAt   DateTime? @map("ended_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  patient Patient @relation("AiConversationLogPatientId", fields: [patientId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([patientId, startedAt])
+  @@map("ai_conversation_logs")
+}
+
+model UserAuthIdentity {
+  id                      String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                  String                   @map("user_id") @db.Uuid
+  provider                UserAuthIdentityProvider
+  providerSubject         String                   @map("provider_subject") @db.VarChar(255)
+  providerEmail           String?                  @map("provider_email") @db.VarChar(255)
+  isProviderEmailVerified Boolean                  @default(false) @map("provider_email_verified")
+  linkedAt                DateTime                 @default(now()) @map("linked_at") @db.Timestamptz(6)
+  lastLoginAt             DateTime?                @map("last_login_at") @db.Timestamptz(6)
+
+  user User @relation("UserAuthIdentityUserId", fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([provider, providerSubject])
+  @@unique([userId, provider])
+  @@map("user_auth_identities")
+}
+
+model AuthSession {
+  id               String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId           String                @map("user_id") @db.Uuid
+  refreshTokenHash String                @unique @map("refresh_token_hash") @db.VarChar(255)
+  clientType       AuthSessionClientType @map("client_type")
+  deviceName       String?               @map("device_name") @db.VarChar(255)
+  userAgent        String?               @map("user_agent") @db.Text
+  ipAddress        String?               @map("ip_address") @db.Inet
+  createdAt        DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastActiveAt     DateTime              @default(now()) @map("last_active_at") @db.Timestamptz(6)
+  expiresAt        DateTime              @map("expires_at") @db.Timestamptz(6)
+  revokedAt        DateTime?             @map("revoked_at") @db.Timestamptz(6)
+  revocationReason String?               @map("revocation_reason") @db.VarChar(50)
+
+  user User @relation("AuthSessionUserId", fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([expiresAt])
+  @@map("auth_sessions")
+}
+
+enum UserRole {
+  PATIENT
+  DOCTOR
+  RECEPTIONIST
+  ADMIN
+}
+
+enum UserStatus {
+  PENDING_VERIFICATION
+  ACTIVE
+  LOCKED
+}
+
+enum PatientGender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum MedicalRecordType {
+  MEDICAL_HISTORY
+  ALLERGY
+}
+
+enum AllergySeverity {
+  MILD
+  MODERATE
+  SEVERE
+}
+
+enum PatientMedicalRecordStatus {
+  PENDING_CONFIRMATION
+  CONFIRMED
+}
+
+enum ScheduleType {
+  REGULAR
+  SHIFT
+  OVERTIME
+}
+
+enum DoctorScheduleStatus {
+  DRAFT
+  PUBLISHED
+  ABSENT
+  CANCELLED
+}
+
+enum LeaveRequestType {
+  OVERTIME
+}
+
+enum LeaveRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum AppointmentBookingSource {
+  PATIENT
+  AI_ASSISTANT
+  RECEPTIONIST
+  WALK_IN
+}
+
+enum AppointmentStatus {
+  CONFIRMED
+  PENDING_RESOLUTION
+  CANCELLED
+}
+
+enum CareSessionStatus {
+  SCHEDULED
+  WAITING
+  CALLED
+  SKIPPED
+  IN_CONSULTATION
+  WAITING_LAB
+  PAUSED
+  COMPLETED
+  INCOMPLETE
+  CANCELLED
+  NO_SHOW
+}
+
+enum CareSessionPriorityType {
+  APPOINTMENT_ON_TIME
+  WALK_IN
+  APPOINTMENT_LATE
+  RETURNING_LAB
+  REFERRAL
+}
+
+enum InternalReferralPriority {
+  NORMAL
+  URGENT
+}
+
+enum InternalReferralStatus {
+  PENDING
+  NO_SLOT_AVAILABLE
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+enum InvoiceStatus {
+  OPEN
+  VOID
+}
+
+enum PaymentTransactionProvider {
+  SEPAY
+  COUNTER
+}
+
+enum PaymentTransactionType {
+  PAYMENT
+  REFUND
+}
+
+enum PaymentTransactionStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  PENDING_RECONCILIATION
+}
+
+enum UserAuthIdentityProvider {
+  GOOGLE
+  FACEBOOK
+}
+
+enum AuthSessionClientType {
+  WEB
+  MOBILE
+}
