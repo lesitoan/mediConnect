@@ -1,3 +1,8 @@
+# MediConnect API
+
+- [RBAC adapted from TripByToanNgo](RBAC.md)
+- [Authentication, Redis OTP, refresh tokens and sessions](authentication_flow_analysis.md)
+
 <p align="center">
   <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
 </p>
