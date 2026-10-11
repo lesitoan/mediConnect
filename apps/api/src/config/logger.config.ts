@@ -10,6 +10,10 @@ const REDACTED_LOG_PATHS = [
   'req.body.newPassword',
   'req.body.password',
   'req.body.refreshToken',
+  'req.body.otp',
+  'req.body.code',
+  'req.body.resetToken',
+  'req.body.continuationToken',
   'res.headers["set-cookie"]',
 ];
 
