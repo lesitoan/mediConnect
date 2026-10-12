@@ -27,10 +27,6 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci --no-audit --no-fund
-      - name: Kiểm tra script deploy
-        run: |
-          bash -n apps/api/deploy/prepare-deployment.sh apps/api/deploy/deploy.sh
-          shellcheck apps/api/deploy/prepare-deployment.sh apps/api/deploy/deploy.sh
       - name: Generate Prisma Client và build API
         run: npx turbo run build --filter=api
       - name: Kiểm tra lint
@@ -95,55 +91,109 @@ jobs:
     concurrency:
       group: api-production
       cancel-in-progress: false
+    env:
+      DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Chuẩn bị cấu hình production
-        env:
-          DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
-          SSH_KEY: ${{ secrets.SSH_KEY }}
-          SSH_KNOWN_HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}
-          APP_COMPOSE_PROJECT_NAME: ${{ vars.COMPOSE_PROJECT_NAME }}
-          APP_API_IMAGE: ${{ needs.build.outputs.image }}
-          APP_API_PORT: ${{ vars.API_PORT || '4000' }}
-          APP_POSTGRES_USER: ${{ vars.POSTGRES_USER }}
-          APP_POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-          APP_POSTGRES_DB: ${{ vars.POSTGRES_DB }}
-          APP_POSTGRES_VOLUME: ${{ vars.POSTGRES_VOLUME }}
-          APP_POSTGRES_BIND_ADDRESS: ${{ vars.POSTGRES_BIND_ADDRESS }}
-          APP_DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          APP_REDIS_URL: ${{ secrets.REDIS_URL }}
-          APP_JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          APP_OTP_HMAC_SECRET: ${{ secrets.OTP_HMAC_SECRET }}
-          APP_JWT_ACCESS_TTL_SECONDS: ${{ vars.JWT_ACCESS_TTL_SECONDS }}
-          APP_JWT_REFRESH_TTL_SECONDS: ${{ vars.JWT_REFRESH_TTL_SECONDS }}
-          APP_CORS_ORIGINS: ${{ vars.CORS_ORIGINS }}
-          APP_LOG_LEVEL: ${{ vars.LOG_LEVEL }}
-          APP_AUTH_COOKIE_SAME_SITE: ${{ vars.AUTH_COOKIE_SAME_SITE }}
-          APP_RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-          APP_RESEND_FROM_EMAIL: ${{ vars.RESEND_FROM_EMAIL }}
-          APP_ZALO_ACCESS_TOKEN: ${{ secrets.ZALO_ACCESS_TOKEN }}
-          APP_ZALO_OTP_TEMPLATE_ID: ${{ vars.ZALO_OTP_TEMPLATE_ID }}
-          APP_ZALO_OTP_CODE_PARAM: ${{ vars.ZALO_OTP_CODE_PARAM }}
-        run: |
-          bash apps/api/deploy/prepare-deployment.sh
-          cp apps/api/deploy/compose.yml apps/api/deploy/deploy.sh deployment/
-      - name: Gửi cấu hình và deploy bằng Docker Compose
+      - name: Cấu hình SSH
         env:
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_USER: ${{ secrets.SSH_USER }}
-          DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
-          BACKUP_DATABASE: ${{ vars.BACKUP_DATABASE || 'true' }}
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}
         run: |
-          set -eu
-          case "$BACKUP_DATABASE" in true|false) ;; *) exit 1 ;; esac
-          ssh -i ~/.ssh/deploy-key -o BatchMode=yes -o StrictHostKeyChecking=yes \
-            "$SSH_USER@$SSH_HOST" "umask 077; mkdir -p '$DEPLOY_PATH/incoming'"
-          scp -i ~/.ssh/deploy-key -o BatchMode=yes -o StrictHostKeyChecking=yes \
-            deployment/compose.yml deployment/deploy.sh deployment/.env deployment/.env.api \
-            "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/incoming/"
-          ssh -i ~/.ssh/deploy-key -o BatchMode=yes -o StrictHostKeyChecking=yes \
-            "$SSH_USER@$SSH_HOST" "bash '$DEPLOY_PATH/incoming/deploy.sh' '$DEPLOY_PATH' '$BACKUP_DATABASE'"
+          umask 077
+          [[ $DEPLOY_PATH =~ ^/[a-zA-Z0-9_./-]+$ && $DEPLOY_PATH != / ]]
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" | tr -d '\r' > ~/.ssh/deploy-key
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<EOF
+          Host server
+            HostName $SSH_HOST
+            User $SSH_USER
+            IdentityFile ~/.ssh/deploy-key
+            BatchMode yes
+            StrictHostKeyChecking yes
+          EOF
+
+      - name: Tạo file env
+        env:
+          API_IMAGE: ${{ needs.build.outputs.image }}
+          API_PORT: ${{ vars.API_PORT || '4000' }}
+          COMPOSE_PROJECT_NAME: ${{ vars.COMPOSE_PROJECT_NAME }}
+          POSTGRES_USER: ${{ vars.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB: ${{ vars.POSTGRES_DB }}
+          POSTGRES_VOLUME: ${{ vars.POSTGRES_VOLUME }}
+          POSTGRES_BIND_ADDRESS: ${{ vars.POSTGRES_BIND_ADDRESS || '127.0.0.1' }}
+          POSTGRES_PORT: ${{ vars.POSTGRES_PORT || '5432' }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          OTP_HMAC_SECRET: ${{ secrets.OTP_HMAC_SECRET }}
+          JWT_ACCESS_TTL_SECONDS: ${{ vars.JWT_ACCESS_TTL_SECONDS }}
+          JWT_REFRESH_TTL_SECONDS: ${{ vars.JWT_REFRESH_TTL_SECONDS }}
+          CORS_ORIGINS: ${{ vars.CORS_ORIGINS }}
+          LOG_LEVEL: ${{ vars.LOG_LEVEL }}
+          AUTH_COOKIE_SAME_SITE: ${{ vars.AUTH_COOKIE_SAME_SITE }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          RESEND_FROM_EMAIL: ${{ vars.RESEND_FROM_EMAIL }}
+          ZALO_ACCESS_TOKEN: ${{ secrets.ZALO_ACCESS_TOKEN }}
+          ZALO_OTP_TEMPLATE_ID: ${{ vars.ZALO_OTP_TEMPLATE_ID }}
+          ZALO_OTP_CODE_PARAM: ${{ vars.ZALO_OTP_CODE_PARAM }}
+        run: |
+          umask 077
+          # Quote các giá trị nội suy Compose, kể cả mật khẩu chứa $ hoặc dấu nháy.
+          jq -nr '{
+            API_IMAGE: env.API_IMAGE, API_PORT: env.API_PORT,
+            COMPOSE_PROJECT_NAME: env.COMPOSE_PROJECT_NAME,
+            POSTGRES_USER: env.POSTGRES_USER, POSTGRES_PASSWORD: env.POSTGRES_PASSWORD,
+            POSTGRES_DB: env.POSTGRES_DB, POSTGRES_VOLUME: env.POSTGRES_VOLUME,
+            POSTGRES_BIND_ADDRESS: env.POSTGRES_BIND_ADDRESS, POSTGRES_PORT: env.POSTGRES_PORT
+          } | to_entries[] | "\(.key)=\(.value | @json | gsub("\\$"; "\\$"))"' > .env
+          for name in DATABASE_URL REDIS_URL JWT_SECRET OTP_HMAC_SECRET \
+            JWT_ACCESS_TTL_SECONDS JWT_REFRESH_TTL_SECONDS CORS_ORIGINS LOG_LEVEL \
+            AUTH_COOKIE_SAME_SITE RESEND_API_KEY RESEND_FROM_EMAIL \
+            ZALO_ACCESS_TOKEN ZALO_OTP_TEMPLATE_ID ZALO_OTP_CODE_PARAM; do
+            value=${!name}
+            if [[ -n $value ]]; then
+              [[ $value != *$'\n'* && $value != *$'\r'* ]]
+              printf '%s=%s\n' "$name" "$value"
+            fi
+          done > .env.api
+
+      - name: Gửi file lên server
+        run: |
+          ssh server "umask 077; mkdir -p '$DEPLOY_PATH'"
+          scp apps/api/deploy/compose.yml .env .env.api "server:$DEPLOY_PATH/"
+          ssh server "chmod 600 '$DEPLOY_PATH/.env' '$DEPLOY_PATH/.env.api'"
+
+      - name: Kiểm tra PostgreSQL
+        run: |
+          ssh server bash -s -- "$DEPLOY_PATH" <<'EOF'
+          set -euo pipefail
+          cd "$1"
+          config=$(docker compose config --format json)
+          postgresId=$(docker compose ps --all --quiet postgres)
+          docker inspect "${postgresId:?PostgreSQL service not found}" | jq -e \
+            --arg project "$(jq -r '.name' <<< "$config")" \
+            --arg volume "$(jq -r '.volumes.postgres_data.name' <<< "$config")" '
+            .[0] | .State.Health.Status == "healthy"
+            and .Config.Labels["com.docker.compose.project"] == $project
+            and any(.Mounts[]; .Type == "volume" and .Name == $volume)
+          ' > /dev/null
+          EOF
+
+      - name: Migrate và khởi động API
+        run: |
+          ssh server bash -s -- "$DEPLOY_PATH" <<'EOF'
+          set -euo pipefail
+          cd "$1"
+          docker compose pull api
+          docker compose run --rm --no-deps -T migrate
+          docker compose up -d --no-deps --wait --wait-timeout 180 api
+          EOF
+
       - name: Xóa secrets tạm trên runner
         if: always()
-        run: |
-          rm -f deployment/.env deployment/.env.api ~/.ssh/deploy-key
+        run: rm -f .env .env.api ~/.ssh/deploy-key
