@@ -23,7 +23,7 @@ def write_environment(root, environment):
         if not re.fullmatch(r'[A-Z][A-Z0-9_]*', name) or '\n' in value or '\r' in value:
             raise ValueError('Deployment environment must contain single-line values')
     def quoted(value):
-        return "'" + value.replace('\\', '\\\\').replace("'", "\\'") + "'"
+        return json.dumps(value, ensure_ascii=False).replace('$', r'\$')
     (root / '.env').write_text(''.join(f'{name}={quoted(value)}\n' for name, value in environment.items()))
     (root / '.env.api').write_text(''.join(f'{name}={value}\n' for name, value in environment.items()
                                         if not name.startswith('POSTGRES_')))
