@@ -1,5 +1,6 @@
 {
   "$schema": "https://turborepo.dev/schema.json",
+  "globalPassThroughEnv": ["DATABASE_URL"],
   "tasks": {
     "dev": {
       "cache": false,
@@ -11,7 +12,9 @@
         ".next/**",
         "!.next/cache/**",
         "!.next/dev/**",
-        "dist/**"
+        "dist/**",
+        "dist-seed/**",
+        "src/generated/prisma/**"
       ]
     },
     "lint": {
