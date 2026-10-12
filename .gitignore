@@ -16,6 +16,7 @@ out/
 dist/
 build/
 *.tsbuildinfo
+__pycache__/
 
 # Turborepo and caches
 .turbo/

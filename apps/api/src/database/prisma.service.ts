@@ -16,11 +16,14 @@ export class PrismaService
   private readonly logger = new Logger(PrismaService.name);
 
   constructor(config: ConfigService) {
+    const connectionString = config.getOrThrow<string>('database.url');
+    const schema =
+      new URL(connectionString).searchParams.get('schema') || 'public';
     super({
-      adapter: new PrismaPg({
-        connectionString: config.getOrThrow<string>('database.url'),
-        connectionTimeoutMillis: 5000,
-      }),
+      adapter: new PrismaPg(
+        { connectionString, connectionTimeoutMillis: 5000 },
+        { schema },
+      ),
     });
   }
 
