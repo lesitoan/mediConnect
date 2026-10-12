@@ -1,3 +1,5 @@
+name: ${COMPOSE_PROJECT_NAME:?Set COMPOSE_PROJECT_NAME}
+
 services:
   postgres:
     image: postgres:16-alpine

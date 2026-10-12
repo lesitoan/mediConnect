@@ -1,78 +1,75 @@
 # Deploy API
 
-API được build bằng `turbo prune api --docker`, gắn tag Git SHA và push lên GHCR.
-Image gồm Prisma CLI, migration, Prisma Client và seed đã compile. Entrypoint chỉ chạy API.
-Database dùng volume PostgreSQL hiện có; Redis dùng Redis Cloud.
+Image được build bằng `turbo prune api --docker`, gắn tag Git SHA và push lên GHCR Public.
+Image gồm API, Prisma CLI, migration và seed đã compile. Entrypoint chỉ chạy API.
+PostgreSQL dùng volume hiện có; Redis dùng Redis Cloud. `.env.example` giữ nguyên.
 
 ## CI/CD
 
-- PR vào `main`: lint, typecheck, unit test, build. PR trong repository cũng push image để kiểm tra đóng gói.
-- Merge vào `main`: kiểm tra, build/push rồi deploy production qua SSH và Docker Compose.
-- Portainer chỉ dùng để xem container/log. Không cập nhật stack từ editor cũ trong Portainer vì cấu hình triển khai do Compose quản lý.
-- `workflow_dispatch` trên `main`: để trống `image` để build; nhập tag/digest GHCR có sẵn để deploy lại, đổi env hoặc rollback.
+- PR vào `main`: kiểm tra Bash/ShellCheck, build, lint, typecheck và unit test. PR trong repo cũng publish image.
+- Merge vào `main`: build/push rồi deploy qua SSH bằng Bash và Docker Compose.
+- `workflow_dispatch` trên `main`: nhập `image` có sẵn hoặc để trống để build từ commit được chọn.
+- Portainer dùng để xem container/log; cấu hình triển khai do Compose quản lý.
 
-Luồng deploy: pull image → backup DB → migrate → seed → thay API → chờ healthy → kiểm tra HTTPS → xóa image API cũ.
-Migration/seed lỗi thì API cũ tiếp tục chạy. Nếu API mới không healthy, cấu hình và image API cũ được khôi phục.
-Migration đã áp dụng không tự lùi; migration cần tương thích với phiên bản API trước đó.
-Ba bộ backup gần nhất được giữ trên server. Image cũ trên GHCR được giữ để tải lại khi cần rollback.
+`prepare-deployment.sh` trên runner tạo `.env`, `.env.api` và file SSH từ Secrets/Variables.
+`deploy.sh` trên EC2 kiểm tra PostgreSQL healthy, đúng project/volume → pull image → backup nếu bật
+→ migrate → cập nhật API → chờ healthy → xóa image API cũ. PostgreSQL không bị tạo lại.
+Seed và Nginx không chạy trong CD. Deploy lỗi sẽ dừng và báo job failed; không tự rollback.
 
-## GitHub Environment `production`
+## Secrets và Variables
 
-Secrets:
+GitHub Environment `production`:
 
-`SSH_HOST`, `SSH_USER`, `SSH_KEY`, `POSTGRES_PASSWORD`, `DATABASE_URL`, `REDIS_URL`,
-`JWT_SECRET`, `OTP_HMAC_SECRET`, `RESEND_API_KEY`, `ZALO_ACCESS_TOKEN` nếu dùng Zalo.
+| Loại | Tên |
+| --- | --- |
+| Secrets | `SSH_HOST`, `SSH_USER`, `SSH_KEY`, `POSTGRES_PASSWORD`, `DATABASE_URL`, `REDIS_URL`, `JWT_SECRET`, `OTP_HMAC_SECRET`, `RESEND_API_KEY`, `ZALO_ACCESS_TOKEN` nếu dùng |
+| Variables triển khai | `DEPLOY_PATH`, `COMPOSE_PROJECT_NAME`, `SSH_KNOWN_HOSTS`, `API_PORT` (mặc định `4000`), `BACKUP_DATABASE` (`true` mặc định, `false` để tắt) |
+| Variables ứng dụng/DB | `POSTGRES_USER`, `POSTGRES_DB`, `POSTGRES_VOLUME`, `POSTGRES_BIND_ADDRESS`, `CORS_ORIGINS`, `LOG_LEVEL`, `JWT_ACCESS_TTL_SECONDS`, `JWT_REFRESH_TTL_SECONDS`, `AUTH_COOKIE_SAME_SITE`, `RESEND_FROM_EMAIL`, `ZALO_OTP_TEMPLATE_ID`, `ZALO_OTP_CODE_PARAM` |
 
-Variables:
+Thêm env ứng dụng: thêm Secret/Variable và `APP_<TÊN_BIẾN>` trong workflow.
+Script tự ghi vào `.env.api`; không phải liệt kê lại trong Compose.
+`COMPOSE_PROJECT_NAME` và `POSTGRES_VOLUME` phải khớp database đang chạy.
+Container ID được lấy từ service `postgres`/`api` trong Compose.
 
-`DEPLOY_PATH`, `COMPOSE_PROJECT_NAME`, `SSH_KNOWN_HOSTS`, `POSTGRES_USER`, `POSTGRES_DB`,
-`POSTGRES_VOLUME`, `POSTGRES_BIND_ADDRESS`, `CORS_ORIGINS`, `LOG_LEVEL`,
-`JWT_ACCESS_TTL_SECONDS`, `JWT_REFRESH_TTL_SECONDS`, `AUTH_COOKIE_SAME_SITE`,
-`RESEND_FROM_EMAIL`, `ZALO_OTP_TEMPLATE_ID`, `ZALO_OTP_CODE_PARAM`.
+Server cần Bash, jq, Docker Compose >= 2.30; user SSH có quyền Docker.
+Trong `DEPLOY_PATH`: `compose.yml`, `.env` cho nội suy Compose, `.env.api` dùng `format: raw`,
+`incoming/` cho lượt deploy mới, `backups/` giữ ba dump mới nhất khi bật backup.
+Các file env có quyền `600`; không đưa secrets vào image hay Git.
 
-`COMPOSE_PROJECT_NAME` phải giữ `postgres-stack` trên server hiện tại; `POSTGRES_VOLUME` phải là volume PostgreSQL đang chạy.
-GHCR package `mediconnect/api` phải đặt Public để server pull mà không cần registry credential.
-Sau lần publish đầu tiên, chọn package → Package settings → Change visibility → Public.
+## Seed chạy tay
 
-Thêm env: cập nhật validation/config trong API, tạo Secret/Variable và thêm `APP_<TÊN_BIẾN>` trong bước chuẩn bị production.
-Không cần thêm từng biến vào Compose. `.env.example` được giữ theo cấu hình hiện tại.
-
-## Server
-
-Thư mục deploy hiện tại là `/opt/mediconnect`:
-
-```text
-compose.yml          # cấu hình đang hoạt động
-.env                 # biến nội suy Compose, mode 600
-.env.api             # env ứng dụng, mode 600; Compose dùng format raw
-nginx.conf           # cấu hình Nginx đang hoạt động
-origin-ca.pem        # CA công khai để kiểm tra HTTPS tại origin
-tls/origin.key       # private key chỉ trên server
-tls/origin.pem       # Cloudflare Origin Certificate
-incoming/            # file của lượt deploy tiếp theo
-backups/             # cấu hình và dump trước deploy
-```
-
-Server cần Docker Compose >= 2.30, Python 3, curl, Nginx và user SSH có quyền Docker/sudo.
-Lần khởi tạo phải có `compose.yml`, `.env`, `.env.api`, `nginx.conf` khớp deployment đang chạy.
-Các lần CD chỉ thay container API; PostgreSQL đang healthy không được tạo lại.
-API bind `127.0.0.1:4000`, Nginx nhận cổng 80/443.
-
-## Cloudflare
-
-Domain API: `api.mediconnect.io.vn`.
-Origin Certificate được ký từ CSR; private key không rời server.
-Tạo bản ghi A cho `api` tới IP EC2, bật proxy, SSL/TLS chọn **Full (strict)**.
-EC2 cần cho phép inbound TCP 80/443. Không cần mở cổng API 4000 để truy cập qua domain.
-Swagger: `https://api.mediconnect.io.vn/api/docs`.
-
-Kiểm tra origin trước khi DNS trỏ về server:
+Trong thư mục `DEPLOY_PATH` trên server:
 
 ```sh
-curl --cacert /opt/mediconnect/origin-ca.pem \
-  --resolve api.mediconnect.io.vn:443:127.0.0.1 \
-  https://api.mediconnect.io.vn/api/v1/health-check
+docker compose run --rm seed
 ```
+
+## Rollback
+
+Trong Actions, chạy lại workflow của commit production đã chạy tốt để deploy image mang Git SHA đó.
+Hoặc chạy workflow hiện tại với `image` là tag/digest cũ trên GHCR; cách này giữ script deploy hiện tại.
+Image cũ trên server bị xóa sau deploy thành công nhưng vẫn có trên GHCR để pull lại.
+Migration đã áp dụng không tự lùi; rollback API cần migration tương thích với phiên bản trước đó.
+Secrets/Variables lấy giá trị hiện tại tại thời điểm chạy lại.
+
+## Nginx và Cloudflare: cấu hình riêng một lần
+
+Nginx không được sửa hoặc reload khi deploy API. `nginx.conf` là template.
+Đặt `API_DOMAIN`, `DEPLOY_PATH`, `API_PORT` từ cấu hình môi trường đã chọn, rồi chạy riêng:
+
+```sh
+envsubst '${API_DOMAIN} ${DEPLOY_PATH} ${API_PORT}' < nginx.conf > nginx-rendered.conf
+sudo install -m 644 nginx-rendered.conf "/etc/nginx/sites-available/$COMPOSE_PROJECT_NAME"
+sudo ln -sfn "/etc/nginx/sites-available/$COMPOSE_PROJECT_NAME" "/etc/nginx/sites-enabled/$COMPOSE_PROJECT_NAME"
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+Các biến phải được `export` trước khi chạy `envsubst`; lệnh chỉ thay ba biến template và giữ nguyên `$host`, `$scheme` của Nginx.
+Cloudflare Origin Certificate/key nằm trong `DEPLOY_PATH/tls/origin.pem` và `origin.key`.
+Server hiện tại đã cấu hình Nginx/TLS; không cần chạy lại đoạn trên khi cập nhật API.
+Cloudflare: bản ghi A cho domain API tới EC2, bật proxy và SSL/TLS **Full (strict)**.
+EC2 mở TCP 80/443; API chỉ bind localhost. Swagger ở `https://<API_DOMAIN>/api/docs`.
+Khi đổi `API_PORT`, cập nhật Nginx riêng để khớp port mới.
 
 ## Build local
 
@@ -80,6 +77,5 @@ curl --cacert /opt/mediconnect/origin-ca.pem \
 docker build -f apps/api/Dockerfile -t mediconnect-api:local .
 ```
 
-Không đưa `.env`, private key hoặc secrets vào build context/image.
-Package chung mới phải được khai báo trong dependencies của API và có build output/entrypoint đúng;
-Turbo sẽ lấy các workspace phụ thuộc và build theo `dependsOn: ["^build"]`.
+Package chung phải khai báo trong dependencies của API và có build output/entrypoint đúng.
+Turbo lấy các workspace phụ thuộc và build theo `dependsOn: ["^build"]`.
