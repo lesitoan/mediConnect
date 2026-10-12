@@ -18,6 +18,8 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://build:build@localhost:5432/build
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -25,11 +27,14 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci --no-audit --no-fund
-      - name: Kiểm tra API
-        env:
-          DATABASE_URL: postgresql://build:build@localhost:5432/build
-        run: |
-          npx turbo run build lint check-types test --filter=api
+      - name: Generate Prisma Client và build API
+        run: npx turbo run build --filter=api
+      - name: Kiểm tra lint
+        run: npx turbo run lint --filter=api
+      - name: Kiểm tra kiểu dữ liệu
+        run: npx turbo run check-types --filter=api
+      - name: Chạy unit tests
+        run: npx turbo run test --filter=api
 
   build:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
