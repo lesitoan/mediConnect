@@ -5,9 +5,15 @@ import { RoleEnum } from '../src/modules/users/constants/roles.constant';
 import { PermissionEnum } from '../src/modules/authentication/constants/permissions.constant';
 
 async function seed(): Promise<void> {
-  if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required');
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) throw new Error('DATABASE_URL is required');
+  const schema =
+    new URL(connectionString).searchParams.get('schema') || 'public';
   const prisma = new PrismaClient({
-    adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
+    adapter: new PrismaPg(
+      { connectionString, connectionTimeoutMillis: 5000 },
+      { schema },
+    ),
   });
   try {
     await prisma.$transaction(async (transaction) => {
