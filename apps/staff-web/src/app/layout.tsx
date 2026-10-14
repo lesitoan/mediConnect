@@ -6,7 +6,11 @@ export const metadata: Metadata = {
   description: "Staff portal for MediConnect healthcare management",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="en">
       <body className="bg-background text-foreground font-sans antialiased">
