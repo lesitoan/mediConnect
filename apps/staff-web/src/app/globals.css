@@ -26,13 +26,16 @@
   --app-radius-2xl: 1rem;
   --app-radius-3xl: 1.5rem;
 
-  --background: #f0f4f8;
+  --background: #e9eff5;
   --surface: #ffffff;
   --foreground: #141E26;
   --muted: #5a6a7a;
 
-  --border: #e8eef4;
-  --border-strong: #d4dee8;
+  --sidebar-background: #f4f7fb;
+  --sidebar-border: #cad8e6;
+
+  --border: #dbe4ed;
+  --border-strong: #cad8e6;
 
   --tab-rail: color-mix(in srgb, var(--foreground) 10%, transparent);
 
@@ -113,6 +116,8 @@
   --color-muted: var(--muted);
   --color-border: var(--border);
   --color-border-strong: var(--border-strong);
+  --color-sidebar: var(--sidebar-background);
+  --color-sidebar-border: var(--sidebar-border);
   --color-tab-rail: var(--tab-rail);
   --color-chart-fill: var(--chart-fill);
   --color-secondary: var(--secondary);
@@ -144,6 +149,22 @@
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
 
+  /* Status and feedback tokens */
+  --color-success: var(--success);
+  --color-success-bg: var(--success-bg);
+  --color-warning: var(--warning);
+  --color-warning-bg: var(--warning-bg);
+  --color-error: var(--error);
+  --color-error-bg: var(--error-bg);
+  --color-error-border: var(--error-border);
+  --color-error-text: var(--error-text);
+  --color-danger: var(--danger);
+  --color-danger-bg: var(--danger-bg);
+  --color-danger-bg-hover: var(--danger-bg-hover);
+  --color-neutral: var(--neutral);
+  --color-neutral-bg: var(--neutral-bg);
+  --color-rating: #f59e0b;
+
   /* shadcn radius compat */
   --radius-lg: var(--app-radius-xl);
   --radius-md: var(--app-radius-lg);
@@ -160,15 +181,21 @@
   --radius-app-3xl: var(--app-radius-3xl);
 
   --text-label:   0.75rem;
-  --text-caption: 0.8125rem;
-  --text-body:    0.875rem;
-  --text-base:    1rem;
-  --text-heading: 1.125rem;
-  --text-title:   1.25rem;
-  --text-display: 1.5rem;
+  --text-caption: 0.75rem;
+  --text-body:    0.8125rem;
+  --text-base:    0.875rem;
+  --text-doctor:  0.9375rem;
+  --text-heading: 1rem;
+  --text-title:   1.125rem;
+  --text-display: 1.375rem;
 }
 
 @custom-variant dark (&:where(.dark, .dark *, .force-dark, .force-dark *):not(:where(.force-light, .force-light *)));
+
+::selection {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
 
 .bg-surface *,
 .bg-surface-overlay * { --button-hover: var(--button-hover-surface); }
@@ -180,6 +207,15 @@
   [role="button"]:not([aria-disabled="true"]) {
     cursor: pointer;
   }
+
+  body {
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    text-rendering: optimizeLegibility;
+  }
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
 }
 
 @media (max-width: 768px) {
@@ -211,3 +247,4 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
