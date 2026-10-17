@@ -1,17 +1,36 @@
 "use client";
 
+import * as React from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { Select } from "@/components/ui/Select";
+import { DEFAULT_PAGE_SIZE_OPTIONS } from "@/constants/constants";
 
 export interface PaginationProps {
   currentPage: number;
   totalPages: number;
   totalItems: number;
-  pageSize: number;
+  pageSize?: number;
+  pageSizeOptions?: readonly number[] | number[];
   itemName?: string;
   onPageChange: (page: number) => void;
+  onPageSizeChange?: (pageSize: number) => void;
   className?: string;
+
+  /** Hiển thị phần tóm tắt số lượng mục: */
+  hasItemCount?: boolean;
+  /** Hiển thị dropdown chọn số lượng mục trên mỗi trang*/
+  hasPageSize?: boolean;
+  /** Hiển thị các nút điều hướng chuyển trang */
+  hasNavigation?: boolean;
+
+  shouldShowItemCount?: boolean;
+  shouldShowPageSize?: boolean;
+  shouldShowNavigation?: boolean;
+
+  showItemCount?: boolean;
+  showPageSize?: boolean;
+  showNavigation?: boolean;
 }
 
 export function Pagination({
@@ -19,12 +38,41 @@ export function Pagination({
   totalPages,
   totalItems,
   pageSize,
+  pageSizeOptions = DEFAULT_PAGE_SIZE_OPTIONS,
   itemName = "mục",
   onPageChange,
+  onPageSizeChange,
   className,
+  hasItemCount,
+  hasPageSize,
+  hasNavigation,
+  shouldShowItemCount,
+  shouldShowPageSize,
+  shouldShowNavigation,
+  showItemCount,
+  showPageSize,
+  showNavigation,
 }: PaginationProps) {
-  const startItem = totalItems === 0 ? 0 : (currentPage - 1) * pageSize + 1;
-  const endItem = Math.min(currentPage * pageSize, totalItems);
+  const isItemCountVisible =
+    hasItemCount ?? shouldShowItemCount ?? showItemCount ?? true;
+  const isPageSizeVisible =
+    (hasPageSize ?? shouldShowPageSize ?? showPageSize ?? true) &&
+    pageSize !== undefined &&
+    onPageSizeChange !== undefined;
+  const isNavigationVisible =
+    hasNavigation ?? shouldShowNavigation ?? showNavigation ?? true;
+
+  const startItem = totalItems === 0 ? 0 : (currentPage - 1) * (pageSize ?? 1) + 1;
+  const endItem = pageSize ? Math.min(currentPage * pageSize, totalItems) : totalItems;
+
+  const resolvedPageSizeOptions = React.useMemo(() => {
+    const list = [...pageSizeOptions];
+    if (pageSize && !list.includes(pageSize)) {
+      list.push(pageSize);
+      list.sort((a, b) => a - b);
+    }
+    return list;
+  }, [pageSizeOptions, pageSize]);
 
   const getPageNumbers = () => {
     const pages: (number | string)[] = [];
@@ -42,76 +90,119 @@ export function Pagination({
     return pages;
   };
 
+  const hasLeftContent = isItemCountVisible || isPageSizeVisible;
+
   return (
     <div
       className={cn(
-        "mt-3.5 flex flex-col gap-2 rounded-app-lg border border-border bg-surface px-3.5 py-2.5 shadow-xs sm:flex-row sm:items-center sm:justify-between",
+        "flex flex-col gap-3 border-t border-border bg-sidebar/50 px-4 py-3 sm:flex-row sm:items-center",
+        hasLeftContent ? "sm:justify-between" : "sm:justify-end",
         className
       )}
     >
-      <div className="text-caption text-muted">
-        Hiển thị{" "}
-        <span className="font-bold text-foreground tabular-nums">
-          {startItem} – {endItem}
-        </span>{" "}
-        trong <span className="font-bold text-foreground tabular-nums">{totalItems}</span> {itemName}
-      </div>
+      {hasLeftContent && (
+        <div className="flex flex-wrap items-center gap-2.5 text-body">
+          {isItemCountVisible && (
+            <div className="text-muted">
+              Hiển thị{" "}
+              <span className="font-bold text-foreground tabular-nums">
+                {startItem} – {endItem}
+              </span>{" "}
+              /{" "}
+              <span className="font-bold text-foreground tabular-nums">
+                {totalItems}
+              </span>{" "}
+              {itemName}
+            </div>
+          )}
 
-      <div className="flex items-center gap-1 self-center sm:self-auto">
-        <Button
-          type="button"
-          variant="outline"
-          size="xs"
-          onClick={() => onPageChange(currentPage - 1)}
-          disabled={currentPage <= 1}
-          className="gap-1 border-border font-semibold text-caption h-7 px-2"
-        >
-          <ChevronLeft className="size-3" />
-          <span>Trước</span>
-        </Button>
+          {isItemCountVisible && isPageSizeVisible && (
+            <div className="hidden h-3.5 w-px bg-border sm:block" />
+          )}
 
-        {getPageNumbers().map((page, idx) => {
-          if (typeof page === "string") {
-            return (
-              <span
-                key={`ellipsis-${idx}`}
-                className="flex size-7 items-center justify-center text-caption text-muted select-none"
+          {isPageSizeVisible && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-muted">Hiển thị</span>
+              <Select
+                value={pageSize}
+                onChange={(e) => onPageSizeChange(Number(e.target.value))}
+                wrapperClassName="w-[110px]"
+                className="h-8 px-2.5 py-1 text-body font-medium"
               >
-                ...
-              </span>
+                {resolvedPageSizeOptions.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt} / trang
+                  </option>
+                ))}
+              </Select>
+            </div>
+          )}
+        </div>
+      )}
+
+      {isNavigationVisible && (
+        <div className="flex items-center gap-1 self-center sm:self-auto">
+          <button
+            type="button"
+            onClick={() => onPageChange(currentPage - 1)}
+            disabled={currentPage <= 1}
+            className={cn(
+              "flex size-8 items-center justify-center rounded-app-md transition-colors",
+              currentPage <= 1
+                ? "bg-secondary/40 text-muted/40 cursor-not-allowed"
+                : "bg-secondary text-primary hover:bg-secondary-hover cursor-pointer"
+            )}
+            aria-label="Trang trước"
+          >
+            <ChevronLeft className="size-4" />
+          </button>
+
+          {getPageNumbers().map((page, index) => {
+            if (typeof page === "string") {
+              return (
+                <span
+                  key={`ellipsis-${index}`}
+                  className="flex size-8 items-center justify-center text-caption font-semibold text-muted/50 select-none"
+                >
+                  ...
+                </span>
+              );
+            }
+
+            const isActive = page === currentPage;
+            return (
+              <button
+                key={`page-${page}`}
+                type="button"
+                onClick={() => onPageChange(page)}
+                className={cn(
+                  "flex size-8 items-center justify-center rounded-app-md text-caption tabular-nums transition-colors cursor-pointer select-none",
+                  isActive
+                    ? "bg-primary font-bold text-primary-foreground shadow-xs"
+                    : "font-semibold text-muted hover:bg-secondary hover:text-foreground"
+                )}
+              >
+                {page}
+              </button>
             );
-          }
+          })}
 
-          const isActive = page === currentPage;
-          return (
-            <Button
-              key={`page-${page}`}
-              type="button"
-              variant={isActive ? "default" : "ghost"}
-              size="icon-xs"
-              onClick={() => onPageChange(page)}
-              className={cn(
-                "size-7 rounded-app-sm text-caption font-bold tabular-nums",
-                isActive ? "shadow-xs" : "text-muted hover:text-foreground"
-              )}
-            >
-              {page}
-            </Button>
-          );
-        })}
-
-        <Button
-          type="button"
-          variant="secondary"
-          size="xs"
-          onClick={() => onPageChange(currentPage + 1)}
-          disabled={currentPage >= totalPages}
-          className="gap-1 font-semibold text-primary hover:bg-secondary-hover h-7 px-2"
-        >
-          <span>Sau</span>
-          <ChevronRight className="size-3" />
-        </Button>
-      </div>
+          <button
+            type="button"
+            onClick={() => onPageChange(currentPage + 1)}
+            disabled={currentPage >= totalPages}
+            className={cn(
+              "flex size-8 items-center justify-center rounded-app-md transition-colors",
+              currentPage >= totalPages
+                ? "bg-secondary/40 text-muted/40 cursor-not-allowed"
+                : "bg-secondary text-primary hover:bg-secondary-hover cursor-pointer"
+            )}
+            aria-label="Trang sau"
+          >
+            <ChevronRight className="size-4" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
