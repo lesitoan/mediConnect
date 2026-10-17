@@ -23,10 +23,10 @@ import {
 import { UserHeader } from "./UserHeader";
 import { UserFilters } from "./UserFilters";
 import { UserTable } from "./UserTable";
-import { UserPagination } from "./UserPagination";
-import { AddUserModal } from "./AddUserModal";
-import { EditUserModal } from "./EditUserModal";
-import { UserStatusModal } from "./UserStatusModal";
+import { Pagination } from "@/components/shared/Pagination";
+import { AddUserModal } from "./modals/AddUserModal";
+import { EditUserModal } from "./modals/EditUserModal";
+import { UserStatusModal } from "./modals/UserStatusModal";
 import { UserDetailsDrawer } from "./UserDetailsDrawer";
 import { useTableFilters } from "@/hooks/useTableFilters";
 import { useModal } from "@/hooks/useModal";
@@ -167,11 +167,12 @@ export function UserManagementView() {
               onViewDetails={(user) => drawer.open(user)}
             />
 
-            <UserPagination
+            <Pagination
               currentPage={filters.page}
               totalPages={totalPages}
               totalItems={filteredUsers.length}
               pageSize={filters.pageSize}
+              itemName="tài khoản"
               onPageChange={(page) => setFilter("page", page)}
               onPageSizeChange={(newSize) => {
                 setFilter("pageSize", newSize);

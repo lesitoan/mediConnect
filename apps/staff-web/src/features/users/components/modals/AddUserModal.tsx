@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import {
   Dialog,
   DialogContent,
@@ -13,67 +13,64 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
-import { DEPARTMENTS } from "../constants";
-import type { User, UpdateUserInput, UserRole } from "../types/userTypes";
+import { Checkbox } from "@/components/ui/Checkbox";
+import { DEPARTMENTS } from "../../constants";
+import type { CreateUserInput, UserRole } from "../../types/userTypes";
 
-interface EditUserModalProps {
-  user: User | null;
+interface AddUserModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (input: UpdateUserInput) => void;
+  onSubmit: (input: CreateUserInput) => void;
 }
 
-interface EditUserFormData {
+interface AddUserFormData {
   name: string;
   email: string;
   phone: string;
   role: UserRole;
   department: string;
+  sendOtp: boolean;
 }
 
-export function EditUserModal({
-  user,
-  isOpen,
-  onClose,
-  onSave,
-}: EditUserModalProps) {
+export function AddUserModal({ isOpen, onClose, onSubmit }: AddUserModalProps) {
   const {
     register,
     handleSubmit,
+    control,
     reset,
     formState: { errors },
-  } = useForm<EditUserFormData>({
+  } = useForm<AddUserFormData>({
     defaultValues: {
       name: "",
       email: "",
       phone: "",
       role: "DOCTOR",
       department: DEPARTMENTS[0],
+      sendOtp: true,
     },
   });
 
   useEffect(() => {
-    if (user) {
+    if (isOpen) {
       reset({
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-        role: user.role,
-        department: user.department,
+        name: "",
+        email: "",
+        phone: "",
+        role: "DOCTOR",
+        department: DEPARTMENTS[0],
+        sendOtp: true,
       });
     }
-  }, [user, reset]);
+  }, [isOpen, reset]);
 
-  if (!user) return null;
-
-  const onFormSubmit = (data: EditUserFormData) => {
-    onSave({
-      id: user.id,
+  const onFormSubmit = (data: AddUserFormData) => {
+    onSubmit({
       name: data.name.trim(),
       email: data.email.trim(),
       phone: data.phone.trim(),
       role: data.role,
       department: data.department,
+      sendOtp: data.sendOtp,
     });
     onClose();
   };
@@ -82,21 +79,19 @@ export function EditUserModal({
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Cập nhật thông tin tài khoản</DialogTitle>
-          <DialogDescription>
-            Mã tài khoản: <span className="font-bold text-primary">{user.code}</span> · {user.name}
-          </DialogDescription>
+          <DialogTitle>Tạo tài khoản người dùng mới</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-4 p-5 sm:p-6">
           <div className="space-y-1.5">
             <label className="text-caption font-semibold text-foreground">
-              Họ và tên <span className="text-error">*</span>
+              Họ và tên người dùng <span className="text-error">*</span>
             </label>
             <Input
               {...register("name", {
                 required: "Vui lòng nhập họ và tên",
               })}
+              placeholder="VD: BS. Nguyễn Tuấn Kiệt"
               className="bg-surface border-input"
             />
             {errors.name && (
@@ -107,7 +102,7 @@ export function EditUserModal({
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <label className="text-caption font-semibold text-foreground">
-                Email <span className="text-error">*</span>
+                Địa chỉ Email <span className="text-error">*</span>
               </label>
               <Input
                 type="email"
@@ -118,6 +113,7 @@ export function EditUserModal({
                     message: "Vui lòng nhập địa chỉ email hợp lệ",
                   },
                 })}
+                placeholder="VD: user@mediconnect.vn"
                 className="bg-surface border-input"
               />
               {errors.email && (
@@ -127,12 +123,13 @@ export function EditUserModal({
 
             <div className="space-y-1.5">
               <label className="text-caption font-semibold text-foreground">
-                Số điện thoại <span className="text-error">*</span>
+                Số điện thoại liên hệ <span className="text-error">*</span>
               </label>
               <Input
                 {...register("phone", {
                   required: "Vui lòng nhập số điện thoại",
                 })}
+                placeholder="VD: +84 912 345 678"
                 className="bg-surface border-input"
               />
               {errors.phone && (
@@ -144,7 +141,7 @@ export function EditUserModal({
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <label className="text-caption font-semibold text-foreground">
-                Vai trò (RBAC) <span className="text-error">*</span>
+                Vai trò truy cập (RBAC) <span className="text-error">*</span>
               </label>
               <Select
                 {...register("role")}
@@ -160,7 +157,7 @@ export function EditUserModal({
 
             <div className="space-y-1.5">
               <label className="text-caption font-semibold text-foreground">
-                Khoa / Bộ phận <span className="text-error">*</span>
+                Khoa / Bộ phận công tác <span className="text-error">*</span>
               </label>
               <Select
                 {...register("department")}
@@ -175,15 +172,40 @@ export function EditUserModal({
             </div>
           </div>
 
+          <div className="flex items-center gap-2 rounded-app-md border border-border bg-sidebar/50 p-3">
+            <Controller
+              name="sendOtp"
+              control={control}
+              render={({ field }) => (
+                <Checkbox
+                  id="send-otp"
+                  checked={field.value}
+                  onCheckedChange={(checked) => field.onChange(checked === true)}
+                />
+              )}
+            />
+            <label
+              htmlFor="send-otp"
+              className="text-caption font-medium text-foreground cursor-pointer"
+            >
+              Yêu cầu xác thực tài khoản qua OTP
+            </label>
+          </div>
+
           <DialogFooter className="-mx-5 -mb-5 sm:-mx-6 sm:-mb-6">
-            <Button type="button" variant="outline" onClick={onClose}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
+              className="h-8.5 px-4 text-body font-medium"
+            >
               Hủy bỏ
             </Button>
             <Button
               type="submit"
-              className="bg-primary text-primary-foreground hover:bg-primary-hover"
+              className="h-8.5 bg-primary px-4 text-body font-semibold text-primary-foreground hover:bg-primary-hover"
             >
-              Lưu thay đổi
+              Tạo tài khoản
             </Button>
           </DialogFooter>
         </form>

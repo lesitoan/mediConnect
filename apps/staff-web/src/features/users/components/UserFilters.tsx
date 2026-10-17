@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { Search } from "lucide-react";
+import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import type {
   UserRoleFilter,
@@ -64,13 +65,13 @@ export function UserFilters({
       <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 md:grid-cols-12">
         <div className="relative sm:col-span-2 md:col-span-5 lg:col-span-5">
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted" />
-          <input
+          <Input
             ref={searchInputRef}
             type="text"
             value={localSearch}
             onChange={(e) => setLocalSearch(e.target.value)}
             placeholder="Tìm theo họ tên, email, SĐT hoặc mã TK..."
-            className="h-9.5 w-full rounded-app-md border border-input bg-surface pr-12 pl-9 text-body text-foreground placeholder:text-muted transition-colors focus:border-border-focus focus:outline-none focus:ring-1 focus:ring-ring"
+            className="h-9.5 pr-12 pl-9"
           />
           <div className="pointer-events-none absolute top-1/2 right-2.5 flex -translate-y-1/2 items-center rounded-app-sm bg-secondary px-1.5 py-0.5 text-label font-bold text-muted">
             F2
@@ -83,7 +84,7 @@ export function UserFilters({
             onChange={(e) =>
               onRoleFilterChange(e.target.value as UserRoleFilter)
             }
-            className="h-9.5 rounded-app-md border-input bg-surface text-body text-foreground font-normal hover:bg-surface-hover focus:bg-surface"
+            className="h-9.5"
           >
             <option value="ALL">Tất cả vai trò</option>
             <option value="ADMIN">Quản trị viên</option>
@@ -99,7 +100,7 @@ export function UserFilters({
             onChange={(e) =>
               onStatusFilterChange(e.target.value as UserStatusFilter)
             }
-            className="h-9.5 rounded-app-md border-input bg-surface text-body text-foreground font-normal hover:bg-surface-hover focus:bg-surface"
+            className="h-9.5"
           >
             <option value="ALL">Tất cả trạng thái</option>
             <option value="ACTIVE">Hoạt động</option>
@@ -112,7 +113,7 @@ export function UserFilters({
           <Select
             value={departmentFilter}
             onChange={(e) => onDepartmentFilterChange(e.target.value)}
-            className="h-9.5 rounded-app-md border-input bg-surface text-body text-foreground font-normal hover:bg-surface-hover focus:bg-surface"
+            className="h-9.5"
           >
             <option value="">Tất cả khoa / bộ phận</option>
             {departments.map((dept) => (

@@ -13,6 +13,7 @@ import {
   KeyRound,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import {
   Drawer,
   DrawerContent,
@@ -67,16 +68,6 @@ export function UserDetailsDrawer({
               {activeUser.initials}
             </div>
             <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="rounded-app-sm bg-primary-light px-2 py-0.5 text-label font-bold text-primary border border-primary/20">
-                  {activeUser.code}
-                </span>
-                {activeUser.isCurrentUser && (
-                  <span className="rounded-app-sm bg-brand-secondary-light px-1.5 py-0.5 text-label font-bold text-primary">
-                    Bạn
-                  </span>
-                )}
-              </div>
               <DrawerTitle className="mt-0.5 truncate">
                 {activeUser.name}
               </DrawerTitle>
@@ -201,7 +192,12 @@ export function UserDetailsDrawer({
         <DrawerFooter>
           <DrawerClose
             render={
-              <Button type="button" variant="outline" size="sm" onClick={onClose}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onClose}
+                className="h-8.5 px-4 text-body font-medium"
+              >
                 Đóng
               </Button>
             }
@@ -211,12 +207,11 @@ export function UserDetailsDrawer({
             <Button
               type="button"
               variant="outline"
-              size="sm"
               onClick={() => {
                 onClose();
                 onEdit(activeUser);
               }}
-              className="gap-1.5 font-semibold text-primary border-border hover:bg-secondary/50"
+              className="h-8.5 px-4 text-body font-semibold gap-1.5 text-primary border-border hover:bg-secondary/50"
             >
               <Edit2 className="size-3.5" />
               <span>Chỉnh sửa</span>
@@ -226,16 +221,16 @@ export function UserDetailsDrawer({
               <Button
                 type="button"
                 variant={isLocked ? "default" : "destructive"}
-                size="sm"
                 onClick={() => {
                   onClose();
                   onToggleStatus(activeUser);
                 }}
-                className={
+                className={cn(
+                  "h-8.5 px-4 text-body font-semibold gap-1.5 text-primary-foreground",
                   isLocked
-                    ? "gap-1.5 bg-success text-primary-foreground hover:bg-success/90"
-                    : "gap-1.5 bg-danger text-primary-foreground hover:bg-danger/90"
-                }
+                    ? "bg-success hover:bg-success/90"
+                    : "bg-danger hover:bg-danger/90"
+                )}
               >
                 {isLocked ? (
                   <>

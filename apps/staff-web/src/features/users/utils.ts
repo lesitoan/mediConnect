@@ -5,7 +5,7 @@ import type { UserRole, UserStatus } from "./types/userTypes";
 export function getUserRoleLabel(role: UserRole): string {
   switch (role) {
     case "SUPER_ADMIN":
-      return "Super Admin";
+      return "Super ad";
     case "ADMIN":
       return "Quản trị viên";
     case "DOCTOR":
@@ -22,9 +22,9 @@ export function getUserRoleLabel(role: UserRole): string {
 export function getUserStatusLabel(status: UserStatus): string {
   switch (status) {
     case "ACTIVE":
-      return "Đang hoạt động";
+      return "Hoạt động";
     case "PENDING_OTP":
-      return "Chờ kích hoạt OTP";
+      return "Chờ duyệt";
     case "LOCKED":
       return "Đã khóa";
     default:

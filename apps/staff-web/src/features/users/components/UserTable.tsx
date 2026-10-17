@@ -36,35 +36,35 @@ export function UserTable({
     switch (role) {
       case "SUPER_ADMIN":
         return (
-          <Badge variant="brand" shape="pill" className="font-bold">
+          <Badge variant="brand" shape="pill" size="sm" className="font-bold">
             <span className="size-1.5 rounded-full bg-primary" />
             <span>{getUserRoleLabel(role)}</span>
           </Badge>
         );
       case "ADMIN":
         return (
-          <Badge variant="brand" shape="pill" className="font-semibold">
+          <Badge variant="brand" shape="pill" size="sm" className="font-semibold">
             <span className="size-1.5 rounded-full bg-primary" />
             <span>{getUserRoleLabel(role)}</span>
           </Badge>
         );
       case "DOCTOR":
         return (
-          <Badge variant="secondary" shape="pill" className="font-semibold text-primary">
+          <Badge variant="secondary" shape="pill" size="sm" className="font-semibold text-primary">
             <span className="size-1.5 rounded-full bg-primary" />
             <span>{getUserRoleLabel(role)}</span>
           </Badge>
         );
       case "RECEPTIONIST":
         return (
-          <Badge variant="tertiary" shape="pill" className="font-semibold">
+          <Badge variant="tertiary" shape="pill" size="sm" className="font-semibold">
             <span className="size-1.5 rounded-full bg-brand-tertiary-foreground" />
             <span>{getUserRoleLabel(role)}</span>
           </Badge>
         );
       case "PATIENT":
         return (
-          <Badge variant="neutral" shape="pill" className="font-semibold">
+          <Badge variant="neutral" shape="pill" size="sm" className="font-semibold">
             <span className="size-1.5 rounded-full bg-muted" />
             <span>{getUserRoleLabel(role)}</span>
           </Badge>
@@ -76,21 +76,21 @@ export function UserTable({
     switch (status) {
       case "ACTIVE":
         return (
-          <Badge variant="success" shape="pill" className="font-semibold">
+          <Badge variant="success" shape="pill" size="sm" className="font-semibold">
             <span className="size-1.5 rounded-full bg-success" />
             <span>{getUserStatusLabel(status)}</span>
           </Badge>
         );
       case "PENDING_OTP":
         return (
-          <Badge variant="warning" shape="pill" className="font-semibold">
+          <Badge variant="warning" shape="pill" size="sm" className="font-semibold">
             <span className="size-1.5 rounded-full bg-warning" />
             <span>{getUserStatusLabel(status)}</span>
           </Badge>
         );
       case "LOCKED":
         return (
-          <Badge variant="danger" shape="pill" className="font-bold">
+          <Badge variant="danger" shape="pill" size="sm" className="font-bold">
             <span className="size-1.5 rounded-full bg-danger" />
             <span>{getUserStatusLabel(status)}</span>
           </Badge>
@@ -102,26 +102,26 @@ export function UserTable({
     <Table className="min-w-[940px] text-left">
       <TableHeader>
         <TableRow className="border-b border-border bg-sidebar/70 hover:bg-sidebar/70">
-          <TableHead className="w-[60px] px-3.5 py-3 text-label font-bold tracking-wider text-muted uppercase">
-            STT
+          <TableHead className="w-[60px] px-3.5 py-3 text-body font-bold tracking-wider text-muted">
+            Stt
           </TableHead>
-          <TableHead className="min-w-[240px] px-3.5 py-3 text-label font-bold tracking-wider text-muted uppercase">
-            HỌ TÊN & ĐƠN VỊ
+          <TableHead className="min-w-[240px] px-3.5 py-3 text-body font-bold tracking-wider text-muted">
+            Họ và tên
           </TableHead>
-          <TableHead className="min-w-[220px] px-3.5 py-3 text-label font-bold tracking-wider text-muted uppercase">
-            EMAIL / LIÊN HỆ
+          <TableHead className="min-w-[220px] px-3.5 py-3 text-body font-bold tracking-wider text-muted">
+            Email / Liên hệ
           </TableHead>
-          <TableHead className="w-[120px] px-3 py-3 text-label font-bold tracking-wider text-muted uppercase">
-            VAI TRÒ (RBAC)
+          <TableHead className="w-[120px] px-3 py-3 text-body font-bold tracking-wider text-muted">
+            Vai trò
           </TableHead>
-          <TableHead className="w-[110px] px-3 py-3 text-label font-bold tracking-wider text-muted uppercase">
-            TRẠNG THÁI
+          <TableHead className="w-[110px] px-3 py-3 text-body font-bold tracking-wider text-muted">
+            Trạng thái
           </TableHead>
-          <TableHead className="w-[96px] px-3 py-3 text-label font-bold tracking-wider text-muted uppercase">
-            NGÀY TẠO
+          <TableHead className="w-[96px] px-3 py-3 text-body font-bold tracking-wider text-muted">
+            Ngày tạo
           </TableHead>
-          <TableHead className="w-[90px] px-3.5 py-3 text-right text-label font-bold tracking-wider text-muted uppercase">
-            THAO TÁC
+          <TableHead className="w-[90px] px-3.5 py-3 text-right text-body font-bold tracking-wider text-muted">
+            Thao tác
           </TableHead>
         </TableRow>
       </TableHeader>
@@ -130,18 +130,9 @@ export function UserTable({
           const stt =
             page && pageSize ? (page - 1) * pageSize + index + 1 : index + 1;
           const isLocked = user.status === "LOCKED";
-          const isPendingOtp = user.status === "PENDING_OTP";
 
           return (
-            <TableRow
-              key={user.id}
-              className={cn(
-                "transition-colors",
-                isLocked && "bg-danger-bg/40 opacity-85 hover:bg-danger-bg/50",
-                isPendingOtp && "bg-warning-bg/40 hover:bg-warning-bg/50",
-                !isLocked && !isPendingOtp && "bg-surface hover:bg-surface-hover"
-              )}
-            >
+            <TableRow key={user.id}>
               <TableCell className="w-[60px] px-3.5 py-3 align-middle">
                 <span className="text-body font-semibold text-muted tabular-nums">
                   {stt}

@@ -13,6 +13,8 @@ const DialogPortal = DialogPrimitive.Portal;
 
 const DialogClose = DialogPrimitive.Close;
 
+const DialogViewport = DialogPrimitive.Viewport;
+
 const DialogBackdrop = React.forwardRef<
   React.ComponentRef<typeof DialogPrimitive.Backdrop>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Backdrop>
@@ -20,7 +22,7 @@ const DialogBackdrop = React.forwardRef<
   <DialogPrimitive.Backdrop
     ref={ref}
     className={cn(
-      "fixed inset-0 z-50 bg-brand-neutral/40 backdrop-blur-xs transition-opacity duration-200",
+      "fixed inset-0 z-50 bg-brand-neutral/40 backdrop-blur-xs transition-opacity duration-200 ease-out data-starting-style:opacity-0 data-ending-style:opacity-0",
       className
     )}
     {...props}
@@ -36,11 +38,11 @@ const DialogContent = React.forwardRef<
 >(({ className, children, showCloseButton = true, ...props }, ref) => (
   <DialogPortal>
     <DialogBackdrop />
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <DialogPrimitive.Viewport className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <DialogPrimitive.Popup
         ref={ref}
         className={cn(
-          "relative z-50 flex w-full max-w-lg flex-col overflow-hidden rounded-app-2xl border border-border bg-surface-overlay text-foreground shadow-modal transition-[opacity,transform] duration-200",
+          "relative z-50 flex w-full max-w-lg flex-col overflow-visible rounded-app-2xl border border-border bg-surface-overlay text-foreground shadow-modal transition-all duration-200 ease-out data-starting-style:scale-95 data-starting-style:opacity-0 data-ending-style:scale-95 data-ending-style:opacity-0",
           className
         )}
         {...props}
@@ -48,14 +50,14 @@ const DialogContent = React.forwardRef<
         {children}
         {showCloseButton && (
           <DialogPrimitive.Close
-            className="absolute top-4 right-4 rounded-app-md p-1.5 text-muted transition-colors hover:bg-item-hover hover:text-foreground focus-visible:border-border-color-focus focus-visible:ring-3 focus-visible:ring-ring-color-focus focus-visible:outline-hidden"
+            className="absolute top-4 right-4 rounded-app-md p-1.5 text-muted transition-colors hover:bg-item-hover hover:text-foreground focus-visible:border-border-color-focus focus-visible:ring-3 focus-visible:ring-ring-color-focus focus-visible:outline-hidden cursor-pointer"
             aria-label="Đóng"
           >
             <X className="size-4" />
           </DialogPrimitive.Close>
         )}
       </DialogPrimitive.Popup>
-    </div>
+    </DialogPrimitive.Viewport>
   </DialogPortal>
 ));
 DialogContent.displayName = "DialogContent";
@@ -66,7 +68,7 @@ const DialogHeader = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      "flex flex-col space-y-1.5 border-b border-border bg-primary-light/50 p-5 sm:p-6",
+      "flex flex-col space-y-1.5 rounded-t-app-2xl border-b border-border bg-primary-light/50 p-5 sm:p-6",
       className
     )}
     {...props}
@@ -80,7 +82,7 @@ const DialogFooter = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      "flex flex-col-reverse gap-2 border-t border-border bg-surface p-4 sm:flex-row sm:justify-end sm:gap-3 sm:px-6",
+      "flex flex-col-reverse gap-2 rounded-b-app-2xl border-t border-border bg-surface p-4 sm:flex-row sm:justify-end sm:gap-3 sm:px-6",
       className
     )}
     {...props}
@@ -119,6 +121,7 @@ export {
   Dialog,
   DialogPortal,
   DialogBackdrop,
+  DialogViewport,
   DialogTrigger,
   DialogClose,
   DialogContent,

@@ -42,6 +42,35 @@ export const DEPARTMENTS = [
   "Hồ sơ BN",
 ] as const;
 
+export interface LockReasonOption {
+  value: string;
+  label: string;
+}
+
+export const LOCK_REASON_OPTIONS: readonly LockReasonOption[] = [
+  {
+    value: "Thay đổi nhân sự / Nghỉ việc",
+    label: "Thay đổi nhân sự / Nghỉ việc",
+  },
+  {
+    value: "Phát hiện đăng nhập bất thường",
+    label: "Phát hiện đăng nhập bất thường / Nghi vấn bảo mật",
+  },
+  {
+    value: "Yêu cầu tạm ngưng từ Ban Giám đốc",
+    label: "Yêu cầu tạm ngưng từ Ban Giám đốc",
+  },
+  {
+    value: "Vi phạm chính sách bảo mật HIPAA/BYT",
+    label: "Vi phạm chính sách bảo mật HIPAA / BYT",
+  },
+  {
+    value: "Khác",
+    label: "Lý do khác",
+  },
+] as const;
+
+
 export const SEED_USERS: User[] = [
   {
     id: "usr-001",
