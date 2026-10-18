@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Checkbox } from "@/components/ui/Checkbox";
+import { Loading } from "@/components/shared/Loading";
 import { DEPARTMENTS } from "../../constants";
 import { useCreateUserMutation } from "../../services/usersApi";
 import type { UserRole } from "../../types/userTypes";
@@ -237,7 +238,18 @@ export function AddUserModal({
                 disabled={isSubmitting}
                 className="h-8.5 bg-primary px-4 text-body font-semibold text-primary-foreground hover:bg-primary-hover"
               >
-                {isSubmitting ? "Đang tạo..." : "Tạo tài khoản"}
+                {isSubmitting ? (
+                  <>
+                    <Loading
+                      size="sm"
+                      label="Đang tạo tài khoản..."
+                      iconClassName="text-current"
+                    />
+                    Đang tạo...
+                  </>
+                ) : (
+                  "Tạo tài khoản"
+                )}
               </Button>
             </DialogFooter>
           </fieldset>

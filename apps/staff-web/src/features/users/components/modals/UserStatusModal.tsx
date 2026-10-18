@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import toast from "react-hot-toast";
 import { useForm } from "react-hook-form";
 import { cn } from "@/lib/utils";
+import { Loading } from "@/components/shared/Loading";
 import {
   Dialog,
   DialogContent,
@@ -165,11 +166,20 @@ export function UserStatusModal({
                       : "bg-success hover:bg-success/90",
                   )}
                 >
-                  {isSubmitting
-                    ? "Đang xử lý..."
-                    : isLocking
-                      ? "Xác nhận khóa"
-                      : "Xác nhận mở khóa"}
+                  {isSubmitting ? (
+                    <>
+                      <Loading
+                        size="sm"
+                        label="Đang xử lý..."
+                        iconClassName="text-current"
+                      />
+                      Đang xử lý...
+                    </>
+                  ) : isLocking ? (
+                    "Xác nhận khóa"
+                  ) : (
+                    "Xác nhận mở khóa"
+                  )}
                 </Button>
               </DialogFooter>
             </div>

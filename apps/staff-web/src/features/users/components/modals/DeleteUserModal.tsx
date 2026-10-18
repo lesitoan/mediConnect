@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/Dialog";
 import { Button } from "@/components/ui/button";
+import { Loading } from "@/components/shared/Loading";
 import { useDeleteUserMutation } from "../../services/usersApi";
 import type { User } from "../../types/userTypes";
 
@@ -87,7 +88,18 @@ export function DeleteUserModal({
               variant="destructive"
               disabled={isSubmitting || user.isCurrentUser}
             >
-              {isSubmitting ? "Đang xóa..." : "Xác nhận xóa"}
+              {isSubmitting ? (
+                <>
+                  <Loading
+                    size="sm"
+                    label="Đang xóa tài khoản..."
+                    iconClassName="text-current"
+                  />
+                  Đang xóa...
+                </>
+              ) : (
+                "Xác nhận xóa"
+              )}
             </Button>
           </DialogFooter>
         </form>

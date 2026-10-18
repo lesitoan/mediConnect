@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { UserX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Empty } from "@/components/ui/Empty";
+import { Loading } from "@/components/shared/Loading";
 import type { User } from "../types/userTypes";
 import { useGetUsersQuery } from "../services/usersApi";
 import {
@@ -106,9 +107,10 @@ export function UserManagementView() {
         aria-busy={isFetching}
       >
         {isLoading ? (
-          <p role="status" className="p-12 text-center text-muted">
-            Đang tải danh sách người dùng...
-          </p>
+          <Loading
+            label="Đang tải danh sách người dùng..."
+            className="min-h-[50vh]"
+          />
         ) : isError ? (
           <Empty
             role="alert"

@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { Toaster } from "react-hot-toast";
+import { Loading } from "@/components/shared/Loading";
 import { UserManagementView } from "@/features/users/components";
 
 export const metadata: Metadata = {
@@ -16,9 +17,7 @@ export default function UsersPage() {
         position="top-right"
         toastOptions={{ style: { fontSize: "13px" } }}
       />
-      <Suspense
-        fallback={<div className="p-8 text-center text-muted">Đang tải...</div>}
-      >
+      <Suspense fallback={<Loading className="min-h-screen" />}>
         <UserManagementView />
       </Suspense>
     </>

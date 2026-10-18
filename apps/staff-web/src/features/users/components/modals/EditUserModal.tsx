@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
+import { Loading } from "@/components/shared/Loading";
 import { DEPARTMENTS } from "../../constants";
 import { useUpdateUserMutation } from "../../services/usersApi";
 import type { User, UserRole } from "../../types/userTypes";
@@ -213,7 +214,18 @@ export function EditUserModal({
                 disabled={isSubmitting}
                 className="h-8.5 bg-primary px-4 text-body font-semibold text-primary-foreground hover:bg-primary-hover"
               >
-                {isSubmitting ? "Đang lưu..." : "Lưu thay đổi"}
+                {isSubmitting ? (
+                  <>
+                    <Loading
+                      size="sm"
+                      label="Đang lưu thay đổi..."
+                      iconClassName="text-current"
+                    />
+                    Đang lưu...
+                  </>
+                ) : (
+                  "Lưu thay đổi"
+                )}
               </Button>
             </DialogFooter>
           </fieldset>
