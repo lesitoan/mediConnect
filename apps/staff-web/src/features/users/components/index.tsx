@@ -1,21 +1,13 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
 import { UserX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Empty } from "@/components/ui/Empty";
-import type {
-  User,
-  CreateUserInput,
-  UpdateUserInput,
-  ToggleUserStatusInput,
-} from "../types/userTypes";
+import { Loading } from "@/components/shared/Loading";
+import type { User } from "../types/userTypes";
+import { useGetUsersQuery } from "../services/usersApi";
 import {
-  createUserRecord,
-  updateUserRecord,
-} from "../services/usersService";
-import {
-  INITIAL_USERS,
   DEPARTMENTS,
   DEFAULT_FILTERS,
   type UserTableFilterValues,
@@ -27,25 +19,36 @@ import { Pagination } from "@/components/shared/Pagination";
 import { AddUserModal } from "./modals/AddUserModal";
 import { EditUserModal } from "./modals/EditUserModal";
 import { UserStatusModal } from "./modals/UserStatusModal";
+import { DeleteUserModal } from "./modals/DeleteUserModal";
 import { UserDetailsDrawer } from "./UserDetailsDrawer";
 import { useTableFilters } from "@/hooks/useTableFilters";
 import { useModal } from "@/hooks/useModal";
 
+const EMPTY_USERS: User[] = [];
+
 export function UserManagementView() {
-  const [users, setUsers] = useState<User[]>(INITIAL_USERS);
+  const {
+    data: users = EMPTY_USERS,
+    isLoading,
+    isFetching,
+    isError,
+    refetch,
+  } = useGetUsersQuery();
   const { filters, setFilter, resetFilters } =
     useTableFilters<UserTableFilterValues>(DEFAULT_FILTERS);
 
   const addModal = useModal();
   const editModal = useModal<User>();
   const statusModal = useModal<User>();
+  const deleteModal = useModal<User>();
   const drawer = useModal<User>();
 
   const filteredUsers = useMemo(() => {
     return users.filter((user) => {
       if (filters.role !== "ALL") {
         if (filters.role === "ADMIN") {
-          if (user.role !== "ADMIN" && user.role !== "SUPER_ADMIN") return false;
+          if (user.role !== "ADMIN" && user.role !== "SUPER_ADMIN")
+            return false;
         } else if (user.role !== filters.role) {
           return false;
         }
@@ -74,56 +77,17 @@ export function UserManagementView() {
 
   const totalPages = Math.max(
     1,
-    Math.ceil(filteredUsers.length / filters.pageSize)
+    Math.ceil(filteredUsers.length / filters.pageSize),
   );
   const paginatedUsers = useMemo(() => {
     const startIndex = (filters.page - 1) * filters.pageSize;
     return filteredUsers.slice(startIndex, startIndex + filters.pageSize);
   }, [filteredUsers, filters.page, filters.pageSize]);
 
-  const handleAddUser = (input: CreateUserInput) => {
-    const newUser = createUserRecord(input, users.length + 1);
-    setUsers((prev) => [newUser, ...prev]);
-    console.log(`Đã tạo thành công tài khoản cho ${newUser.name}`);
-  };
-
-  const handleSaveEditUser = (input: UpdateUserInput) => {
-    setUsers((prev) =>
-      prev.map((u) => (u.id === input.id ? updateUserRecord(u, input) : u))
-    );
-    if (drawer.data && drawer.data.id === input.id) {
-      drawer.setData((prev) =>
-        prev ? updateUserRecord(prev, input) : null
-      );
-    }
-    console.log(`Đã lưu cập nhật tài khoản ${input.name}`);
-  };
-
-  const handleConfirmToggleStatus = (input: ToggleUserStatusInput) => {
-    setUsers((prev) =>
-      prev.map((u) =>
-        u.id === input.userId ? { ...u, status: input.targetStatus } : u
-      )
-    );
-    if (drawer.data && drawer.data.id === input.userId) {
-      drawer.setData((prev) =>
-        prev ? { ...prev, status: input.targetStatus } : null
-      );
-    }
-    const actionText =
-      input.targetStatus === "LOCKED" ? "Đã khóa" : "Đã mở khóa";
-    console.log(`${actionText} tài khoản người dùng thành công`);
-  };
-
-  const handleExport = () => {
-    //
-  };
-
   return (
     <div className="mx-auto w-full max-w-7xl">
       <UserHeader
-        onExport={handleExport}
-        onAddUserClick={addModal.open}
+        onAddUserClick={() => addModal.open()}
       />
 
       <UserFilters
@@ -138,8 +102,31 @@ export function UserManagementView() {
         departments={DEPARTMENTS}
       />
 
-      <div className="overflow-hidden rounded-app-xl border border-border-strong bg-surface shadow-xs">
-        {paginatedUsers.length === 0 ? (
+      <div
+        className="overflow-hidden rounded-app-xl border border-border-strong bg-surface shadow-xs"
+        aria-busy={isFetching}
+      >
+        {isLoading ? (
+          <Loading
+            label="Đang tải danh sách người dùng..."
+            className="min-h-[50vh]"
+          />
+        ) : isError ? (
+          <Empty
+            role="alert"
+            title="Không thể tải danh sách người dùng"
+            description="Vui lòng thử lại."
+            action={
+              <Button
+                type="button"
+                onClick={() => refetch()}
+                disabled={isFetching}
+              >
+                {isFetching ? "Đang tải lại..." : "Thử lại"}
+              </Button>
+            }
+          />
+        ) : paginatedUsers.length === 0 ? (
           <Empty
             icon={<UserX className="size-7" />}
             title="Không tìm thấy tài khoản người dùng phù hợp"
@@ -164,6 +151,7 @@ export function UserManagementView() {
               pageSize={filters.pageSize}
               onEditUser={(user) => editModal.open(user)}
               onToggleStatus={(user) => statusModal.open(user)}
+              onDeleteUser={(user) => deleteModal.open(user)}
               onViewDetails={(user) => drawer.open(user)}
             />
 
@@ -185,21 +173,24 @@ export function UserManagementView() {
       <AddUserModal
         isOpen={addModal.isOpen}
         onClose={addModal.close}
-        onSubmit={handleAddUser}
       />
 
       <EditUserModal
         user={editModal.data}
         isOpen={editModal.isOpen}
         onClose={editModal.close}
-        onSave={handleSaveEditUser}
       />
 
       <UserStatusModal
         user={statusModal.data}
         isOpen={statusModal.isOpen}
         onClose={statusModal.close}
-        onConfirm={handleConfirmToggleStatus}
+      />
+
+      <DeleteUserModal
+        user={deleteModal.data}
+        isOpen={deleteModal.isOpen}
+        onClose={deleteModal.close}
       />
 
       <UserDetailsDrawer

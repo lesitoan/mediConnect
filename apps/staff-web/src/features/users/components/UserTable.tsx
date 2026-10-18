@@ -1,7 +1,6 @@
 "use client";
 
 import { Edit2, Lock, Unlock, MoreVertical } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/Badge";
 import {
@@ -22,6 +21,8 @@ interface UserTableProps {
   onEditUser: (user: User) => void;
   onToggleStatus: (user: User) => void;
   onViewDetails: (user: User) => void;
+  onDeleteUser: (user: User) => void;
+  isBusy?: boolean;
 }
 
 export function UserTable({
@@ -31,6 +32,8 @@ export function UserTable({
   onEditUser,
   onToggleStatus,
   onViewDetails,
+  onDeleteUser,
+  isBusy = false,
 }: UserTableProps) {
   const renderRoleBadge = (role: UserRole) => {
     switch (role) {
@@ -120,7 +123,7 @@ export function UserTable({
           <TableHead className="w-[96px] px-3 py-3 text-body font-bold tracking-wider text-muted">
             Ngày tạo
           </TableHead>
-          <TableHead className="w-[90px] px-3.5 py-3 text-right text-body font-bold tracking-wider text-muted">
+          <TableHead className="w-[160px] px-3.5 py-3 text-right text-body font-bold tracking-wider text-muted">
             Thao tác
           </TableHead>
         </TableRow>
@@ -189,13 +192,14 @@ export function UserTable({
                 {user.createdAt}
               </TableCell>
 
-              <TableCell className="w-[90px] px-3.5 py-2.5 text-right align-middle">
+              <TableCell className="w-[160px] px-3.5 py-2.5 text-right align-middle">
                 <div className="flex items-center justify-end gap-1">
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon-xs"
                     onClick={() => onEditUser(user)}
+                    disabled={isBusy}
                     className="size-8 rounded-app-md bg-primary-light text-primary hover:bg-secondary"
                     title="Chỉnh sửa thông tin"
                     aria-label="Chỉnh sửa thông tin"
@@ -221,6 +225,7 @@ export function UserTable({
                       variant="ghost"
                       size="icon-xs"
                       onClick={() => onToggleStatus(user)}
+                      disabled={isBusy}
                       className="size-8 rounded-app-md bg-success-bg text-success hover:bg-success-bg/80"
                       title="Mở khóa tài khoản"
                       aria-label="Mở khóa tài khoản"
@@ -233,6 +238,7 @@ export function UserTable({
                       variant="ghost"
                       size="icon-xs"
                       onClick={() => onToggleStatus(user)}
+                      disabled={isBusy}
                       className="size-8 rounded-app-md bg-danger-bg text-danger hover:bg-danger-bg-hover"
                       title="Khóa tài khoản"
                       aria-label="Khóa tài khoản"
@@ -251,6 +257,22 @@ export function UserTable({
                     aria-label="Xem chi tiết"
                   >
                     <MoreVertical className="size-3.5" />
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => onDeleteUser(user)}
+                    disabled={isBusy || user.isCurrentUser}
+                    aria-label={`Xóa tài khoản ${user.name}`}
+                    title={
+                      user.isCurrentUser
+                        ? "Không thể xóa tài khoản của chính mình"
+                        : "Xóa tài khoản"
+                    }
+                  >
+                    Xóa
                   </Button>
                 </div>
               </TableCell>
