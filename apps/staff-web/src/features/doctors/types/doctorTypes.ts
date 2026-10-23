@@ -28,6 +28,11 @@ export interface Doctor {
   phone: string;
   scheduleSummary: string;
   patientLimitPerSession: number;
+  pauseReason?: string;
+  pauseStartDate?: string;
+  pauseEndDate?: string;
+  isIndefinitePause?: boolean;
+  pauseStrategy?: AppointmentHandlingStrategy;
 }
 
 export interface Specialty {
@@ -87,4 +92,30 @@ export interface DeactivateDoctorInput {
   doctorId: string;
   strategy: AppointmentHandlingStrategy;
   reason: string;
+  startDate: string;
+  endDate?: string;
+  isIndefinite?: boolean;
 }
+
+export interface DoctorFilterValues {
+  tab: MainTab;
+  search: string;
+  specialty: string;
+  status: DoctorStatusFilter;
+  view: DoctorViewMode;
+  page: number;
+  pageSize: number;
+}
+
+export const DEFAULT_DOCTOR_FILTERS: DoctorFilterValues = {
+  tab: "DOCTORS",
+  search: "",
+  specialty: "",
+  status: "ALL",
+  view: "GRID",
+  page: 1,
+  pageSize: 6,
+};
+
+export const DOCTOR_PAGE_SIZE_OPTIONS: readonly number[] = [6, 9, 12, 18, 24];
+
