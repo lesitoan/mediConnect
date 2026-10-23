@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   Users,
   Stethoscope,
+  UserCheck,
   CalendarCheck,
   AlertTriangle,
   Activity,
@@ -28,6 +29,11 @@ const NAV_ITEMS = [
     label: "Tổng quan",
     href: "/overview",
     icon: LayoutDashboard,
+  },
+  {
+    label: "Tiếp nhận bệnh nhân",
+    href: "/reception",
+    icon: UserCheck,
   },
   {
     label: "Tài khoản người dùng",
