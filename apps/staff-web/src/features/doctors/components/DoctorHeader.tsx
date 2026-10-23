@@ -1,6 +1,7 @@
 "use client";
 
-import { User, Stethoscope } from "lucide-react";
+import { User, Stethoscope, Users } from "lucide-react";
+import { Badge } from "@/components/ui/Badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/Tabs";
 import type { MainTab } from "../types/doctorTypes";
 
@@ -26,6 +27,9 @@ export function DoctorHeader({
           </h1>
 
         </div>
+        {/* <p className="text-caption text-muted leading-normal max-w-2xl">
+          Theo dõi danh sách nhân sự y tế, quản lý phân công ca trực và định danh chuyên khoa
+        </p> */}
       </div>
 
       <Tabs

@@ -1,85 +1,26 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import {
   X,
-  User,
   Star,
+  ShieldCheck,
+  MapPin,
+  Calendar,
   Clock,
-  CalendarRange,
+  Phone,
+  Mail,
+  Check,
+  Edit2,
+  PauseCircle,
+  CheckCircle2,
 } from "lucide-react";
+import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
-import { Badge } from "@/components/ui/Badge";
 import { cn } from "@/lib/utils";
 import type { Doctor } from "../types/doctorTypes";
-
-function formatDateVN(dateStr?: string): string {
-  if (!dateStr) return "";
-  const parts = dateStr.split("-");
-  if (parts.length === 3) {
-    return `${parts[2]}/${parts[1]}/${parts[0]}`;
-  }
-  return dateStr;
-}
-
-function formatDoctorCode(code?: string): string {
-  if (!code) return "";
-  return code.replace("-", " - ");
-}
-
-function formatRoom(room?: string): string {
-  if (!room) return "Chưa cập nhật";
-  return room.split(",")[0].trim();
-}
-
-function formatLicense(license?: string): string {
-  if (!license) return "Chưa cập nhật";
-  return license.replace(/^CCHN-/, "CCHN - ");
-}
-
-function parseScheduleDetails(summary?: string): { days: string; time: string } {
-  if (!summary || summary === "Tạm ngưng phân ca") {
-    return {
-      days: summary || "Chưa có lịch phân ca",
-      time: "Tạm thời không có lịch khám cố định",
-    };
-  }
-
-  let days = summary;
-  let time = "Ca sáng 07:30–12:00 • Ca chiều 13:00–17:30";
-
-  const match = summary.match(/^(.*?)(?:\((.*?)\))?$/);
-  if (match) {
-    const rawDays = match[1]?.trim() || summary;
-    const rawShift = match[2]?.trim();
-
-    if (rawDays.startsWith("Thứ")) {
-      const parts = rawDays
-        .replace(/^Thứ\s*/, "")
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean);
-      days = parts.map((p) => (p.startsWith("Thứ") ? p : `Thứ ${p}`)).join(", ");
-    } else {
-      days = rawDays;
-    }
-
-    if (rawShift) {
-      if (rawShift.includes("sáng & chiều") || rawShift.includes("Cả ngày")) {
-        time = "Ca sáng 07:30–12:00 • Ca chiều 13:00–17:30";
-      } else if (rawShift.includes("sáng")) {
-        time = "Ca sáng 07:30–12:00";
-      } else if (rawShift.includes("chiều")) {
-        time = "Ca chiều 13:00–17:30";
-      } else {
-        time = rawShift;
-      }
-    }
-  }
-
-  return { days, time };
-}
 
 interface DoctorDetailsDrawerProps {
   doctor: Doctor | null;
@@ -105,7 +46,6 @@ export function DoctorDetailsDrawer({
   if (!isOpen || !doctor) return null;
 
   const isActive = doctor.status === "ACTIVE";
-  const scheduleInfo = parseScheduleDetails(doctor.scheduleSummary);
 
   return (
     <div
@@ -130,47 +70,52 @@ export function DoctorDetailsDrawer({
       <div className="fixed inset-y-0 right-0 flex max-w-full pl-6">
         <aside
           aria-label="Chi tiết thông tin bác sĩ"
-          className="flex w-screen max-w-[580px] flex-col border-l border-border bg-surface text-foreground shadow-modal"
+          className="flex w-screen max-w-[460px] flex-col border-l border-border bg-surface-overlay text-foreground shadow-modal"
         >
-          {/* Header */}
-          <div className="flex items-start justify-between px-6 pt-5 pb-3.5">
-            <div className="flex items-center gap-4">
-              <div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-primary-light text-primary">
-                <User className="size-6 stroke-[1.8]" />
+          <div className="flex items-start justify-between border-b border-border bg-primary-light/50 p-4 sm:p-5">
+            <div className="flex gap-3">
+              <div className="relative size-13 shrink-0 overflow-hidden rounded-app-xl border border-primary/20 shadow-xs">
+                <Image
+                  src={doctor.avatarUrl}
+                  alt={doctor.name}
+                  fill
+                  sizes="52px"
+                  className={cn("object-cover", !isActive && "grayscale-30")}
+                />
+                <div className="absolute right-0.5 bottom-0.5 flex size-4.5 items-center justify-center rounded-full bg-primary text-primary-foreground ring-1 ring-surface">
+                  <Check className="size-2.5 stroke-[3]" />
+                </div>
               </div>
 
               <div className="min-w-0">
-                <h2
-                  id="doctor-drawer-title"
-                  className="text-heading font-bold text-foreground tracking-tight"
-                >
-                  {doctor.name}
-                </h2>
-                <div className="mt-0.5 flex items-center gap-1.5 text-caption">
-                  <span className="font-bold text-primary tabular-nums">
-                    {formatDoctorCode(doctor.code)}
-                  </span>
-                  <span className="text-muted">•</span>
-                  <span className="font-normal text-muted">{doctor.specialtyName}</span>
-                </div>
-                <div className="mt-1">
-                  <span
-                    className={cn(
-                      "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-label font-medium",
-                      isActive
-                        ? "bg-primary-light text-primary"
-                        : "bg-warning-bg text-warning"
-                    )}
+                <div className="flex items-center gap-1.5">
+                  <Badge
+                    variant={isActive ? "success" : "neutral"}
+                    shape="pill"
+                    className="gap-1 px-2 py-0.5 text-label"
                   >
                     <span
                       className={cn(
                         "size-1.5 rounded-full",
-                        isActive ? "bg-primary" : "bg-warning"
+                        isActive ? "bg-success" : "bg-muted"
                       )}
                     />
-                    <span>{isActive ? "Đang hoạt động" : "Tạm dừng hoạt động"}</span>
+                    <span>{isActive ? "Đang hoạt động" : "Đã vô hiệu hóa"}</span>
+                  </Badge>
+                  <span className="text-caption font-bold text-muted tabular-nums">
+                    {doctor.code}
                   </span>
                 </div>
+
+                <h2
+                  id="doctor-drawer-title"
+                  className="mt-0.5 text-title font-bold text-foreground tracking-tight"
+                >
+                  {doctor.name}
+                </h2>
+                <p className="text-body font-semibold text-primary">
+                  {doctor.title}
+                </p>
               </div>
             </div>
 
@@ -179,222 +124,201 @@ export function DoctorDetailsDrawer({
               variant="ghost"
               size="icon-xs"
               onClick={onClose}
-              className="text-muted hover:text-foreground -mr-1 -mt-1"
+              className="text-muted hover:text-foreground"
               aria-label="Đóng"
             >
               <X className="size-4" />
             </Button>
           </div>
 
-          {!isActive && (
-            <div className="mx-6 mb-3 rounded-app-xl border border-warning/30 bg-warning-bg/60 p-3.5 text-caption text-foreground">
-              <div className="flex items-center gap-1.5 font-bold text-warning text-caption">
-                <CalendarRange className="size-4 shrink-0" />
-                <span>Kế hoạch tạm dừng hoạt động</span>
-              </div>
-              <div className="mt-1.5 space-y-1 text-label text-muted">
-                <div>
-                  <span className="font-semibold text-foreground">Thời gian khóa lịch:</span>{" "}
-                  {doctor.pauseStartDate ? (
-                    <>
-                      Từ {formatDateVN(doctor.pauseStartDate)}
-                      {doctor.isIndefinitePause
-                        ? " (Tạm dừng vô thời hạn)"
-                        : doctor.pauseEndDate
-                          ? ` đến ${formatDateVN(doctor.pauseEndDate)}`
-                          : ""}
-                    </>
-                  ) : (
-                    "Tạm dừng vô thời hạn"
-                  )}
-                </div>
-                {doctor.pauseReason && (
-                  <div>
-                    <span className="font-semibold text-foreground">Lý do:</span>{" "}
-                    <span className="italic text-foreground">{doctor.pauseReason}</span>
-                  </div>
-                )}
-                {doctor.pauseStrategy && (
-                  <div>
-                    <span className="font-semibold text-foreground">Điều phối lịch hẹn:</span>{" "}
-                    {doctor.pauseStrategy === "REASSIGN"
-                      ? "Tự động chuyển tiếp sang bác sĩ cùng chuyên khoa"
-                      : "Hủy lịch hẹn và thông báo hoàn phí"}
-                  </div>
-                )}
+          <div className="grid grid-cols-4 border-b border-border bg-secondary/40 px-4 py-2 text-center">
+            <div>
+              <div className="text-caption text-muted">Kinh nghiệm</div>
+              <div className="text-heading font-bold text-foreground tabular-nums">
+                {doctor.experienceYears} năm
               </div>
             </div>
-          )}
+
+            <div className="border-l border-border">
+              <div className="text-caption text-muted">Đánh giá</div>
+              <div className="flex items-center justify-center gap-1 text-heading font-bold text-foreground tabular-nums">
+                <Star className="size-3.5 fill-rating text-rating" />
+                <span>{doctor.rating.toFixed(2)}</span>
+                <span className="text-caption font-normal text-muted tabular-nums">
+                  ({doctor.reviewCount})
+                </span>
+              </div>
+            </div>
+
+            <div className="border-l border-border">
+              <div className="text-caption text-muted">Ca khám tuần</div>
+              <div className="text-heading font-bold text-primary tabular-nums">
+                {doctor.weeklyAppointments} ca
+              </div>
+            </div>
+
+            <div className="border-l border-border">
+              <div className="text-caption text-muted">Khiếu nại</div>
+              <div className="text-heading font-bold text-foreground tabular-nums">0 ca</div>
+            </div>
+          </div>
 
           <Tabs
             defaultValue="INFO"
             value={activeTab}
             onValueChange={(val) => setActiveTab(val as DrawerTab)}
-            className="flex flex-1 min-h-0 flex-col overflow-hidden"
+            className="flex flex-1 flex-col overflow-hidden"
           >
-            {/* Tab navigation */}
-            <div className="border-b border-border/80 px-6">
-              <TabsList className="h-auto w-full justify-start rounded-none border-0 bg-transparent p-0 gap-8 -mb-px">
+            <div className="border-b border-border px-4">
+              <TabsList className="h-auto w-full justify-start rounded-none border-0 bg-transparent p-0 gap-1">
                 <TabsTrigger
                   value="INFO"
-                  className={cn(
-                    "rounded-none border-b-2 px-0 pb-2.5 pt-1.5 text-caption transition-colors cursor-pointer data-[selected]:bg-transparent data-[selected]:shadow-none",
-                    activeTab === "INFO"
-                      ? "border-primary text-primary font-semibold"
-                      : "border-transparent text-muted hover:text-foreground font-medium"
-                  )}
+                  className="rounded-none border-b-2 border-transparent px-3 py-2.5 text-caption font-bold data-[selected]:border-primary data-[selected]:bg-transparent data-[selected]:text-primary data-[selected]:shadow-none"
                 >
                   Thông tin chuyên môn
                 </TabsTrigger>
                 <TabsTrigger
                   value="SCHEDULE"
-                  className={cn(
-                    "rounded-none border-b-2 px-0 pb-2.5 pt-1.5 text-caption transition-colors cursor-pointer data-[selected]:bg-transparent data-[selected]:shadow-none",
-                    activeTab === "SCHEDULE"
-                      ? "border-primary text-primary font-semibold"
-                      : "border-transparent text-muted hover:text-foreground font-medium"
-                  )}
+                  className="rounded-none border-b-2 border-transparent px-3 py-2.5 text-caption font-bold data-[selected]:border-primary data-[selected]:bg-transparent data-[selected]:text-primary data-[selected]:shadow-none"
                 >
                   Lịch trực tuần
                 </TabsTrigger>
                 <TabsTrigger
                   value="HISTORY"
-                  className={cn(
-                    "rounded-none border-b-2 px-0 pb-2.5 pt-1.5 text-caption transition-colors cursor-pointer data-[selected]:bg-transparent data-[selected]:shadow-none",
-                    activeTab === "HISTORY"
-                      ? "border-primary text-primary font-semibold"
-                      : "border-transparent text-muted hover:text-foreground font-medium"
-                  )}
+                  className="rounded-none border-b-2 border-transparent px-3 py-2.5 text-caption font-bold data-[selected]:border-primary data-[selected]:bg-transparent data-[selected]:text-primary data-[selected]:shadow-none"
                 >
                   Lịch sử khám
                 </TabsTrigger>
                 <TabsTrigger
                   value="REVIEWS"
-                  className={cn(
-                    "rounded-none border-b-2 px-0 pb-2.5 pt-1.5 text-caption transition-colors cursor-pointer data-[selected]:bg-transparent data-[selected]:shadow-none",
-                    activeTab === "REVIEWS"
-                      ? "border-primary text-primary font-semibold"
-                      : "border-transparent text-muted hover:text-foreground font-medium"
-                  )}
+                  className="rounded-none border-b-2 border-transparent px-3 py-2.5 text-caption font-bold data-[selected]:border-primary data-[selected]:bg-transparent data-[selected]:text-primary data-[selected]:shadow-none"
                 >
-                  Đánh giá
+                  Đánh giá BN
                 </TabsTrigger>
               </TabsList>
             </div>
 
-            {/* Tab contents */}
-            <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4.5 pb-6">
-              <TabsContent value="INFO" className="mt-0 space-y-5">
-                {/* Section 1: Thông tin chuyên môn */}
-                <section>
-                  <h3 className="text-body font-bold text-foreground">
-                    Thông tin chuyên môn
-                  </h3>
-                  <div className="mt-2 divide-y divide-border/60">
-                    <div className="flex items-center justify-between py-2.5 text-caption">
-                      <span className="text-muted">Chuyên khoa</span>
-                      <span className="font-medium text-foreground">
-                        {doctor.specialtyName}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between py-2.5 text-caption">
-                      <span className="text-muted">Học hàm / Học vị</span>
+            <div className="flex-1 space-y-3 overflow-y-auto p-4">
+              <TabsContent value="INFO" className="mt-0 space-y-3">
+                <div className="space-y-2.5 rounded-app-xl border border-border bg-primary-light/30 p-4">
+                  <div className="flex items-center gap-2 text-body font-semibold text-primary">
+                    <ShieldCheck className="size-4" />
+                    <span>Chứng chỉ & Pháp lý</span>
+                  </div>
+                  <div className="space-y-1.5 text-caption">
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted">Số CCHN:</span>
                       <span className="font-bold text-foreground">
-                        {doctor.degree || "PGS.TS.BS"}
+                        {doctor.licenseNumber}
                       </span>
                     </div>
-                    <div className="flex items-center justify-between py-2.5 text-caption">
-                      <span className="text-muted">Số chứng chỉ</span>
-                      <span className="font-bold text-foreground">
-                        {formatLicense(doctor.licenseNumber)}
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted">Cơ quan cấp:</span>
+                      <span className="font-semibold text-foreground">
+                        {doctor.licenseIssuer}
                       </span>
                     </div>
-                    <div className="flex items-center justify-between py-2.5 text-caption">
-                      <span className="text-muted">Kinh nghiệm</span>
-                      <span className="font-medium text-foreground">
-                        {doctor.experienceYears} năm
-                      </span>
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted">Thời hạn hiệu lực:</span>
+                      <Badge variant="brand" className="font-semibold">
+                        {doctor.licenseExpiry}
+                      </Badge>
                     </div>
                   </div>
-                </section>
+                </div>
 
-                {/* Section 2: Liên hệ & Địa điểm công tác */}
-                <section>
-                  <h3 className="text-body font-bold text-foreground">
-                    Liên hệ & Địa điểm công tác
-                  </h3>
-                  <div className="mt-2 divide-y divide-border/60">
-                    <div className="flex items-center justify-between py-2.5 text-caption">
-                      <span className="text-muted">Phòng khám</span>
-                      <span className="font-medium text-foreground">
-                        {formatRoom(doctor.room)}
-                      </span>
+                <div className="space-y-3 rounded-app-xl border border-border bg-surface p-4">
+                  <div className="flex items-center gap-2 text-body font-semibold text-foreground">
+                    <MapPin className="size-4 text-primary" />
+                    <span>Địa điểm & Liên hệ công tác</span>
+                  </div>
+                  <div className="grid grid-cols-1 gap-3 text-caption sm:grid-cols-2">
+                    <div className="rounded-app-lg bg-background p-2.5 border border-border/40">
+                      <div className="text-muted">Phòng khám cố định</div>
+                      <div className="mt-0.5 font-semibold text-foreground">
+                        {doctor.room}
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between py-2.5 text-caption">
-                      <span className="text-muted">Điện thoại</span>
-                      <span className="font-medium text-foreground">
+                    <div className="rounded-app-lg bg-background p-2.5 border border-border/40">
+                      <div className="flex items-center gap-1 text-muted">
+                        <Phone className="size-3" />
+                        <span>Điện thoại nội bộ / Di động</span>
+                      </div>
+                      <div className="mt-0.5 font-semibold text-foreground">
                         {doctor.phone}
+                      </div>
+                    </div>
+                    <div className="col-span-1 rounded-app-lg bg-background p-2.5 border border-border/40 sm:col-span-2">
+                      <div className="flex items-center gap-1 text-muted">
+                        <Mail className="size-3" />
+                        <span>Email công vụ</span>
+                      </div>
+                      <div className="mt-0.5 font-semibold text-primary">
+                        {doctor.email}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3 rounded-app-xl border border-border bg-surface p-4">
+                  <div className="flex items-center gap-2 text-body font-semibold text-foreground">
+                    <Calendar className="size-4 text-primary" />
+                    <span>Lịch khám & Giới hạn tiếp nhận</span>
+                  </div>
+                  <div className="space-y-2 text-caption">
+                    <div className="flex items-center justify-between rounded-app-lg bg-background p-2.5 border border-border/40">
+                      <span className="text-muted">Lịch phân ca cố định:</span>
+                      <span className="font-semibold text-foreground">
+                        {doctor.scheduleSummary}
                       </span>
                     </div>
-                    <div className="flex items-center justify-between py-2.5 text-caption">
-                      <span className="text-muted">Email</span>
-                      <a
-                        href={`mailto:${doctor.email}`}
-                        className="font-medium text-primary hover:underline"
-                      >
-                        {doctor.email}
-                      </a>
+                    <div className="flex items-center justify-between rounded-app-lg bg-background p-2.5 border border-border/40">
+                      <span className="text-muted">Giới hạn BN / phiên khám:</span>
+                      <span className="font-bold text-primary">
+                        {doctor.patientLimitPerSession} bệnh nhân / ca
+                      </span>
                     </div>
                   </div>
-                </section>
-
-                {/* Section 3: Lịch làm việc */}
-                <section>
-                  <h3 className="text-body font-bold text-foreground">
-                    Lịch làm việc
-                  </h3>
-                  <div className="mt-2 rounded-app-xl bg-primary-light/40 border border-primary/10 p-3.5 space-y-1">
-                    <div className="text-caption font-bold text-foreground">
-                      {scheduleInfo.days}
-                    </div>
-                    <div className="text-caption font-medium text-primary">
-                      {scheduleInfo.time}
-                    </div>
-                  </div>
-                </section>
+                </div>
               </TabsContent>
 
               <TabsContent value="SCHEDULE" className="mt-0 space-y-3">
                 <div className="rounded-app-xl border border-border bg-background p-4 text-caption">
                   <div className="font-bold text-foreground">Ca trực tuần hiện tại</div>
-                  <div className="mt-3 space-y-2.5">
-                    <div className="flex items-center justify-between rounded-app-lg bg-surface p-3 shadow-xs border border-border/50">
+                  <div className="mt-2 space-y-2">
+                    <div className="flex items-center justify-between rounded-app-lg bg-surface p-2.5 shadow-xs border border-border/50">
                       <div className="flex items-center gap-2">
                         <Clock className="size-3.5 text-primary" />
                         <span className="font-semibold">Thứ 2 (Sáng: 07:30 - 11:30)</span>
                       </div>
-                      <Badge variant="success">14/20 BN</Badge>
+                      <Badge variant="success">
+                        14/20 BN
+                      </Badge>
                     </div>
-                    <div className="flex items-center justify-between rounded-app-lg bg-surface p-3 shadow-xs border border-border/50">
+                    <div className="flex items-center justify-between rounded-app-lg bg-surface p-2.5 shadow-xs border border-border/50">
                       <div className="flex items-center gap-2">
                         <Clock className="size-3.5 text-primary" />
                         <span className="font-semibold">Thứ 4 (Chiều: 13:30 - 17:00)</span>
                       </div>
-                      <Badge variant="success">18/20 BN</Badge>
+                      <Badge variant="success">
+                        18/20 BN
+                      </Badge>
                     </div>
-                    <div className="flex items-center justify-between rounded-app-lg bg-surface p-3 shadow-xs border border-border/50">
+                    <div className="flex items-center justify-between rounded-app-lg bg-surface p-2.5 shadow-xs border border-border/50">
                       <div className="flex items-center gap-2">
                         <Clock className="size-3.5 text-primary" />
                         <span className="font-semibold">Thứ 6 (Sáng: 07:30 - 11:30)</span>
                       </div>
-                      <Badge variant="warning">20/20 BN (Đầy)</Badge>
+                      <Badge variant="warning">
+                        20/20 BN (Đầy)
+                      </Badge>
                     </div>
                   </div>
                 </div>
               </TabsContent>
 
               <TabsContent value="HISTORY" className="mt-0 space-y-2 text-caption">
-                <div className="rounded-app-lg border border-border p-3.5 bg-surface">
+                <div className="rounded-app-lg border border-border p-3 bg-surface">
                   <div className="flex justify-between font-semibold">
                     <span>Phiên khám ngày 12/10/2026</span>
                     <span className="text-primary font-bold">24 lượt khám</span>
@@ -403,7 +327,7 @@ export function DoctorDetailsDrawer({
                     Khoa Nhi & Sơ sinh • Phòng 205
                   </div>
                 </div>
-                <div className="rounded-app-lg border border-border p-3.5 bg-surface">
+                <div className="rounded-app-lg border border-border p-3 bg-surface">
                   <div className="flex justify-between font-semibold">
                     <span>Phiên khám ngày 10/10/2026</span>
                     <span className="text-primary font-bold">22 lượt khám</span>
@@ -415,7 +339,7 @@ export function DoctorDetailsDrawer({
               </TabsContent>
 
               <TabsContent value="REVIEWS" className="mt-0 space-y-3 text-caption">
-                <div className="rounded-app-lg border border-border p-3.5 bg-surface">
+                <div className="rounded-app-lg border border-border p-3 bg-surface">
                   <div className="flex items-center justify-between">
                     <span className="font-semibold">Nguyễn Hoàng A. (Bệnh nhân)</span>
                     <div className="flex items-center gap-0.5 text-rating font-bold">
@@ -427,7 +351,7 @@ export function DoctorDetailsDrawer({
                     Bác sĩ rất ân cần, giải thích cặn kẽ bệnh án và đưa ra phác đồ điều trị phù hợp cho bé.
                   </p>
                 </div>
-                <div className="rounded-app-lg border border-border p-3.5 bg-surface">
+                <div className="rounded-app-lg border border-border p-3 bg-surface">
                   <div className="flex items-center justify-between">
                     <span className="font-semibold">Trần Thị B. (Bệnh nhân)</span>
                     <div className="flex items-center gap-0.5 text-rating font-bold">
@@ -443,62 +367,64 @@ export function DoctorDetailsDrawer({
             </div>
           </Tabs>
 
-          {/* Footer actions */}
-          <div className="flex items-center justify-end gap-2.5 border-t border-border bg-surface px-6 py-4">
+          <div className="flex items-center justify-between border-t border-border bg-surface px-4 py-3">
             <Button
               type="button"
               variant="outline"
-              size="default"
-              onClick={() => {
-                onClose();
-                onEdit(doctor);
-              }}
-              className="border-border bg-surface text-foreground hover:bg-surface-hover font-medium"
+              size="sm"
+              onClick={onClose}
             >
-              Chỉnh sửa hồ sơ
+              Đóng
             </Button>
 
-            <Button
-              type="button"
-              variant="outline"
-              size="default"
-              onClick={() => setActiveTab("SCHEDULE")}
-              className="border-border bg-surface text-foreground hover:bg-surface-hover font-medium"
-            >
-              Xem lịch làm việc
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  onClose();
+                  onEdit(doctor);
+                }}
+                className="gap-1.5 font-semibold text-foreground"
+              >
+                <Edit2 className="size-3.5 text-muted" />
+                <span>Chỉnh sửa hồ sơ</span>
+              </Button>
 
-            {isActive ? (
-              <Button
-                type="button"
-                variant="destructive"
-                size="default"
-                onClick={() => {
-                  onClose();
-                  onDeactivate(doctor);
-                }}
-                className="font-medium"
-              >
-                Tạm dừng hoạt động
-              </Button>
-            ) : (
-              <Button
-                type="button"
-                variant="default"
-                size="default"
-                onClick={() => {
-                  onClose();
-                  onActivate(doctor);
-                }}
-                className="font-medium"
-              >
-                Kích hoạt lại
-              </Button>
-            )}
+              {isActive ? (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => {
+                    onClose();
+                    onDeactivate(doctor);
+                  }}
+                  className="gap-1.5"
+                >
+                  <PauseCircle className="size-3.5" />
+                  <span>Tạm dừng</span>
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  variant="default"
+                  size="sm"
+                  onClick={() => {
+                    onClose();
+                    onActivate(doctor);
+                  }}
+                  className="gap-1.5 font-semibold"
+                >
+                  <CheckCircle2 className="size-3.5" />
+                  <span>Kích hoạt lại</span>
+                </Button>
+              )}
+            </div>
           </div>
         </aside>
       </div>
     </div>
   );
 }
-

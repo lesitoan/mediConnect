@@ -227,11 +227,6 @@ export const INITIAL_DOCTORS: Doctor[] = [
     phone: "0909 112 233",
     scheduleSummary: "Tạm ngưng phân ca",
     patientLimitPerSession: 0,
-    pauseReason: "Tham gia khóa đào tạo chuyên sâu phẫu thuật nội soi Tai Mũi Họng tại Nhật Bản",
-    pauseStartDate: "2026-10-15",
-    pauseEndDate: "2026-11-15",
-    isIndefinitePause: false,
-    pauseStrategy: "REASSIGN",
   },
 ];
 

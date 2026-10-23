@@ -1,6 +1,5 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
 import { Search, LayoutGrid, List, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/Input";
@@ -15,19 +14,17 @@ import type {
 interface DoctorFiltersProps {
   searchQuery: string;
   onSearchChange: (query: string) => void;
+  selectedSpecialty: string;
+  onSpecialtyChange: (specialty: string) => void;
   statusFilter: DoctorStatusFilter;
   onStatusFilterChange: (status: DoctorStatusFilter) => void;
+  viewMode: DoctorViewMode;
+  onViewModeChange: (mode: DoctorViewMode) => void;
+  onAddDoctorClick: () => void;
   specialties: Specialty[];
   totalCount: number;
   activeCount: number;
   inactiveCount: number;
-  viewMode: DoctorViewMode;
-  onViewModeChange: (mode: DoctorViewMode) => void;
-  onAddDoctorClick: () => void;
-  selectedSpecialty?: string;
-  onSpecialtyChange?: (specialty: string) => void;
-  specialtyFilter?: string;
-  onSpecialtyFilterChange?: (specialty: string) => void;
 }
 
 export function DoctorFilters({
@@ -35,8 +32,6 @@ export function DoctorFilters({
   onSearchChange,
   selectedSpecialty,
   onSpecialtyChange,
-  specialtyFilter,
-  onSpecialtyFilterChange,
   statusFilter,
   onStatusFilterChange,
   viewMode,
@@ -47,67 +42,27 @@ export function DoctorFilters({
   activeCount,
   inactiveCount,
 }: DoctorFiltersProps) {
-  const currentSpecialty = specialtyFilter ?? selectedSpecialty ?? "";
-  const handleSpecialtyChange = (spec: string) => {
-    onSpecialtyFilterChange?.(spec);
-    onSpecialtyChange?.(spec);
-  };
-
-  const searchInputRef = useRef<HTMLInputElement>(null);
-  const [prevSearchQuery, setPrevSearchQuery] = useState(searchQuery);
-  const [localSearch, setLocalSearch] = useState(searchQuery);
-
-  if (prevSearchQuery !== searchQuery) {
-    setPrevSearchQuery(searchQuery);
-    setLocalSearch(searchQuery);
-  }
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (localSearch !== searchQuery) {
-        onSearchChange(localSearch);
-      }
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [localSearch, searchQuery, onSearchChange]);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "F2") {
-        e.preventDefault();
-        searchInputRef.current?.focus();
-        searchInputRef.current?.select();
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
-
   return (
-    <div className="mb-4 rounded-app-xl border border-border-strong bg-surface p-4 shadow-xs">
-      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 md:grid-cols-12 lg:grid-cols-12">
-        <div className="relative sm:col-span-2 md:col-span-6 lg:col-span-4">
-          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted" />
+    <div className="mb-4 space-y-2.5 rounded-app-xl border border-border-strong bg-surface p-3.5 shadow-xs">
+      <div className="flex flex-col gap-2.5 md:flex-row md:items-center">
+        <div className="relative flex-1">
+          <Search className="pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-muted" />
           <Input
-            ref={searchInputRef}
             type="text"
-            value={localSearch}
-            onChange={(e) => setLocalSearch(e.target.value)}
+            value={searchQuery}
+            onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Tìm theo tên, mã bác sĩ, CCHN..."
-            className="h-9.5 pr-12 pl-9"
+            className="h-8.5 pl-8.5 text-body bg-surface border-input"
           />
-          <div className="pointer-events-none absolute top-1/2 right-2.5 flex -translate-y-1/2 items-center rounded-app-sm bg-secondary px-1.5 py-0.5 text-label font-bold text-muted">
-            F2
-          </div>
         </div>
 
-        <div className="sm:col-span-1 md:col-span-3 lg:col-span-3">
+        <div className="w-full md:w-[240px]">
           <Select
-            value={currentSpecialty}
-            onChange={(e) => handleSpecialtyChange(e.target.value)}
-            className="h-9.5"
+            value={selectedSpecialty}
+            onChange={(e) => onSpecialtyChange(e.target.value)}
+            className="h-8.5 text-body bg-surface border-input font-medium"
           >
-            <option value="">Tất cả chuyên khoa</option>
+            <option value="">Chuyên khoa: Tất cả</option>
             {specialties.map((spec) => (
               <option key={spec.id} value={spec.name}>
                 {spec.name}
@@ -115,40 +70,54 @@ export function DoctorFilters({
             ))}
           </Select>
         </div>
+      </div>
 
-        <div className="sm:col-span-1 md:col-span-3 lg:col-span-2">
-          <Select
-            value={statusFilter}
-            onChange={(e) =>
-              onStatusFilterChange(e.target.value as DoctorStatusFilter)
-            }
-            className="h-9.5"
-          >
-            <option value="ALL">Tất cả trạng thái ({totalCount})</option>
-            <option value="ACTIVE">Đang hoạt động ({activeCount})</option>
-            <option value="INACTIVE">Tạm dừng hoạt động ({inactiveCount})</option>
-          </Select>
-        </div>
+      <div className="flex flex-col gap-2.5 pt-0.5 sm:flex-row sm:items-center sm:justify-between">
+        <Tabs
+          value={statusFilter}
+          onValueChange={(val) => onStatusFilterChange(val as DoctorStatusFilter)}
+        >
+          <TabsList className="rounded-app-md border-border-strong/50 bg-secondary/80 p-0.5 shadow-xs">
+            <TabsTrigger
+              value="ALL"
+              className="rounded-app-sm px-3 py-1.5 text-body font-semibold data-[selected]:font-bold data-[selected]:text-primary"
+            >
+              <span className="tabular-nums">Tất cả ({totalCount})</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="ACTIVE"
+              className="rounded-app-sm px-3 py-1.5 text-body font-semibold data-[selected]:font-bold data-[selected]:text-primary"
+            >
+              <span className="tabular-nums">Đang hoạt động ({activeCount})</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="INACTIVE"
+              className="rounded-app-sm px-3 py-1.5 text-body font-semibold data-[selected]:font-bold data-[selected]:text-primary"
+            >
+              <span className="tabular-nums">Đã vô hiệu hóa ({inactiveCount})</span>
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
 
-        <div className="flex items-center justify-between gap-2 sm:col-span-2 sm:justify-end md:col-span-12 lg:col-span-3">
+        <div className="flex items-center gap-2 self-end sm:self-auto">
           <Tabs
             value={viewMode}
             onValueChange={(val) => onViewModeChange(val as DoctorViewMode)}
           >
-            <TabsList className="h-9.5 rounded-app-md border-border-strong/50 bg-secondary/80 p-0.5 shadow-xs">
+            <TabsList className="rounded-app-md border-border-strong/50 bg-secondary/80 p-0.5 shadow-xs">
               <TabsTrigger
                 value="GRID"
-                className="size-8 p-0 rounded-app-sm text-muted data-[selected]:bg-surface data-[selected]:text-primary"
+                className="size-7 p-0 rounded-app-sm text-muted data-[selected]:bg-surface data-[selected]:text-primary"
                 aria-label="Chế độ xem lưới"
               >
-                <LayoutGrid className="size-4" />
+                <LayoutGrid className="size-3.5" />
               </TabsTrigger>
               <TabsTrigger
                 value="LIST"
-                className="size-8 p-0 rounded-app-sm text-muted data-[selected]:bg-surface data-[selected]:text-primary"
+                className="size-7 p-0 rounded-app-sm text-muted data-[selected]:bg-surface data-[selected]:text-primary"
                 aria-label="Chế độ xem danh sách"
               >
-                <List className="size-4" />
+                <List className="size-3.5" />
               </TabsTrigger>
             </TabsList>
           </Tabs>
@@ -158,10 +127,10 @@ export function DoctorFilters({
             variant="default"
             size="sm"
             onClick={onAddDoctorClick}
-            className="h-9.5 gap-1.5 px-3.5 text-base font-semibold shadow-xs"
+            className="h-8.5 gap-1.5 px-3.5 text-base font-semibold shadow-xs"
           >
-            <UserPlus className="size-4" />
-            <span>Thêm bác sĩ</span>
+            <UserPlus className="size-3.5" />
+            <span>+ Thêm bác sĩ</span>
           </Button>
         </div>
       </div>
