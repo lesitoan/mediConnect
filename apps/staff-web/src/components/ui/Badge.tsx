@@ -3,7 +3,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const badgeVariants = cva(
-  "inline-flex items-center gap-1.5 rounded-app-sm px-2.5 py-0.5 text-label font-semibold transition-colors focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2",
+  "inline-flex items-center gap-1.5 rounded-app-sm transition-colors focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2",
   {
     variants: {
       variant: {
@@ -32,10 +32,15 @@ const badgeVariants = cva(
         default: "rounded-app-md",
         pill: "rounded-full",
       },
+      size: {
+        default: "px-2.5 py-0.5 text-label font-semibold",
+        sm: "px-2 py-0.5 text-label font-semibold",
+      },
     },
     defaultVariants: {
       variant: "default",
       shape: "default",
+      size: "default",
     },
   }
 );
@@ -44,10 +49,10 @@ export interface BadgeProps
   extends React.HTMLAttributes<HTMLDivElement>,
     VariantProps<typeof badgeVariants> {}
 
-function Badge({ className, variant, shape, ...props }: BadgeProps) {
+function Badge({ className, variant, shape, size, ...props }: BadgeProps) {
   return (
     <div
-      className={cn(badgeVariants({ variant, shape }), className)}
+      className={cn(badgeVariants({ variant, shape, size }), className)}
       {...props}
     />
   );
