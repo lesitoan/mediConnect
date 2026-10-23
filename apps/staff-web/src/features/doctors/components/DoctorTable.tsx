@@ -23,6 +23,15 @@ interface DoctorTableProps {
   onActivate: (doctor: Doctor) => void;
 }
 
+function formatDateVN(dateStr?: string): string {
+  if (!dateStr) return "";
+  const parts = dateStr.split("-");
+  if (parts.length === 3) {
+    return `${parts[2]}/${parts[1]}`;
+  }
+  return dateStr;
+}
+
 export function DoctorTable({
   doctors,
   onViewDetails,
@@ -31,9 +40,8 @@ export function DoctorTable({
   onActivate,
 }: DoctorTableProps) {
   return (
-    <div className="overflow-hidden rounded-app-xl border border-border-strong bg-surface shadow-xs">
-      <Table>
-        <TableHeader>
+    <Table>
+      <TableHeader>
           <TableRow>
             <TableHead className="px-3.5 py-2.5">
               Bác sĩ & Mã định danh
@@ -102,19 +110,34 @@ export function DoctorTable({
                 </TableCell>
 
                 <TableCell className="px-3.5 py-2.5">
-                  <Badge
-                    variant={isActive ? "success" : "neutral"}
-                    shape="pill"
-                    className="gap-1.5 text-caption"
-                  >
-                    <span
-                      className={cn(
-                        "size-1.5 rounded-full",
-                        isActive ? "bg-success" : "bg-muted"
-                      )}
-                    />
-                    <span>{isActive ? "Đang hoạt động" : "Đã vô hiệu hóa"}</span>
-                  </Badge>
+                  <div className="flex flex-col gap-1">
+                    <Badge
+                      variant={isActive ? "success" : "warning"}
+                      shape="pill"
+                      className="w-fit gap-1.5 text-caption"
+                    >
+                      <span
+                        className={cn(
+                          "size-1.5 rounded-full",
+                          isActive ? "bg-success" : "bg-warning"
+                        )}
+                      />
+                      <span>{isActive ? "Đang hoạt động" : "Tạm dừng hoạt động"}</span>
+                    </Badge>
+                    {!isActive && doctor.pauseStartDate && (
+                      <span
+                        className="text-[11px] text-muted font-medium"
+                        title={doctor.pauseReason}
+                      >
+                        {formatDateVN(doctor.pauseStartDate)}
+                        {doctor.isIndefinitePause
+                          ? " (Vô thời hạn)"
+                          : doctor.pauseEndDate
+                          ? ` - ${formatDateVN(doctor.pauseEndDate)}`
+                          : ""}
+                      </span>
+                    )}
+                  </div>
                 </TableCell>
 
                 <TableCell className="px-3.5 py-2.5 text-right">
@@ -171,6 +194,5 @@ export function DoctorTable({
           })}
         </TableBody>
       </Table>
-    </div>
   );
 }
