@@ -10,7 +10,7 @@ interface StaffHeaderProps {
 
 export function StaffHeader({ onToggleSidebar }: StaffHeaderProps) {
   const pathname = usePathname();
-  const pageTitle = pathname === "/queues" ? "Hàng chờ khám" : "Bác sĩ & Chuyên khoa";
+  const pageTitle = pathname === "/exceptions" ? "Xử lý ngoại lệ" : pathname === "/queues" ? "Hàng chờ khám" : "Bác sĩ & Chuyên khoa";
 
   return (
     <header className="sticky top-0 z-30 flex h-14 w-full items-center justify-between border-b border-border-strong bg-surface px-4 sm:px-6 shadow-[0_1px_3px_0_rgb(0_0_0/0.03)]">
