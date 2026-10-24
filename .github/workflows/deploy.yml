@@ -3,8 +3,12 @@ name: API CI/CD
 on:
   pull_request:
     branches: [main]
+    paths:
+      - 'apps/api/**'
   push:
     branches: [main]
+    paths:
+      - 'apps/api/**'
   workflow_dispatch:
     inputs:
       image:
