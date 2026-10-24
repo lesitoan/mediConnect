@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import { ScheduleCalendarView } from "@/features/schedules/calendar";
 import { Suspense } from "react";
 import { Loading } from "@/components/shared/Loading";
+import { ScheduleCalendarView } from "@/features/schedules/calendar/components";
 
 export const metadata: Metadata = {
   title: "Lịch làm việc tuần | MediConnect Staff",
