@@ -4,13 +4,27 @@ import { Bell, ChevronRight, Menu } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 
+
 interface StaffHeaderProps {
   onToggleSidebar?: () => void;
 }
 
 export function StaffHeader({ onToggleSidebar }: StaffHeaderProps) {
   const pathname = usePathname();
-  const pageTitle = pathname === "/exceptions" ? "Xử lý ngoại lệ" : pathname === "/queues" ? "Hàng chờ khám" : "Bác sĩ & Chuyên khoa";
+
+  const getBreadcrumbLabel = () => {
+    if (pathname.startsWith("/reception")) return "Tiếp nhận bệnh nhân";
+    if (pathname.startsWith("/doctors")) return "Bác sĩ & Chuyên khoa";
+    if (pathname.startsWith("/users")) return "Quản lý tài khoản";
+    if (pathname.startsWith("/queues")) return "Hàng chờ khám";
+    if (pathname.startsWith("/schedules")) return "Lịch làm việc & Duyệt";
+    if (pathname.startsWith("/exceptions")) return "Xử lý ngoại lệ";
+    if (pathname.startsWith("/audit-logs")) return "Nhật ký hệ thống";
+    if (pathname.startsWith("/settings")) return "Cài đặt hệ thống";
+    if (pathname.startsWith("/exceptions")) return "Xử lý ngoại lệ";
+
+    return "Quản lý lâm sàng";
+  };
 
   return (
     <header className="sticky top-0 z-30 flex h-14 w-full items-center justify-between border-b border-border-strong bg-surface px-4 sm:px-6 shadow-[0_1px_3px_0_rgb(0_0_0/0.03)]">
@@ -30,7 +44,7 @@ export function StaffHeader({ onToggleSidebar }: StaffHeaderProps) {
           <span className="font-medium text-muted">Tổng quan</span>
           <ChevronRight className="size-3 text-muted" />
           <span className="rounded-app-md bg-primary-light px-2.5 py-1 text-caption font-bold text-primary">
-            {pageTitle}
+            {getBreadcrumbLabel()}
           </span>
         </nav>
       </div>
