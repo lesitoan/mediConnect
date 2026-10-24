@@ -1,6 +1,7 @@
 "use client";
 
 import { Bell, ChevronRight, Menu } from "lucide-react";
+import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 
 import { usePathname } from "next/navigation";
@@ -37,7 +38,7 @@ export function StaffHeader({ onToggleSidebar }: StaffHeaderProps) {
           <span className="font-medium text-muted">Tổng quan</span>
           <ChevronRight className="size-3 text-muted" />
           <span className="rounded-app-md bg-primary-light px-2.5 py-1 text-caption font-bold text-primary">
-            {getBreadcrumbLabel()}
+            Bác sĩ & Chuyên khoa
           </span>
         </nav>
       </div>
