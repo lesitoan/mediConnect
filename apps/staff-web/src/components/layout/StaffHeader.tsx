@@ -1,6 +1,7 @@
 "use client";
 
 import { Bell, ChevronRight, Menu } from "lucide-react";
+import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 
 interface StaffHeaderProps {
@@ -8,6 +9,9 @@ interface StaffHeaderProps {
 }
 
 export function StaffHeader({ onToggleSidebar }: StaffHeaderProps) {
+  const pathname = usePathname();
+  const pageTitle = pathname === "/queues" ? "Hàng chờ khám" : "Bác sĩ & Chuyên khoa";
+
   return (
     <header className="sticky top-0 z-30 flex h-14 w-full items-center justify-between border-b border-border-strong bg-surface px-4 sm:px-6 shadow-[0_1px_3px_0_rgb(0_0_0/0.03)]">
       <div className="flex items-center gap-3">
@@ -26,7 +30,7 @@ export function StaffHeader({ onToggleSidebar }: StaffHeaderProps) {
           <span className="font-medium text-muted">Tổng quan</span>
           <ChevronRight className="size-3 text-muted" />
           <span className="rounded-app-md bg-primary-light px-2.5 py-1 text-caption font-bold text-primary">
-            Bác sĩ & Chuyên khoa
+            {pageTitle}
           </span>
         </nav>
       </div>
