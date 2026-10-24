@@ -21,6 +21,8 @@ export function StaffHeader({ onToggleSidebar }: StaffHeaderProps) {
     if (pathname.startsWith("/exceptions")) return "Xử lý ngoại lệ";
     if (pathname.startsWith("/audit-logs")) return "Nhật ký hệ thống";
     if (pathname.startsWith("/settings")) return "Cài đặt hệ thống";
+    if (pathname.startsWith("/exceptions")) return "Xử lý ngoại lệ";
+
     return "Quản lý lâm sàng";
   };
 
