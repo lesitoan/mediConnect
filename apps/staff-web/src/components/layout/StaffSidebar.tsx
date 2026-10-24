@@ -10,7 +10,7 @@ import {
   UserCheck,
   CalendarCheck,
   AlertTriangle,
-  Activity,
+  History,
   Settings,
   Phone,
   ArrowUpRight,
@@ -92,7 +92,7 @@ const NAV_ITEMS: NavItem[] = [
   {
     label: "Nhật ký hệ thống",
     href: "/audit-logs",
-    icon: Activity,
+    icon: History,
   },
   {
     label: "Cài đặt hệ thống",
