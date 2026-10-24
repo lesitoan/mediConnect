@@ -4,7 +4,6 @@ import { Bell, ChevronRight, Menu } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 
-import { usePathname } from "next/navigation";
 
 interface StaffHeaderProps {
   onToggleSidebar?: () => void;
@@ -17,6 +16,11 @@ export function StaffHeader({ onToggleSidebar }: StaffHeaderProps) {
     if (pathname.startsWith("/reception")) return "Tiếp nhận bệnh nhân";
     if (pathname.startsWith("/doctors")) return "Bác sĩ & Chuyên khoa";
     if (pathname.startsWith("/users")) return "Quản lý tài khoản";
+    if (pathname.startsWith("/queues")) return "Hàng chờ khám";
+    if (pathname.startsWith("/schedules")) return "Lịch làm việc & Duyệt";
+    if (pathname.startsWith("/exceptions")) return "Xử lý ngoại lệ";
+    if (pathname.startsWith("/audit-logs")) return "Nhật ký hệ thống";
+    if (pathname.startsWith("/settings")) return "Cài đặt hệ thống";
     return "Quản lý lâm sàng";
   };
 
@@ -38,7 +42,7 @@ export function StaffHeader({ onToggleSidebar }: StaffHeaderProps) {
           <span className="font-medium text-muted">Tổng quan</span>
           <ChevronRight className="size-3 text-muted" />
           <span className="rounded-app-md bg-primary-light px-2.5 py-1 text-caption font-bold text-primary">
-            Bác sĩ & Chuyên khoa
+            {getBreadcrumbLabel()}
           </span>
         </nav>
       </div>
