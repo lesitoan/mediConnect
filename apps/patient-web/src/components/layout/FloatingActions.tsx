@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import AiChatWidget from "./AiChatWidget";
+import { OPEN_AI_CHAT_EVENT } from "./aiChat";
 import { ArrowUp, Bot, Calendar, Siren } from "./icons";
 
 export default function FloatingActions() {
@@ -14,6 +15,13 @@ export default function FloatingActions() {
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Cho phép nơi khác (vd. header) mở popup này
+  useEffect(() => {
+    const open = () => setChatOpen(true);
+    window.addEventListener(OPEN_AI_CHAT_EVENT, open);
+    return () => window.removeEventListener(OPEN_AI_CHAT_EVENT, open);
   }, []);
 
   return (

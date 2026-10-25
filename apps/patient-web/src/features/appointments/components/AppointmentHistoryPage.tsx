@@ -1,17 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Calendar,
   CalendarCheck,
+  Check,
   ChevronRight,
   Download,
   History,
   Home,
-  Info,
   Plus,
-  QrCode,
   Search,
   ShieldCheck,
 } from "@/components/layout/icons";
@@ -23,7 +22,14 @@ import {
   type Appointment,
   type MedicalRecord,
 } from "../data";
-import AppointmentCard, { startOf } from "./AppointmentCard";
+import AppointmentCard from "./AppointmentCard";
+import {
+  CancelModal,
+  DetailModal,
+  QrModal,
+  RescheduleModal,
+} from "./AppointmentModals";
+import { startOf } from "./dateUtils";
 import RecordCard from "./RecordCards";
 
 type Tab = "upcoming" | "history";
@@ -36,33 +42,7 @@ type HistoryEntry =
 const selectCls =
   "rounded-full border border-slate-200 bg-white px-4 py-2.5 text-xs font-semibold text-slate-700 outline-none transition focus:border-[#2B6CB0] focus:ring-2 focus:ring-[#2B6CB0]/20";
 
-function Modal({
-  title,
-  children,
-  onClose,
-}: {
-  title: string;
-  children: React.ReactNode;
-  onClose: () => void;
-}) {
-  return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label={title}
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 px-4"
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h3 className="text-lg font-extrabold text-slate-900">{title}</h3>
-        {children}
-      </div>
-    </div>
-  );
-}
+const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export default function AppointmentHistoryPage() {
   const { user, ready } = useAuth();
@@ -76,9 +56,26 @@ export default function AppointmentHistoryPage() {
   const [query, setQuery] = useState("");
   const [range, setRange] = useState<Range>("all");
   const [specialty, setSpecialty] = useState("all");
-  const [cancelTarget, setCancelTarget] = useState<Appointment | null>(null);
-  const [checkinTarget, setCheckinTarget] = useState<Appointment | null>(null);
-  const [cancelling, setCancelling] = useState(false);
+
+  // Popup (lưu mã phiếu để luôn lấy dữ liệu mới nhất trong `items`)
+  const [detailCode, setDetailCode] = useState<string | null>(null);
+  const [qrCode, setQrCode] = useState<string | null>(null);
+  const [rescheduleCode, setRescheduleCode] = useState<string | null>(null);
+  const [cancelCode, setCancelCode] = useState<string | null>(null);
+
+  const [notice, setNotice] = useState<string | null>(null);
+  const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flash = (text: string) => {
+    setNotice(text);
+    if (noticeTimer.current) clearTimeout(noticeTimer.current);
+    noticeTimer.current = setTimeout(() => setNotice(null), 4000);
+  };
+
+  const find = (code: string | null) => items.find((i) => i.code === code) ?? null;
+  const detail = find(detailCode);
+  const qr = find(qrCode);
+  const reschedule = find(rescheduleCode);
+  const cancel = find(cancelCode);
 
   const specialties = useMemo(
     () =>
@@ -148,19 +145,31 @@ export default function AppointmentHistoryPage() {
   }, [tab, items, query, range, specialty]);
 
   const confirmCancel = async () => {
-    if (!cancelTarget) return;
-    setCancelling(true);
-    try {
-      // TODO: gọi API hủy lịch (UC06). Backend kiểm tra lại: lịch ở trạng thái Confirmed
-      // và còn ≥ 2 giờ trước giờ khám; giải phóng khung giờ, gửi thông báo, ghi Audit Log.
-      await new Promise((r) => setTimeout(r, 600));
-      setItems((cur) =>
-        cur.map((i) => (i.code === cancelTarget.code ? { ...i, kind: "cancelled" } : i)),
-      );
-      setCancelTarget(null);
-    } finally {
-      setCancelling(false);
-    }
+    if (!cancel) return;
+    // TODO: gọi API hủy lịch (UC06). Backend kiểm tra lại: lịch ở trạng thái Confirmed
+    // và còn ≥ 2 giờ trước giờ khám; giải phóng khung giờ, gửi thông báo, ghi Audit Log.
+    await delay(600);
+    const code = cancel.code;
+    setItems((cur) => cur.map((i) => (i.code === code ? { ...i, kind: "cancelled" } : i)));
+    setCancelCode(null);
+    flash(`Đã hủy lịch khám #${code}.`);
+  };
+
+  const confirmReschedule = async (daysFromNow: number, time: string) => {
+    if (!reschedule) return;
+    // TODO: gọi API đổi lịch (UC06). Backend kiểm tra: trạng thái Confirmed, còn ≥ 2 giờ,
+    // chưa quá 2 lần đổi, khung giờ mới còn trống; giải phóng khung giờ cũ, gửi thông báo, ghi Audit Log.
+    await delay(700);
+    const code = reschedule.code;
+    setItems((cur) =>
+      cur.map((i) =>
+        i.code === code
+          ? { ...i, daysFromNow, time, rescheduleCount: (i.rescheduleCount ?? 0) + 1 }
+          : i,
+      ),
+    );
+    setRescheduleCode(null);
+    flash(`Đã đổi lịch khám #${code} thành công.`);
   };
 
   if (!ready) return <div className="min-h-[70vh]" aria-hidden="true" />;
@@ -185,6 +194,19 @@ export default function AppointmentHistoryPage() {
   }
 
   const noResult = tab === "upcoming" ? list.length === 0 : history.length === 0;
+
+  const card = (a: Appointment) =>
+    now && (
+      <AppointmentCard
+        key={a.code}
+        appt={a}
+        now={now}
+        onDetail={(x) => setDetailCode(x.code)}
+        onQr={(x) => setQrCode(x.code)}
+        onReschedule={(x) => setRescheduleCode(x.code)}
+        onCancel={(x) => setCancelCode(x.code)}
+      />
+    );
 
   return (
     <section className="bg-gradient-to-b from-[#EAF3FD] to-[#F6FAFE] pb-16">
@@ -242,6 +264,16 @@ export default function AppointmentHistoryPage() {
             </Link>
           </div>
         </div>
+
+        {notice && (
+          <p
+            role="status"
+            className="mt-4 flex items-center gap-2 rounded-xl bg-emerald-50 px-4 py-3 text-xs font-bold text-emerald-700"
+          >
+            <Check className="h-4 w-4" />
+            {notice}
+          </p>
+        )}
 
         {/* Tab + bộ lọc */}
         <div className="mt-7 flex flex-wrap items-center justify-between gap-4">
@@ -356,32 +388,12 @@ export default function AppointmentHistoryPage() {
                 Đặt lịch khám mới
               </Link>
             </div>
+          ) : tab === "upcoming" ? (
+            list.map((a) => card(a))
           ) : (
-            <>
-              {tab === "upcoming"
-                ? list.map((a) => (
-                    <AppointmentCard
-                      key={a.code}
-                      appt={a}
-                      now={now}
-                      onCancel={setCancelTarget}
-                      onCheckin={setCheckinTarget}
-                    />
-                  ))
-                : history.map((e) =>
-                    "record" in e ? (
-                      <RecordCard key={e.key} record={e.record} />
-                    ) : (
-                      <AppointmentCard
-                        key={e.key}
-                        appt={e.appt}
-                        now={now}
-                        onCancel={setCancelTarget}
-                        onCheckin={setCheckinTarget}
-                      />
-                    ),
-                  )}
-            </>
+            history.map((e) =>
+              "record" in e ? <RecordCard key={e.key} record={e.record} /> : card(e.appt),
+            )
           )}
         </div>
       </div>
@@ -391,59 +403,24 @@ export default function AppointmentHistoryPage() {
         <SecurityNotice />
       </div>
 
-      {/* Hộp xác nhận hủy (theo SRS: thao tác hủy bắt buộc có bước xác nhận) */}
-      {cancelTarget && (
-        <Modal title="Xác nhận hủy lịch khám" onClose={() => !cancelling && setCancelTarget(null)}>
-          <p className="mt-3 text-sm text-slate-600">
-            Bạn sắp hủy phiếu <b>#{cancelTarget.code}</b> với <b>{cancelTarget.doctor.name}</b>. Khung
-            giờ sẽ được giải phóng và không thể hoàn tác.
-          </p>
-          <p className="mt-3 flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-slate-700">
-            <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
-            Hủy muộn có thể không được hoàn tiền theo chính sách của phòng khám.
-          </p>
-          <div className="mt-5 flex gap-3">
-            <button
-              type="button"
-              disabled={cancelling}
-              onClick={() => setCancelTarget(null)}
-              className="flex-1 rounded-full border border-slate-200 py-2.5 text-xs font-bold text-slate-600 transition hover:bg-slate-50"
-            >
-              Giữ lịch
-            </button>
-            <button
-              type="button"
-              disabled={cancelling}
-              onClick={confirmCancel}
-              className="flex-1 rounded-full bg-red-600 py-2.5 text-xs font-bold text-white transition hover:bg-red-700 disabled:bg-slate-300"
-            >
-              {cancelling ? "Đang hủy..." : "Xác nhận hủy"}
-            </button>
-          </div>
-        </Modal>
+      {/* Popup */}
+      {now && detail && <DetailModal appt={detail} now={now} onClose={() => setDetailCode(null)} />}
+      {now && qr && <QrModal appt={qr} now={now} onClose={() => setQrCode(null)} />}
+      {now && reschedule && (
+        <RescheduleModal
+          appt={reschedule}
+          now={now}
+          onClose={() => setRescheduleCode(null)}
+          onConfirm={confirmReschedule}
+        />
       )}
-
-      {/* Mã QR check-in */}
-      {checkinTarget && (
-        <Modal title="Mã QR Check-in" onClose={() => setCheckinTarget(null)}>
-          <div className="mt-4 text-center">
-            {/* TODO: thay bằng mã QR thật do backend tạo cho phiếu khám */}
-            <span className="mx-auto flex h-40 w-40 items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 text-[#0A5A84]">
-              <QrCode className="h-20 w-20" />
-            </span>
-            <p className="mt-3 text-sm font-extrabold text-slate-900">#{checkinTarget.code}</p>
-            <p className="mt-1 text-xs text-slate-500">
-              Đưa mã này cho lễ tân khi đến phòng khám. Vui lòng có mặt trước giờ hẹn 15 phút.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setCheckinTarget(null)}
-            className="mt-5 w-full rounded-full bg-[#0A5A84] py-2.5 text-xs font-bold text-white transition hover:bg-[#08486B]"
-          >
-            Đóng
-          </button>
-        </Modal>
+      {now && cancel && (
+        <CancelModal
+          appt={cancel}
+          now={now}
+          onClose={() => setCancelCode(null)}
+          onConfirm={confirmCancel}
+        />
       )}
     </section>
   );

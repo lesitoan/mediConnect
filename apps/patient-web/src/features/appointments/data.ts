@@ -21,6 +21,7 @@ export type Appointment = {
   note?: { label: string; text: string };
   queue?: string;
   phone: string;
+  rescheduleCount?: number; // số lần đã đổi lịch (SRS: tối đa 2 lần/lịch)
 };
 
 // TODO: thay bằng API lấy lịch hẹn của chính bệnh nhân đang đăng nhập (UC06)

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { clearSession, type SessionUser } from "@/features/auth/useAuth";
+import { openAiChat } from "./aiChat";
 import {
   Asterisk,
   Bell,
@@ -16,18 +17,23 @@ import {
   X,
 } from "./icons";
 
-const NAV_ITEMS = [
+const NAV_ITEMS: { label: string; href: string; ai?: boolean }[] = [
   { label: "Trang chủ", href: "/" },
   { label: "Đặt lịch khám", href: "/dat-lich" },
   { label: "Hồ sơ sức khỏe", href: "/ho-so-suc-khoe" },
   { label: "Lịch sử & Lịch hẹn", href: "/lich-su-lich-hen" },
-  { label: "Trợ lý AI", href: "/tro-ly-ai" },
-  { label: "Thanh toán viện phí", href: "/thanh-toan" },
+  { label: "Trợ lý AI", href: "/tro-ly-ai", ai: true }, // mở popup, không dùng href
+  //{ label: "Thanh toán viện phí", href: "/thanh-toan" },
   { label: "Hướng dẫn", href: "/huong-dan" },
 ];
 
 // Khung full chiều ngang, chỉ chừa lề nhỏ hai bên
 const wrap = "w-full px-4 sm:px-6 lg:px-10 2xl:px-16";
+
+const linkCls = (active: boolean) =>
+  `text-[13px] font-semibold transition ${
+    active ? "text-[#0A5A84]" : "text-slate-700 hover:text-[#0A5A84]"
+  }`;
 
 function initials(name: string) {
   const parts = name.trim().split(/\s+/);
@@ -166,19 +172,27 @@ export default function AuthedHeader({ user }: { user: SessionUser }) {
 
           {/* Menu giữa: flex-1 + justify-evenly để dàn đều */}
           <nav className="hidden flex-1 items-center justify-evenly px-4 xl:flex 2xl:px-10">
-            {NAV_ITEMS.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`text-[13px] font-semibold transition ${
-                  isActive(item.href)
-                    ? "text-[#0A5A84]"
-                    : "text-slate-700 hover:text-[#0A5A84]"
-                }`}
-              >
-                {item.label}
-              </Link>
-            ))}
+            {NAV_ITEMS.map((item) =>
+              item.ai ? (
+                <button
+                  key={item.href}
+                  type="button"
+                  onClick={openAiChat}
+                  aria-haspopup="dialog"
+                  className={linkCls(false)}
+                >
+                  {item.label}
+                </button>
+              ) : (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={linkCls(isActive(item.href))}
+                >
+                  {item.label}
+                </Link>
+              ),
+            )}
           </nav>
 
           <div className="flex shrink-0 items-center gap-2">
@@ -201,18 +215,32 @@ export default function AuthedHeader({ user }: { user: SessionUser }) {
 
         {mobileOpen && (
           <nav className="border-t border-slate-100 bg-white px-4 py-2 xl:hidden">
-            {NAV_ITEMS.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => setMobileOpen(false)}
-                className={`block border-b border-slate-50 py-3 text-sm font-semibold last:border-0 ${
-                  isActive(item.href) ? "text-[#0A5A84]" : "text-slate-700"
-                }`}
-              >
-                {item.label}
-              </Link>
-            ))}
+            {NAV_ITEMS.map((item) =>
+              item.ai ? (
+                <button
+                  key={item.href}
+                  type="button"
+                  onClick={() => {
+                    setMobileOpen(false);
+                    openAiChat();
+                  }}
+                  className="block w-full border-b border-slate-50 py-3 text-left text-sm font-semibold text-slate-700"
+                >
+                  {item.label}
+                </button>
+              ) : (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setMobileOpen(false)}
+                  className={`block border-b border-slate-50 py-3 text-sm font-semibold last:border-0 ${
+                    isActive(item.href) ? "text-[#0A5A84]" : "text-slate-700"
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              ),
+            )}
             <Link
               href="/dat-lich"
               onClick={() => setMobileOpen(false)}
