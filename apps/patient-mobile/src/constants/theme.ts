@@ -1,0 +1,28 @@
+export const COLORS = {
+  BACKGROUND: '#F6F9FF',
+  BACKGROUND_TOP: '#E2EEFB',
+  SURFACE: '#FFFFFF',
+  PRIMARY: '#005B8D',
+  PRIMARY_LIGHT: '#2D74A8',
+  PRIMARY_TINT: '#EBF5FF',
+  LOGO_GRADIENT_START: '#E2EEFB',
+  LOGO_GRADIENT_END: '#BFD9F0',
+  TILE_TOP: '#EEF6FE',
+  TILE_BOTTOM: '#DDEFFC',
+  TILE_BORDER: '#BFDEFA',
+  BORDER: '#DFE9F5',
+  TEXT: '#131D25',
+  TEXT_MUTED: '#41474F',
+  ICON_MUTED: '#717880',
+  PLACEHOLDER: '#C0C7D0',
+  DOT_INACTIVE: '#C5D3E0',
+  BADGE_RED: '#E5484D',
+  DANGER: '#BA1A1A',
+} as const;
+
+export const FONTS = {
+  REGULAR: 'PlusJakartaSans_400Regular',
+  SEMI_BOLD: 'PlusJakartaSans_600SemiBold',
+  BOLD: 'PlusJakartaSans_700Bold',
+  EXTRA_BOLD: 'PlusJakartaSans_800ExtraBold',
+} as const;
