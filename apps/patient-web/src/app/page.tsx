@@ -1,17 +1,30 @@
-export default function Home() {
+import DoctorsSection from "@/features/home/components/DoctorsSection";
+import FeaturedServicesSection from "@/features/home/components/FeaturedServicesSection";
+import HeroBanner from "@/features/home/components/HeroBanner";
+import HomeSwitch from "@/features/home/components/HomeSwitch";
+import NewsSection from "@/features/home/components/NewsSection";
+import SpecialtiesSection from "@/features/home/components/SpecialtiesSection";
+import VirtualTourBanner from "@/features/home/components/VirtualTourBanner";
+import AppDownloadSection from "@/features/home/components/AppDownloadSection";
+
+export default function HomePage() {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-teal-950 via-slate-900 to-cyan-900 px-6 text-center text-white">
-      <div className="max-w-xl space-y-4">
-        <span className="inline-block rounded-full border border-teal-500/30 bg-teal-500/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-widest text-teal-300">
-          MediConnect
-        </span>
-        <h1 className="text-4xl font-extrabold tracking-tight sm:text-6xl">
-          Welcome to Patient Portal
-        </h1>
-        <p className="text-base text-slate-300 sm:text-lg">
-          Healthcare management and patient services platform
-        </p>
-      </div>
-    </main>
+    <HomeSwitch
+      guest={
+        <>
+          <HeroBanner />
+          <SpecialtiesSection />
+          <FeaturedServicesSection />
+          <DoctorsSection />
+          <div className="bg-white pt-16">
+            <div className="mx-auto max-w-7xl px-4">
+              <VirtualTourBanner />
+            </div>
+          </div>
+          <NewsSection />
+          <AppDownloadSection />
+        </>
+      }
+    />
   );
 }
