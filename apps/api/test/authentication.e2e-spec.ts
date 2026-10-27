@@ -14,13 +14,13 @@ import request from 'supertest';
 import {
   OtpDeliveryService,
   type OtpDelivery,
-} from '../src/modules/notifications/otp-delivery.service';
+} from '../src/modules/notifications/services/otp-delivery.service';
 import { AppModule } from '../src/app.module';
-import { configureApp } from '../src/configure-app';
-import { PrismaService } from '../src/database/prisma.service';
+import { configureApp } from '../src/configs/configure-app';
+import { PrismaService } from '../src/modules/database/services/prisma.service';
 import { Prisma, type AuthSession } from '../src/generated/prisma/client';
-import { RedisService } from '../src/common/redis/redis.service';
-import { OtpStoreService } from '../src/modules/authentication/otp-store.service';
+import { RedisService } from '../src/modules/redis/services/redis.service';
+import { OtpStoreService } from '../src/modules/authentication/services/otp-store.service';
 import { InMemoryOtpStore } from './support/in-memory-otp-store';
 import {
   PermissionStatusEnum,
@@ -31,6 +31,7 @@ import {
 import { RoleEnum } from '../src/modules/users/constants/roles.constant';
 import { AuthRole } from '../src/modules/authentication/decorators/auth-role.decorator';
 import { AuthPermission } from '../src/modules/authentication/decorators/auth-permission.decorator';
+import { Auth } from '../src/modules/authentication/decorators/auth.decorator';
 import { PermissionEnum } from '../src/modules/authentication/constants/permissions.constant';
 
 @Controller('rbac-probe')
@@ -55,6 +56,27 @@ class RbacProbeController {
 
   @Get('protected')
   protectedRoute() {
+    return { success: true };
+  }
+
+  @Get('empty-roles')
+  @AuthRole()
+  emptyRoles() {
+    return { success: true };
+  }
+
+  @Get('empty-permissions')
+  @AuthPermission()
+  emptyPermissions() {
+    return { success: true };
+  }
+
+  @Get('role-and-permissions')
+  @Auth({
+    roles: [RoleEnum.ADMIN, RoleEnum.DOCTOR],
+    permissions: [PermissionEnum.USERS_READ_ME, 'TEST_WRITE'],
+  })
+  roleAndPermissions() {
     return { success: true };
   }
 }
@@ -1114,6 +1136,63 @@ describe('Authentication and RBAC (HTTP, real JWT/bcrypt, in-memory Prisma bound
       .expect(200);
   });
 
+  it.each(['empty-roles', 'empty-permissions'])(
+    'rejects explicitly empty authorization policies: %s',
+    async (route) => {
+      await request(server)
+        .get('/api/v1/rbac-probe/' + route)
+        .set('Authorization', 'Bearer ' + accessToken())
+        .expect(403);
+    },
+  );
+
+  it('requires an allowed role and every permission with the combined Auth policy', async () => {
+    const route = '/api/v1/rbac-probe/role-and-permissions';
+    await request(server).get(route).expect(401);
+    const token = accessToken();
+
+    rolePermissions.set(RoleEnum.PATIENT, [
+      PermissionEnum.USERS_READ_ME,
+      'TEST_WRITE',
+    ]);
+    await request(server)
+      .get(route)
+      .query({ role: RoleEnum.ADMIN, permissions: 'TEST_WRITE' })
+      .set('Authorization', 'Bearer ' + token)
+      .set('X-Role', RoleEnum.ADMIN)
+      .expect(403);
+
+    users.get('patient-id')!.roleId = roleId(RoleEnum.DOCTOR);
+    await request(server)
+      .get(route)
+      .set('Authorization', 'Bearer ' + token)
+      .expect(403);
+
+    rolePermissions.set(RoleEnum.DOCTOR, [
+      PermissionEnum.USERS_READ_ME,
+      'TEST_WRITE',
+    ]);
+    await request(server)
+      .get(route)
+      .set('Authorization', 'Bearer ' + token)
+      .expect(200);
+
+    users.get('patient-id')!.roleId = roleId(RoleEnum.ADMIN);
+    await request(server)
+      .get(route)
+      .set('Authorization', 'Bearer ' + token)
+      .expect(403);
+
+    rolePermissions.set(RoleEnum.ADMIN, [
+      PermissionEnum.USERS_READ_ME,
+      'TEST_WRITE',
+    ]);
+    await request(server)
+      .get(route)
+      .set('Authorization', 'Bearer ' + token)
+      .expect(200);
+  });
+
   it('requires every declared permission and does not grant admin an implicit bypass', async () => {
     const token = accessToken();
     await request(server)
@@ -1262,6 +1341,40 @@ describe('Authentication and RBAC (HTTP, real JWT/bcrypt, in-memory Prisma bound
       .post('/api/v1/authentication/verify')
       .send({ challengeId: id, otp });
   }
+
+  it.each([RoleEnum.ADMIN, RoleEnum.RECEPTIONIST, RoleEnum.DOCTOR])(
+    'allows a verified demo %s to sign in with its seeded password',
+    async (role) => {
+      const user = users.get('patient-id')!;
+      user.email = `${role.toLowerCase()}@example.invalid`;
+      user.roleId = roleId(role);
+      user.emailVerifiedAt = new Date();
+      user.passwordChangedAt = new Date();
+      user.passwordHash = await hash('123456', 4);
+      const response = await request(server)
+        .post('/api/v1/authentication/login')
+        .send({ email: user.email, password: '123456', clientType: 'MOBILE' })
+        .expect(200);
+      const me = await request(server)
+        .get('/api/v1/me')
+        .set(
+          'Authorization',
+          'Bearer ' + (response.body as ApiBody).data.accessToken,
+        )
+        .expect(200);
+      expect((me.body as ApiBody).data.role).toBe(role);
+      expect(sessions.size).toBe(1);
+      expect(deliveries).toHaveLength(0);
+    },
+  );
+
+  it('rejects the withdrawn staff activation OTP purpose', async () => {
+    await request(server)
+      .post('/api/v1/authentication/send_otp')
+      .send({ email: 'patient@example.com', purpose: 'ACTIVATE_STAFF' })
+      .expect(400);
+    expect(deliveries).toHaveLength(0);
+  });
 
   it('supports normalized Vietnamese phone registration, Zalo activation and phone login', async () => {
     const response = await request(server)

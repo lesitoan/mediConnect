@@ -14,24 +14,22 @@ import {
 } from '@nestjs/common';
 import { ApiCreatedResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
-import { ApiResponseDto } from '../../common/dto/api-response.dto';
-import { OtpService } from './otp.service';
-import { ContactDto } from './dto/contact.dto';
-import {
-  OtpChallengeDto,
-  SendOtpDto,
-  VerifyOtpDto,
-  VerifyOtpResponseDto,
-  ResetPasswordDto,
-} from './dto/otp.dto';
-import { AuthenticationService } from './authentication.service';
-import { AuthenticationTransportService } from './authentication-transport.service';
+import { HttpResponseBodySuccessDto } from '../../common/dto/http-response-body-success.dto';
+import { OtpService } from './services/otp.service';
+import { ContactDto } from './dto/requests/contact.dto';
+import { OtpChallengeDto } from './dto/responses/otp-challenge.dto';
+import { SendOtpDto } from './dto/requests/send-otp.dto';
+import { VerifyOtpDto } from './dto/requests/verify-otp.dto';
+import { VerifyOtpResponseDto } from './dto/responses/verify-otp-response.dto';
+import { ResetPasswordDto } from './dto/requests/reset-password.dto';
+import { AuthenticationService } from './services/authentication.service';
+import { AuthenticationTransportService } from './services/authentication-transport.service';
 import { Public } from './decorators/public.decorator';
-import { LoginDto } from './dto/login.dto';
-import { LoginResponseDto } from './dto/login-response.dto';
-import { RegisterDto } from './dto/register.dto';
-import { RefreshTokenDto } from './dto/refresh-token.dto';
-import { AuthSessionDto } from './dto/auth-session.dto';
+import { LoginDto } from './dto/requests/login.dto';
+import { LoginResponseDto } from './dto/responses/login-response.dto';
+import { RegisterDto } from './dto/requests/register.dto';
+import { RefreshTokenDto } from './dto/requests/refresh-token.dto';
+import { AuthSessionDto } from './dto/responses/auth-session.dto';
 import { Auth } from './decorators/auth.decorator';
 import type { AuthenticatedRequest } from '../../common/interfaces/authenticated-request.interface';
 
@@ -54,9 +52,9 @@ export class AuthenticationController {
   async register(
     @Body() input: RegisterDto,
     @Req() request: Request,
-  ): Promise<ApiResponseDto<OtpChallengeDto>> {
+  ): Promise<HttpResponseBodySuccessDto<OtpChallengeDto>> {
     this.transportService.assertAllowedOrigin(request);
-    return new ApiResponseDto(
+    return new HttpResponseBodySuccessDto(
       await this.authenticationService.register(input, request.ip ?? 'UNKNOWN'),
     );
   }
@@ -72,9 +70,9 @@ export class AuthenticationController {
   async sendOtp(
     @Body() input: SendOtpDto,
     @Req() request: Request,
-  ): Promise<ApiResponseDto<OtpChallengeDto>> {
+  ): Promise<HttpResponseBodySuccessDto<OtpChallengeDto>> {
     this.transportService.assertAllowedOrigin(request);
-    return new ApiResponseDto(
+    return new HttpResponseBodySuccessDto(
       await this.otpService.send(
         input,
         input.purpose,
@@ -95,9 +93,9 @@ export class AuthenticationController {
   async forgotPassword(
     @Body() input: ContactDto,
     @Req() request: Request,
-  ): Promise<ApiResponseDto<OtpChallengeDto>> {
+  ): Promise<HttpResponseBodySuccessDto<OtpChallengeDto>> {
     this.transportService.assertAllowedOrigin(request);
-    return new ApiResponseDto(
+    return new HttpResponseBodySuccessDto(
       await this.otpService.send(
         input,
         'RESET_PASSWORD',
@@ -118,9 +116,9 @@ export class AuthenticationController {
   async verify(
     @Body() input: VerifyOtpDto,
     @Req() request: Request,
-  ): Promise<ApiResponseDto<VerifyOtpResponseDto>> {
+  ): Promise<HttpResponseBodySuccessDto<VerifyOtpResponseDto>> {
     this.transportService.assertAllowedOrigin(request);
-    return new ApiResponseDto(
+    return new HttpResponseBodySuccessDto(
       await this.otpService.verify(
         input.challengeId,
         input.otp,
@@ -140,9 +138,9 @@ export class AuthenticationController {
   async resetPassword(
     @Body() input: ResetPasswordDto,
     @Req() request: Request,
-  ): Promise<ApiResponseDto<{ message: string }>> {
+  ): Promise<HttpResponseBodySuccessDto<{ message: string }>> {
     this.transportService.assertAllowedOrigin(request);
-    return new ApiResponseDto(
+    return new HttpResponseBodySuccessDto(
       await this.otpService.resetPassword(
         input.resetToken,
         input.password,
@@ -162,7 +160,7 @@ export class AuthenticationController {
     @Body() input: LoginDto,
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
-  ): Promise<ApiResponseDto<LoginResponseDto>> {
+  ): Promise<HttpResponseBodySuccessDto<LoginResponseDto>> {
     this.transportService.assertAllowedOrigin(request);
     const result = await this.authenticationService.login(input, {
       ip: request.ip,
@@ -170,7 +168,7 @@ export class AuthenticationController {
     });
     const data = this.transportService.setTokens(response, result);
     response.setHeader('Cache-Control', 'no-store');
-    return new ApiResponseDto(data);
+    return new HttpResponseBodySuccessDto(data);
   }
 
   @Public()
@@ -185,10 +183,10 @@ export class AuthenticationController {
     @Body() input: RefreshTokenDto,
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
-  ): Promise<ApiResponseDto<LoginResponseDto>> {
+  ): Promise<HttpResponseBodySuccessDto<LoginResponseDto>> {
     const token = this.transportService.readRefreshToken(request, input);
     const result = await this.authenticationService.refresh(token);
-    return new ApiResponseDto(
+    return new HttpResponseBodySuccessDto(
       this.transportService.setTokens(response, result),
     );
   }
@@ -203,13 +201,13 @@ export class AuthenticationController {
   async logout(
     @Req() request: AuthenticatedRequest,
     @Res({ passthrough: true }) response: Response,
-  ): Promise<ApiResponseDto<{ message: string }>> {
+  ): Promise<HttpResponseBodySuccessDto<{ message: string }>> {
     const result = await this.authenticationService.logout(
       request.user!.id,
       request.sessionId,
     );
     this.transportService.clearTokens(response);
-    return new ApiResponseDto(result);
+    return new HttpResponseBodySuccessDto(result);
   }
 
   @Auth()
@@ -222,10 +220,10 @@ export class AuthenticationController {
   async logoutAll(
     @Req() request: AuthenticatedRequest,
     @Res({ passthrough: true }) response: Response,
-  ): Promise<ApiResponseDto<{ message: string }>> {
+  ): Promise<HttpResponseBodySuccessDto<{ message: string }>> {
     const result = await this.authenticationService.logout(request.user!.id);
     this.transportService.clearTokens(response);
-    return new ApiResponseDto(result);
+    return new HttpResponseBodySuccessDto(result);
   }
 
   @Auth()
@@ -236,8 +234,8 @@ export class AuthenticationController {
   })
   async sessions(
     @Req() request: AuthenticatedRequest,
-  ): Promise<ApiResponseDto<AuthSessionDto[]>> {
-    return new ApiResponseDto(
+  ): Promise<HttpResponseBodySuccessDto<AuthSessionDto[]>> {
+    return new HttpResponseBodySuccessDto(
       await this.authenticationService.listSessions(
         request.user!.id,
         request.sessionId!,
@@ -256,13 +254,13 @@ export class AuthenticationController {
     @Param('sessionId', new ParseUUIDPipe({ version: '4' })) sessionId: string,
     @Req() request: AuthenticatedRequest,
     @Res({ passthrough: true }) response: Response,
-  ): Promise<ApiResponseDto<{ message: string }>> {
+  ): Promise<HttpResponseBodySuccessDto<{ message: string }>> {
     const result = await this.authenticationService.revokeSession(
       request.user!.id,
       sessionId,
     );
     if (sessionId === request.sessionId)
       this.transportService.clearTokens(response);
-    return new ApiResponseDto(result);
+    return new HttpResponseBodySuccessDto(result);
   }
 }

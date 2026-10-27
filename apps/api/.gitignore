@@ -1,0 +1,4 @@
+*.spec.ts
+*.md
+test
+docs

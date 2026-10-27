@@ -95,6 +95,7 @@ model User {
   notifications         Notification[]         @relation("NotificationUserId")
   authIdentities        UserAuthIdentity[]     @relation("UserAuthIdentityUserId")
   authSessions          AuthSession[]          @relation("AuthSessionUserId")
+  auditLogs             AuditLog[]             @relation("AuditLogActorUserId")
   role                  role?                  @relation(fields: [roleId], references: [id])
   roleId                String
 
@@ -158,6 +159,7 @@ model Specialty {
   id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   code        String   @unique @db.VarChar(20)
   name        String   @unique @db.VarChar(255)
+  roomCode    String   @map("room_code") @db.VarChar(20)
   description String?  @db.Text
   isActive    Boolean  @default(true) @map("is_active")
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -171,16 +173,18 @@ model Specialty {
 }
 
 model Doctor {
-  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId        String   @unique @map("user_id") @db.Uuid
-  specialtyId   String   @map("specialty_id") @db.Uuid
-  doctorCode    String   @unique @map("doctor_code") @db.VarChar(20)
-  qualification String?  @db.Text
-  bio           String?  @db.Text
-  avatarUrl     String?  @map("avatar_url") @db.VarChar(500)
-  isActive      Boolean  @default(true) @map("is_active")
-  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String         @unique @map("user_id") @db.Uuid
+  specialtyId   String         @map("specialty_id") @db.Uuid
+  doctorCode    String         @unique @map("doctor_code") @db.VarChar(20)
+  licenseNumber String         @unique @map("license_number") @db.VarChar(50)
+  academicTitle AcademicTitle? @map("academic_title")
+  qualification String?        @db.Text
+  bio           String?        @db.Text
+  avatarUrl     String?        @map("avatar_url") @db.VarChar(500)
+  isActive      Boolean        @default(true) @map("is_active")
+  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   confirmedMedicalRecords PatientMedicalRecord[] @relation("PatientMedicalRecordConfirmedBy")
   user                    User                   @relation("DoctorUserId", fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
@@ -219,7 +223,7 @@ model DoctorSchedule {
 model LeaveRequest {
   id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   doctorId          String             @map("doctor_id") @db.Uuid
-  requestType       LeaveRequestType   @default(OVERTIME) @map("request_type")
+  requestType       LeaveRequestType   @default(ABSENT) @map("request_type")
   startsAt          DateTime           @map("starts_at") @db.Timestamptz(6)
   endsAt            DateTime           @map("ends_at") @db.Timestamptz(6)
   reason            String             @db.Text
@@ -453,6 +457,38 @@ model Notification {
   @@map("notifications")
 }
 
+model AuditLog {
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  occurredAt       DateTime       @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  actorType        AuditActorType @map("actor_type")
+  actorUserId      String?        @map("actor_user_id") @db.Uuid
+  actorDisplayName String?        @map("actor_display_name") @db.VarChar(255)
+  actorRole        UserRole?      @map("actor_role")
+  actionCode       String         @map("action_code") @db.VarChar(100)
+  module           String         @db.VarChar(50)
+  targetType       String         @map("target_type") @db.VarChar(50)
+  targetId         String?        @map("target_id") @db.VarChar(100)
+  result           AuditLogResult
+  reason           String?        @db.Text
+  /// Store redacted changes only; never credentials or clinical content.
+  beforeSnapshot   Json?          @map("before_snapshot") @db.JsonB
+  afterSnapshot    Json?          @map("after_snapshot") @db.JsonB
+  source           String?        @db.VarChar(50)
+  ipAddress        String?        @map("ip_address") @db.Inet
+  userAgent        String?        @map("user_agent") @db.VarChar(1000)
+  requestId        String?        @map("request_id") @db.VarChar(100)
+  /// Reuse the same key when retrying one audited event.
+  idempotencyKey   String         @unique @map("idempotency_key") @db.VarChar(100)
+
+  actorUser User? @relation("AuditLogActorUserId", fields: [actorUserId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([occurredAt, id])
+  @@index([actorUserId, occurredAt])
+  @@index([targetType, targetId, occurredAt])
+  @@index([actionCode, occurredAt])
+  @@map("audit_logs")
+}
+
 model AiConversationLog {
   id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   patientId String    @map("patient_id") @db.Uuid
@@ -506,6 +542,23 @@ model AuthSession {
   @@map("auth_sessions")
 }
 
+enum AcademicTitle {
+  PROFESSOR
+  ASSOCIATE_PROFESSOR
+}
+
+enum AuditActorType {
+  USER
+  ANONYMOUS
+  SYSTEM
+}
+
+enum AuditLogResult {
+  SUCCESS
+  FAILED
+  COMPLETED
+}
+
 enum UserRole {
   PATIENT
   DOCTOR
@@ -544,7 +597,6 @@ enum PatientMedicalRecordStatus {
 enum ScheduleType {
   REGULAR
   SHIFT
-  OVERTIME
 }
 
 enum DoctorScheduleStatus {
@@ -555,7 +607,7 @@ enum DoctorScheduleStatus {
 }
 
 enum LeaveRequestType {
-  OVERTIME
+  ABSENT
 }
 
 enum LeaveRequestStatus {

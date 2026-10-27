@@ -1,103 +1,104 @@
 # MediConnect API
 
-- [RBAC adapted from TripByToanNgo](RBAC.md)
-- [Authentication, Redis OTP, refresh tokens and sessions](authentication_flow_analysis.md)
+REST API dạng modular monolith bằng NestJS cho MediConnect. Các module hiện có phục vụ xác thực, tài khoản, gửi OTP và kiểm tra kết nối cơ sở dữ liệu.
 
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+## Cấu trúc thư mục
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Cách chia thư mục theo `tripBackend`, dùng lại cấu hình và các service hiện có của MediConnect:
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
-
-## Description
-
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
-
-## Project setup
-
-```bash
-$ npm install
+```text
+apps/api/
+├── prisma/                         # Một schema, lịch sử migration và seed
+├── src/
+│   ├── common/                     # Bộ tiện ích dùng chung kế thừa từ tripBackend
+│   │   ├── constants/
+│   │   ├── decorators/
+│   │   ├── dto/
+│   │   ├── enums/
+│   │   ├── exceptions/
+│   │   ├── filters/
+│   │   ├── interfaces/
+│   │   └── utils/
+│   ├── configs/                    # Env validation, HTTP, JWT, logger, OTP, database, Redis
+│   ├── generated/prisma/           # Prisma Client tự sinh; không sửa trực tiếp
+│   ├── modules/
+│   │   ├── authentication/
+│   │   │   ├── constants/
+│   │   │   ├── decorators/
+│   │   │   ├── dto/
+│   │   │   │   ├── requests/       # Đầu vào và quy tắc validation
+│   │   │   │   └── responses/      # Dữ liệu trả về
+│   │   │   ├── guards/
+│   │   │   ├── services/           # Xác thực, cookie/token, OTP và OTP store
+│   │   │   ├── authentication.controller.ts
+│   │   │   └── authentication.module.ts
+│   │   ├── database/
+│   │   │   ├── services/prisma.service.ts
+│   │   │   └── database.module.ts
+│   │   ├── health-check/           # Controller, module và services/
+│   │   ├── notifications/          # Module và services/ gửi OTP qua email/Zalo
+│   │   ├── redis/                  # Module và services/ quản lý kết nối Redis
+│   │   └── users/
+│   │       ├── constants/
+│   │       ├── dto/responses/
+│   │       ├── services/           # Tài khoản và phiên đăng nhập
+│   │       ├── users.controller.ts
+│   │       ├── users.repository.ts
+│   │       └── users.module.ts
+│   ├── swagger/
+│   ├── app.module.ts
+│   └── main.ts
+├── test/                           # HTTP, migration, RBAC và Redis integration tests
+├── docs/                           # Tài liệu xác thực và phân quyền
+├── scripts/                        # Công cụ chạy kiểm thử
+└── deploy/                         # Docker entrypoint, Compose và Nginx
 ```
 
-## Compile and run the project
+- Tên file/thư mục dùng kebab-case; module nghiệp vụ dùng danh từ số nhiều theo quy ước MediConnect. Giữ tên `authentication` và `health-check` đang dùng.
+- Controller xử lý HTTP và validation. Service chứa nghiệp vụ; repository chứa truy cập dữ liệu của module. Dùng lại `DatabaseModule` để nhận `PrismaService`, không tạo Prisma Client mới trong từng module.
+- Module khác sử dụng service được module sở hữu export. Không truy cập repository nội bộ của module khác.
+- `configs/configure-app.ts` cấu hình prefix, CORS, cookie, validation và filter lỗi dùng chung cho ứng dụng và HTTP tests.
+- Chỉ tạo module khi triển khai nghiệp vụ. Khi cần nhiều audience, đặt controller/DTO `patient`, `staff`, `admin` bên trong module sở hữu nghiệp vụ.
+- Giữ cách gọi service/repository đang có; không thêm CQRS hoặc các module tour, sản phẩm, giỏ hàng từ dự án tham chiếu.
 
-```bash
-# development
-$ npm run start
+## Chạy local
 
-# watch mode
-$ npm run start:dev
+Thực hiện từ thư mục `mediConnect`. Cài dependency bằng `npm ci`. Nếu chưa có cấu hình local, sao chép `apps/api/.env.example` thành `apps/api/.env` và điền:
 
-# production mode
-$ npm run start:prod
+- `DATABASE_URL`: PostgreSQL cho MediConnect.
+- `REDIS_URL`: Redis cho OTP và giới hạn yêu cầu.
+- `JWT_SECRET`, `OTP_HMAC_SECRET`: hai secret khác nhau, mỗi secret tối thiểu 32 ký tự.
+- `RESEND_API_KEY`, `RESEND_FROM_EMAIL`: gửi OTP qua email. Điền thông tin Zalo khi bật đăng ký bằng SĐT.
+
+```sh
+npm run prisma:generate --workspace api
+npm run prisma:migrate --workspace api
+npm run prisma:seed --workspace api
+npm run dev:api
 ```
 
-## Run tests
+`prisma:migrate` áp dụng migration vào database đã cấu hình; kiểm tra đúng database trước khi chạy. Seed mặc định bổ sung role/permission còn thiếu, không tạo người dùng hoặc mật khẩu. `npm run prisma:seed:clinic --workspace api` tạo dữ liệu phòng khám giả lập cho đồ án. Tạo thêm 2 admin và 2 lễ tân bằng `npm run prisma:seed:staff --workspace api`. Các tài khoản demo mới đã xác minh email, có trạng thái ACTIVE và mật khẩu `123456`. Xem [danh sách tài khoản và cách chạy seed](../../docs/clinic-seed-and-staff-activation.md).
 
-```bash
-# unit tests
-$ npm run test
+Cổng mặc định: `4000`. Base path: `/api/v1`. Swagger: `http://localhost:4000/api/docs`. Health check: `GET /api/v1/health-check`. Thông tin người dùng hiện tại: `GET /api/v1/me`.
 
-# e2e tests
-$ npm run test:e2e
+## Kiểm tra và build
 
-# test coverage
-$ npm run test:cov
+```sh
+npm run check-types --workspace api
+npm run lint --workspace api
+npm run test --workspace api -- --runInBand
+npm run test:e2e --workspace api -- --runInBand
+npm run build --workspace api
 ```
 
-## Deployment
+HTTP tests dùng JWT/bcrypt thật và mock PostgreSQL/OTP; migration tests chạy PostgreSQL trong bộ nhớ bằng PGlite. Chúng không ghi vào database của ứng dụng. Test Redis thật chỉ chạy khi có `REDIS_TEST_URL` riêng; xem [hướng dẫn kiểm thử Redis](docs/authentication.md#chạy-và-kiểm-thử).
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+Build tạo `dist/` cho API và `dist-seed/` cho seed. Chạy production bằng `npm run start:prod --workspace api`; cấu hình container nằm trong `Dockerfile` và `deploy/`.
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+## Tài liệu
 
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+- [Luồng hoạt động, luồng dữ liệu và nơi lưu token — đọc từ đầu](docs/authentication-data-flow.md)
+- [Common kế thừa từ tripBackend và cách sử dụng](docs/common.md)
+- [Xác thực, Redis OTP, refresh token và phiên đăng nhập](docs/authentication.md)
+- [Phân quyền và cách áp dụng từ TripByToanNgo](docs/rbac.md)
+- [API contracts của MediConnect](../../docs/api-contracts/README.md)

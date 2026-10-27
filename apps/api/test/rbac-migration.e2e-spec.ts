@@ -47,7 +47,8 @@ async function schemaSnapshot(db: PGlite) {
     ).rows,
     constraints: (
       await db.query(
-        `SELECT c.relname AS table_name, con.conname, pg_get_constraintdef(con.oid) AS definition FROM pg_constraint con JOIN pg_class c ON con.conrelid = c.oid JOIN pg_namespace n ON c.relnamespace = n.oid WHERE n.nspname = 'public' ORDER BY c.relname, con.conname`,
+        // Prisma does not express CHECK constraints; migration-specific tests verify them.
+        `SELECT c.relname AS table_name, con.conname, pg_get_constraintdef(con.oid) AS definition FROM pg_constraint con JOIN pg_class c ON con.conrelid = c.oid JOIN pg_namespace n ON c.relnamespace = n.oid WHERE n.nspname = 'public' AND con.contype <> 'c' ORDER BY c.relname, con.conname`,
       )
     ).rows,
     indexes: (

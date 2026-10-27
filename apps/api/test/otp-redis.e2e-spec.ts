@@ -1,11 +1,11 @@
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
 import { createClient } from 'redis';
-import { RedisService } from '../src/common/redis/redis.service';
+import { RedisService } from '../src/modules/redis/services/redis.service';
 import {
   OtpStoreService,
   type OtpRecord,
-} from '../src/modules/authentication/otp-store.service';
+} from '../src/modules/authentication/services/otp-store.service';
 
 // Explicit opt-in; never use the application's Redis URL or flush its database.
 const REDIS_TEST_URL = process.env.REDIS_TEST_URL;

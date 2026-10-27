@@ -1,8 +1,7 @@
 import 'dotenv/config';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../src/generated/prisma/client';
-import { RoleEnum } from '../src/modules/users/constants/roles.constant';
-import { PermissionEnum } from '../src/modules/authentication/constants/permissions.constant';
+import { seedRbac } from './seed-rbac';
 
 async function seed(): Promise<void> {
   const connectionString = process.env.DATABASE_URL;
@@ -16,39 +15,9 @@ async function seed(): Promise<void> {
     ),
   });
   try {
-    await prisma.$transaction(async (transaction) => {
-      const permission = await transaction.permission.upsert({
-        where: { name: PermissionEnum.USERS_READ_ME },
-        create: {
-          name: PermissionEnum.USERS_READ_ME,
-          description: 'Read own account profile',
-        },
-        update: {},
-      });
-      for (const name of Object.values(RoleEnum)) {
-        const role = await transaction.role.upsert({
-          where: { name },
-          create: { name, description: `${name} role` },
-          update: {},
-        });
-        await transaction.infoPermission.upsert({
-          where: {
-            role_id_permission_id: {
-              role_id: role.id,
-              permission_id: permission.id,
-            },
-          },
-          create: {
-            role_id: role.id,
-            permission_id: permission.id,
-            description: `Read own account profile for ${name}`,
-          },
-          update: {},
-        });
-      }
-    });
+    await prisma.$transaction(seedRbac, { timeout: 30000 });
     console.log(
-      'RBAC roles and default /me permissions are ready. No user or password was created.',
+      'SRS roles and permissions are ready. No user or password was created.',
     );
   } finally {
     await prisma.$disconnect();

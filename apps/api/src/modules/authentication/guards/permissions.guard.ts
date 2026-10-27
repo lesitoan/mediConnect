@@ -24,10 +24,11 @@ export class PermissionsGuard implements CanActivate {
       PERMISSIONS_KEY,
       targets,
     );
-    if (!permissions?.length) return true;
+    if (permissions === undefined) return true;
     const user = context.switchToHttp().getRequest<AuthenticatedRequest>().user;
     if (!user) throw new UnauthorizedException();
     if (
+      permissions.length === 0 ||
       !permissions.every((permission) => user.permissions.includes(permission))
     ) {
       throw new ForbiddenException('Permission is not granted');
