@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { Prisma } from '../../generated/prisma/client';
+import { HttpResponseBodyFailDto } from '../dto/http-response-body-fail.dto';
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
@@ -36,10 +37,13 @@ export class HttpExceptionFilter implements ExceptionFilter {
     } else if (exception instanceof Prisma.PrismaClientKnownRequestError) {
       if (exception.code === 'P2002') {
         status = HttpStatus.CONFLICT;
-        message = 'Account already exists';
+        message = 'Resource already exists';
       } else if (exception.code === 'P2025') {
         status = HttpStatus.NOT_FOUND;
         message = 'Resource not found';
+      } else if (exception.code === 'P1017') {
+        status = HttpStatus.SERVICE_UNAVAILABLE;
+        message = 'Database is unavailable';
       }
     }
     if (status === HttpStatus.INTERNAL_SERVER_ERROR) {
@@ -48,8 +52,6 @@ export class HttpExceptionFilter implements ExceptionFilter {
         exception instanceof Error ? exception.stack : undefined,
       );
     }
-    response
-      .status(status)
-      .json({ success: false, statusCode: status, message });
+    response.status(status).json(new HttpResponseBodyFailDto(status, message));
   }
 }

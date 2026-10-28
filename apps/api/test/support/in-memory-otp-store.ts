@@ -1,5 +1,5 @@
 import { createHmac } from 'node:crypto';
-import type { OtpRecord } from '../../src/modules/authentication/otp-store.service';
+import type { OtpRecord } from '../../src/modules/authentication/services/otp-store.service';
 
 export interface StoredOtp extends OtpRecord {
   createdAt: Date;

@@ -1,5 +1,5 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
-import { PrismaService } from '../../database/prisma.service';
+import { PrismaService } from '../database/services/prisma.service';
 import {
   PermissionStatusEnum,
   RoleStatusEnum,

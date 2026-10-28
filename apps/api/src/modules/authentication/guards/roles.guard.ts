@@ -24,7 +24,7 @@ export class RolesGuard implements CanActivate {
       ROLES_KEY,
       targets,
     );
-    if (!roles?.length) return true;
+    if (roles === undefined) return true;
     const user = context.switchToHttp().getRequest<AuthenticatedRequest>().user;
     if (!user) throw new UnauthorizedException();
     if (!roles.includes(user.role))

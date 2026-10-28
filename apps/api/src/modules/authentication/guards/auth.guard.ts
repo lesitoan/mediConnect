@@ -8,11 +8,11 @@ import { ConfigService } from '@nestjs/config';
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import type { AuthenticatedRequest } from '../../../common/interfaces/authenticated-request.interface';
-import { UsersService } from '../../users/users.service';
-import { UserSessionsService } from '../../users/user-sessions.service';
+import { UsersService } from '../../users/services/users.service';
+import { UserSessionsService } from '../../users/services/user-sessions.service';
 import { SESSION_ID_PATTERN } from '../constants/token.constant';
 import { PUBLIC_ROUTE_KEY } from '../constants/authentication.constant';
-import { AuthenticationTransportService } from '../authentication-transport.service';
+import { AuthenticationTransportService } from '../services/authentication-transport.service';
 
 @Injectable()
 export class AuthGuard implements CanActivate {

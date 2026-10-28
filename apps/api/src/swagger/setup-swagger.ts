@@ -1,14 +1,22 @@
 import type { INestApplication } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { ConfigService } from '@nestjs/config';
+import {
+  SWAGGER_API_DESCRIPTION,
+  SWAGGER_API_PATH,
+  SWAGGER_API_TITLE,
+  SWAGGER_API_VERSION,
+} from '../common/constants/swagger.constant';
 
 export function setupSwagger(app: INestApplication): void {
+  const appConfig = app.get(ConfigService);
   const config = new DocumentBuilder()
-    .setTitle('MediConnect API')
-    .setDescription('Authentication and role-based access control')
-    .setVersion('1.0')
+    .setTitle(SWAGGER_API_TITLE)
+    .setDescription(SWAGGER_API_DESCRIPTION)
+    .setVersion(SWAGGER_API_VERSION)
     .addBearerAuth()
-    .addCookieAuth('accessToken')
+    .addCookieAuth(appConfig.getOrThrow<string>('authentication.cookieName'))
     .build();
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, document);
+  SwaggerModule.setup(SWAGGER_API_PATH, app, document);
 }
