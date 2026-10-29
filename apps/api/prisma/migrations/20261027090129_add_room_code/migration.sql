@@ -11,11 +11,11 @@
 -- AlterEnum
 BEGIN;
 CREATE TYPE "LeaveRequestType_new" AS ENUM ('ABSENT');
-ALTER TABLE "public"."leave_requests" ALTER COLUMN "request_type" DROP DEFAULT;
+ALTER TABLE "leave_requests" ALTER COLUMN "request_type" DROP DEFAULT;
 ALTER TABLE "leave_requests" ALTER COLUMN "request_type" TYPE "LeaveRequestType_new" USING ("request_type"::text::"LeaveRequestType_new");
 ALTER TYPE "LeaveRequestType" RENAME TO "LeaveRequestType_old";
 ALTER TYPE "LeaveRequestType_new" RENAME TO "LeaveRequestType";
-DROP TYPE "public"."LeaveRequestType_old";
+DROP TYPE "LeaveRequestType_old";
 ALTER TABLE "leave_requests" ALTER COLUMN "request_type" SET DEFAULT 'ABSENT';
 COMMIT;
 
@@ -25,7 +25,7 @@ CREATE TYPE "ScheduleType_new" AS ENUM ('REGULAR', 'SHIFT');
 ALTER TABLE "doctor_schedules" ALTER COLUMN "schedule_type" TYPE "ScheduleType_new" USING ("schedule_type"::text::"ScheduleType_new");
 ALTER TYPE "ScheduleType" RENAME TO "ScheduleType_old";
 ALTER TYPE "ScheduleType_new" RENAME TO "ScheduleType";
-DROP TYPE "public"."ScheduleType_old";
+DROP TYPE "ScheduleType_old";
 COMMIT;
 
 -- AlterTable
