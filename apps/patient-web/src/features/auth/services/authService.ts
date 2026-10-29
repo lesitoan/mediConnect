@@ -85,8 +85,6 @@ export async function registerPatient(input: {
   phone: string;
   email?: string;
   password: string;
-  dateOfBirth: string;
-  gender: "MALE" | "FEMALE" | "OTHER";
 }) {
   return request<OtpChallenge>("/authentication/register", {
     method: "POST",

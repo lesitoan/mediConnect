@@ -144,8 +144,6 @@ export default function RegisterForm() {
 
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
-  const [dob, setDob] = useState("");
-  const [gender, setGender] = useState<"MALE" | "FEMALE" | "OTHER">("MALE");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -154,7 +152,6 @@ export default function RegisterForm() {
   const [agree, setAgree] = useState(false);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
 
-  const today = new Date().toISOString().split("T")[0];
   const strength = useMemo(() => passwordStrength(password), [password]);
 
   const errors = {
@@ -162,11 +159,6 @@ export default function RegisterForm() {
     phone: /^0\d{9}$/.test(phone)
       ? ""
       : "Số điện thoại gồm 10 chữ số, bắt đầu bằng 0.",
-    dob: !dob
-      ? "Vui lòng chọn ngày sinh."
-      : dob > today
-        ? "Ngày sinh không hợp lệ."
-        : "",
     email:
       email.trim() === "" || /^\S+@\S+\.\S+$/.test(email.trim())
         ? ""
@@ -191,7 +183,6 @@ export default function RegisterForm() {
     setTouched({
       fullName: true,
       phone: true,
-      dob: true,
       email: true,
       password: true,
       confirm: true,
@@ -205,8 +196,6 @@ export default function RegisterForm() {
         phone,
         ...(email.trim() ? { email: email.trim() } : {}),
         password,
-        dateOfBirth: dob,
-        gender,
       });
       setOtpChallenge(challenge);
       setStep(2);
@@ -308,37 +297,6 @@ export default function RegisterForm() {
                   onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
                   onBlur={() => blur("phone")}
                 />
-              </div>
-            </Field>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <Field label="Ngày sinh" required error={show("dob")}>
-              <div className={wrap}>
-                <input
-                  type="date"
-                  max={today}
-                  className={base}
-                  value={dob}
-                  onChange={(e) => setDob(e.target.value)}
-                  onBlur={() => blur("dob")}
-                />
-              </div>
-            </Field>
-
-            <Field label="Giới tính" required>
-              <div className={wrap}>
-                <select
-                  className={base}
-                  value={gender}
-                  onChange={(e) =>
-                    setGender(e.target.value as "MALE" | "FEMALE" | "OTHER")
-                  }
-                >
-                  <option value="MALE">Nam</option>
-                  <option value="FEMALE">Nữ</option>
-                  <option value="OTHER">Khác</option>
-                </select>
               </div>
             </Field>
           </div>

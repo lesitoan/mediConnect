@@ -26,8 +26,8 @@ export class UsersService {
     phone: string;
     name: string;
     passwordHash: string;
-    dateOfBirth: string;
-    gender: PatientGender;
+    dateOfBirth?: string;
+    gender?: PatientGender;
   }) {
     return this.usersRepository.createPatient(input);
   }

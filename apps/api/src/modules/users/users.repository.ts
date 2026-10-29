@@ -48,8 +48,8 @@ export class UsersRepository {
     phone: string;
     name: string;
     passwordHash: string;
-    dateOfBirth: string;
-    gender: PatientGender;
+    dateOfBirth?: string;
+    gender?: PatientGender;
   }) {
     const role = await this.prisma.role.findUnique({
       where: { name: RoleEnum.PATIENT },
@@ -71,7 +71,9 @@ export class UsersRepository {
             fullName: input.name,
             phone: input.phone,
             email: input.email,
-            dateOfBirth: new Date(input.dateOfBirth),
+            ...(input.dateOfBirth
+              ? { dateOfBirth: new Date(input.dateOfBirth) }
+              : {}),
             gender: input.gender,
           },
         },
