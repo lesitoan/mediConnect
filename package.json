@@ -16,6 +16,7 @@
     "dev": "turbo run dev",
     "dev:web": "turbo run dev --filter=patient-web --filter=staff-web",
     "dev:api": "turbo run dev --filter=api",
+    "dev:ai": "npm run dev --workspace=ai",
     "dev:patient-web": "turbo run dev --filter=patient-web",
     "dev:staff-web": "turbo run dev --filter=staff-web",
     "build": "turbo run build",

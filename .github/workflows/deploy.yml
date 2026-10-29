@@ -1,20 +1,32 @@
-name: API CI/CD
+name: API and AI CI/CD
 
 on:
   pull_request:
     branches: [main]
     paths:
-      - 'apps/api/**'
-      - '.github/workflows/deploy.yml'
+      - "apps/api/**"
+      - "apps/ai/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".dockerignore"
+      - ".github/workflows/deploy.yml"
   push:
     branches: [main]
     paths:
-      - 'apps/api/**'
-      - '.github/workflows/deploy.yml'
+      - "apps/api/**"
+      - "apps/ai/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".dockerignore"
+      - ".github/workflows/deploy.yml"
   workflow_dispatch:
     inputs:
       image:
-        description: Image GHCR có sẵn để deploy lại hoặc rollback; để trống để build
+        description: API image GHCR có sẵn để deploy lại hoặc rollback; để trống để build
+        required: false
+        type: string
+      ai_image:
+        description: AI image GHCR có sẵn để deploy lại hoặc rollback; để trống để build
         required: false
         type: string
 
@@ -30,11 +42,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: '24'
+          node-version: "24"
           cache: npm
       - run: npm ci --no-audit --no-fund
       - name: Generate Prisma Client và build API
         run: npx turbo run build --filter=api
+      - name: Build AI service
+        run: npm run build --workspace=ai
       - name: Kiểm tra lint
         run: npx turbo run lint --filter=api
       - name: Kiểm tra kiểu dữ liệu
@@ -48,7 +62,8 @@ jobs:
       contents: read
       packages: write
     outputs:
-      image: ${{ steps.image.outputs.image }}
+      api_image: ${{ steps.image.outputs.api_image }}
+      ai_image: ${{ steps.image.outputs.ai_image }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -56,23 +71,29 @@ jobs:
       - name: Chọn image
         id: image
         env:
-          EXISTING_IMAGE: ${{ inputs.image }}
+          EXISTING_API_IMAGE: ${{ inputs.image }}
+          EXISTING_AI_IMAGE: ${{ inputs.ai_image }}
           IMAGE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
-          if [ -n "$EXISTING_IMAGE" ]; then
-            echo "image=$EXISTING_IMAGE" >> "$GITHUB_OUTPUT"
+          if [ -n "$EXISTING_API_IMAGE" ]; then
+            echo "api_image=$EXISTING_API_IMAGE" >> "$GITHUB_OUTPUT"
           else
-            echo "image=ghcr.io/${GITHUB_REPOSITORY,,}/api:${IMAGE_SHA}" >> "$GITHUB_OUTPUT"
+            echo "api_image=ghcr.io/${GITHUB_REPOSITORY,,}/api:${IMAGE_SHA}" >> "$GITHUB_OUTPUT"
+          fi
+          if [ -n "$EXISTING_AI_IMAGE" ]; then
+            echo "ai_image=$EXISTING_AI_IMAGE" >> "$GITHUB_OUTPUT"
+          else
+            echo "ai_image=ghcr.io/${GITHUB_REPOSITORY,,}/ai:${IMAGE_SHA}" >> "$GITHUB_OUTPUT"
           fi
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
-        if: inputs.image == ''
+        if: inputs.image == '' || inputs.ai_image == ''
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-        if: inputs.image == ''
-      - name: Build Turbo và push image
+        if: inputs.image == '' || inputs.ai_image == ''
+      - name: Build và push API image
         if: inputs.image == ''
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
@@ -80,12 +101,26 @@ jobs:
           file: apps/api/Dockerfile
           platforms: linux/amd64
           push: true
-          tags: ${{ steps.image.outputs.image }}
+          tags: ${{ steps.image.outputs.api_image }}
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.event.pull_request.head.sha || github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,scope=api,mode=max
+      - name: Build và push AI image
+        if: inputs.ai_image == ''
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: apps/ai/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.image.outputs.ai_image }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.event.pull_request.head.sha || github.sha }}
+          cache-from: type=gha,scope=ai
+          cache-to: type=gha,scope=ai,mode=max
 
   deploy:
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
@@ -122,7 +157,8 @@ jobs:
 
       - name: Tạo file env
         env:
-          API_IMAGE: ${{ needs.build.outputs.image }}
+          API_IMAGE: ${{ needs.build.outputs.api_image }}
+          AI_IMAGE: ${{ needs.build.outputs.ai_image }}
           API_PORT: ${{ vars.API_PORT || '4000' }}
           COMPOSE_PROJECT_NAME: ${{ vars.COMPOSE_PROJECT_NAME }}
           POSTGRES_USER: ${{ vars.POSTGRES_USER }}
@@ -145,11 +181,20 @@ jobs:
           ZALO_ACCESS_TOKEN: ${{ secrets.ZALO_ACCESS_TOKEN }}
           ZALO_OTP_TEMPLATE_ID: ${{ vars.ZALO_OTP_TEMPLATE_ID }}
           ZALO_OTP_CODE_PARAM: ${{ vars.ZALO_OTP_CODE_PARAM }}
+          AI_INTERNAL_TOKEN: ${{ secrets.AI_INTERNAL_TOKEN }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'gemini-3.1-flash-lite' }}
+          AI_SERVICE_URL: http://ai:4100
         run: |
           umask 077
+          [[ -n $AI_INTERNAL_TOKEN && ${#AI_INTERNAL_TOKEN} -ge 32 ]]
+          [[ -n $GEMINI_API_KEY ]]
+          [[ $AI_INTERNAL_TOKEN != *$'\n'* && $AI_INTERNAL_TOKEN != *$'\r'* ]]
+          [[ $GEMINI_API_KEY != *$'\n'* && $GEMINI_API_KEY != *$'\r'* ]]
+          [[ $GEMINI_MODEL != *$'\n'* && $GEMINI_MODEL != *$'\r'* ]]
           # Quote các giá trị nội suy Compose, kể cả mật khẩu chứa $ hoặc dấu nháy.
           jq -nr '{
-            API_IMAGE: env.API_IMAGE, API_PORT: env.API_PORT,
+            API_IMAGE: env.API_IMAGE, AI_IMAGE: env.AI_IMAGE, API_PORT: env.API_PORT,
             COMPOSE_PROJECT_NAME: env.COMPOSE_PROJECT_NAME,
             POSTGRES_USER: env.POSTGRES_USER, POSTGRES_PASSWORD: env.POSTGRES_PASSWORD,
             POSTGRES_DB: env.POSTGRES_DB, POSTGRES_VOLUME: env.POSTGRES_VOLUME,
@@ -158,19 +203,31 @@ jobs:
           for name in DATABASE_URL REDIS_URL JWT_SECRET OTP_HMAC_SECRET \
             JWT_ACCESS_TTL_SECONDS JWT_REFRESH_TTL_SECONDS CORS_ORIGINS LOG_LEVEL \
             AUTH_COOKIE_SAME_SITE RESEND_API_KEY RESEND_FROM_EMAIL \
-            ZALO_ACCESS_TOKEN ZALO_OTP_TEMPLATE_ID ZALO_OTP_CODE_PARAM; do
+            ZALO_ACCESS_TOKEN ZALO_OTP_TEMPLATE_ID ZALO_OTP_CODE_PARAM \
+            AI_SERVICE_URL AI_INTERNAL_TOKEN; do
             value=${!name}
             if [[ -n $value ]]; then
               [[ $value != *$'\n'* && $value != *$'\r'* ]]
               printf '%s=%s\n' "$name" "$value"
             fi
           done > .env.api
+          {
+            for name in GEMINI_API_KEY AI_INTERNAL_TOKEN GEMINI_MODEL; do
+              value=${!name}
+              [[ $value != *$'\n'* && $value != *$'\r'* ]]
+              printf '%s=%s\n' "$name" "$value"
+            done
+            printf '%s\n' \
+              'EMBEDDING_MODEL=Xenova/paraphrase-multilingual-MiniLM-L12-v2' \
+              'ALLOW_MODEL_DOWNLOAD=false' \
+              'RAG_MIN_SCORE=0.3'
+          } > .env.ai
 
       - name: Gửi file lên server
         run: |
           ssh server "umask 077; mkdir -p '$DEPLOY_PATH'"
-          scp apps/api/deploy/compose.yml .env .env.api "server:$DEPLOY_PATH/"
-          ssh server "chmod 600 '$DEPLOY_PATH/.env' '$DEPLOY_PATH/.env.api'"
+          scp apps/api/deploy/compose.yml .env .env.api .env.ai "server:$DEPLOY_PATH/"
+          ssh server "chmod 600 '$DEPLOY_PATH/.env' '$DEPLOY_PATH/.env.api' '$DEPLOY_PATH/.env.ai'"
 
       - name: Kiểm tra PostgreSQL
         run: |
@@ -188,16 +245,17 @@ jobs:
           ' > /dev/null
           EOF
 
-      - name: Migrate và khởi động API
+      - name: Migrate và khởi động API, AI
         run: |
           ssh server bash -s -- "$DEPLOY_PATH" <<'EOF'
           set -euo pipefail
           cd "$1"
-          docker compose pull api
+          docker compose pull api ai
           docker compose run --rm --no-deps -T migrate
+          docker compose up -d --no-deps --wait --wait-timeout 300 ai
           docker compose up -d --no-deps --wait --wait-timeout 180 api
           EOF
 
       - name: Xóa secrets tạm trên runner
         if: always()
-        run: rm -f .env .env.api ~/.ssh/deploy-key
+        run: rm -f .env .env.api .env.ai ~/.ssh/deploy-key

@@ -53,6 +53,32 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  ai:
+    image: ${AI_IMAGE:?Set AI_IMAGE}
+    container_name: mediconnect-ai
+    restart: unless-stopped
+    init: true
+    env_file:
+      - path: .env.ai
+        format: raw
+    environment:
+      NODE_ENV: production
+      PORT: "4100"
+      HOST: 0.0.0.0
+      MEDICONNECT_API_URL: http://api:4000/api/v1
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4100/health').then(r => { if (!r.ok) process.exit(1); }).catch(() => process.exit(1));"]
+      interval: 15s
+      timeout: 10s
+      start_period: 60s
+      retries: 5
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   migrate:
     image: ${API_IMAGE:?Set API_IMAGE}
     profiles: [tools]

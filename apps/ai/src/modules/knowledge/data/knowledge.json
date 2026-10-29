@@ -1,0 +1,32 @@
+[
+  {
+    "id": "assistant-scope",
+    "title": "Trợ lý MediConnect hỗ trợ gì?",
+    "content": "Trợ lý MediConnect hỗ trợ tra cứu thông tin bác sĩ, chuyên khoa, lịch khám còn trống và hướng dẫn sử dụng hệ thống. Các chức năng tra cứu không yêu cầu đăng nhập. Đặt, đổi và hủy lịch qua chatbot dự kiến được bổ sung trong phiên bản sau. Trợ lý không chẩn đoán bệnh hoặc kê đơn thuốc."
+  },
+  {
+    "id": "doctor-search",
+    "title": "Cách tra cứu bác sĩ và chuyên khoa",
+    "content": "Bạn có thể hỏi danh sách bác sĩ của một chuyên khoa hoặc tìm bác sĩ theo tên. Ví dụ: Khoa Tim mạch có bác sĩ nào? Nếu có nhiều bác sĩ trùng tên, hãy chọn rõ bác sĩ trong kết quả để tiếp tục tra cứu. Thông tin bác sĩ và chuyên khoa được lấy từ hệ thống tại thời điểm hỏi."
+  },
+  {
+    "id": "availability-search",
+    "title": "Cách tra cứu lịch trống",
+    "content": "Để tìm giờ khám còn trống, hãy cung cấp ngày muốn khám và tên chuyên khoa hoặc bác sĩ. Ví dụ: Ngày mai khoa Nhi còn trống giờ nào? Ngày giờ được hiểu theo giờ Việt Nam. Kết quả phản ánh thời điểm tra cứu và khung giờ có thể thay đổi khi có người khác đặt lịch."
+  },
+  {
+    "id": "visit-preparation",
+    "title": "Chuẩn bị trước khi đi khám",
+    "content": "Hướng dẫn tham khảo: Bạn nên chuẩn bị giấy tờ định danh, thông tin lịch hẹn nếu có, các kết quả khám và xét nghiệm trước đây, cùng danh sách thuốc đang sử dụng. Yêu cầu cụ thể phụ thuộc cơ sở khám và dịch vụ. Hãy kiểm tra hướng dẫn của cơ sở trước khi đến."
+  },
+  {
+    "id": "arrival-procedure",
+    "title": "Quy trình đến khám tham khảo",
+    "content": "Quy trình tham khảo: Khi đến cơ sở, liên hệ bộ phận tiếp nhận để được hướng dẫn xác nhận thông tin và đến đúng khu vực khám. Thứ tự tiếp nhận và yêu cầu giấy tờ cụ thể do cơ sở quy định. Nội dung này là hướng dẫn mẫu, chưa phải quy trình chính thức của một bệnh viện."
+  },
+  {
+    "id": "fees-contact",
+    "title": "Viện phí, địa chỉ và thông tin liên hệ",
+    "content": "Kho kiến thức hiện chưa có bảng giá, địa chỉ, số điện thoại hoặc giờ mở cửa chính thức của cơ sở. Trợ lý cần nói rõ khi chưa có thông tin này, không tự tạo thông tin. Lịch trống của bác sĩ có thể được tra cứu riêng theo ngày."
+  }
+]
