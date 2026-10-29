@@ -42,9 +42,14 @@ export class AdminAuditLogsController {
 
   @Get('filter-options')
   @Header('Cache-Control', 'no-store')
-  @Auth({ roles: [RoleEnum.ADMIN], permissions: [PermissionEnum.AUDIT_LOGS_READ] })
+  @Auth({
+    roles: [RoleEnum.ADMIN],
+    permissions: [PermissionEnum.AUDIT_LOGS_READ],
+  })
   async filterOptions(@Query() filter: AuditLogFilterDto) {
-    return new HttpResponseBodySuccessDto(await this.auditLogs.filterOptions(filter));
+    return new HttpResponseBodySuccessDto(
+      await this.auditLogs.filterOptions(filter),
+    );
   }
 
   @Post('export')

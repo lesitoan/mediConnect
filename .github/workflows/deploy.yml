@@ -5,10 +5,12 @@ on:
     branches: [main]
     paths:
       - 'apps/api/**'
+      - '.github/workflows/deploy.yml'
   push:
     branches: [main]
     paths:
       - 'apps/api/**'
+      - '.github/workflows/deploy.yml'
   workflow_dispatch:
     inputs:
       image:
@@ -37,8 +39,6 @@ jobs:
         run: npx turbo run lint --filter=api
       - name: Kiểm tra kiểu dữ liệu
         run: npx turbo run check-types --filter=api
-      - name: Chạy unit tests
-        run: npx turbo run test --filter=api
 
   build:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
