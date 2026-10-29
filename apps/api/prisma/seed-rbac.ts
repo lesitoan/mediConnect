@@ -106,6 +106,22 @@ export const RBAC_PERMISSIONS: Record<
       'Công bố lịch làm việc và sinh khung giờ khám trong giờ hành chính.',
     roles: [RoleEnum.ADMIN],
   },
+  [PermissionEnum.SCHEDULES_MANAGE]: {
+    description: 'Quản lý lịch làm việc của nhân sự.',
+    roles: [RoleEnum.ADMIN],
+  },
+  [PermissionEnum.SCHEDULE_EXCEPTIONS_REVIEW]: {
+    description: 'Xem và xử lý ngoại lệ lịch làm việc.',
+    roles: [RoleEnum.ADMIN],
+  },
+  [PermissionEnum.LEAVE_REQUESTS_CREATE]: {
+    description: 'Tạo yêu cầu nghỉ phép hoặc báo vắng.',
+    roles: [RoleEnum.DOCTOR, RoleEnum.RECEPTIONIST],
+  },
+  [PermissionEnum.LEAVE_REQUESTS_READ]: {
+    description: 'Tra cứu yêu cầu nghỉ phép và báo vắng.',
+    roles: [RoleEnum.DOCTOR, RoleEnum.RECEPTIONIST, RoleEnum.ADMIN],
+  },
   [PermissionEnum.LEAVE_REQUESTS_READ_ME]: {
     description: 'Xem các yêu cầu nghỉ phép hoặc báo vắng của chính mình.',
     roles: [RoleEnum.DOCTOR],

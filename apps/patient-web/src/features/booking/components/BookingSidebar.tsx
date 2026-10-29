@@ -50,7 +50,7 @@ export default function BookingConsultCard() {
                     Giờ làm việc
                 </p>
                 <p className="mt-1 text-sm font-extrabold text-slate-800">
-                    T2-T6: 7:00-16:30
+                    T2-CN: 8:00-18:00
                 </p>
                 <p className="mt-0.5 text-xs font-bold text-red-600">Cấp cứu: 24/7</p>
             </div>
