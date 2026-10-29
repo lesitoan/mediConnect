@@ -11,6 +11,7 @@ import { jwtConfig } from './configs/jwt.config';
 import { createLoggerConfig } from './configs/logger.config';
 import { AuthenticationModule } from './modules/authentication/authentication.module';
 import { HealthCheckModule } from './modules/health-check/health-check.module';
+import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { HealthCheckModule } from './modules/health-check/health-check.module';
     }),
     HealthCheckModule,
     AuthenticationModule,
+    AuditLogsModule,
   ],
 })
-export class AppModule {}
+export class AppModule { }

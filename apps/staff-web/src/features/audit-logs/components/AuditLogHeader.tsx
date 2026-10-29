@@ -5,9 +5,10 @@ import { Button } from "@/components/ui/button";
 
 interface AuditLogHeaderProps {
   onExport?: () => void;
+  isExporting?: boolean;
 }
 
-export function AuditLogHeader({ onExport }: AuditLogHeaderProps) {
+export function AuditLogHeader({ onExport, isExporting }: AuditLogHeaderProps) {
   return (
     <div className="flex flex-col gap-3 pb-4 sm:flex-row sm:items-center sm:justify-between">
       <div className="space-y-1">
@@ -25,6 +26,7 @@ export function AuditLogHeader({ onExport }: AuditLogHeaderProps) {
           variant="outline"
           size="sm"
           onClick={onExport}
+          disabled={isExporting}
           className="h-9 gap-2 border-border-strong bg-surface px-3.5 text-body font-semibold text-foreground shadow-xs hover:bg-item-hover"
         >
           <Download className="size-4" />

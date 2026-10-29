@@ -12,8 +12,9 @@ export type FilterValue =
   | null
   | undefined;
 
-export function useTableFilters<TFilters extends Record<string, any>>(
-  defaultFilters: TFilters
+export function useTableFilters<TFilters extends { [Key in keyof TFilters]: FilterValue }>(
+  defaultFilters: TFilters,
+  history: 'push' | 'replace' = 'push',
 ) {
   const router = useRouter();
   const pathname = usePathname();
@@ -21,32 +22,33 @@ export function useTableFilters<TFilters extends Record<string, any>>(
 
   const filters: TFilters = useMemo(() => {
     if (!defaultFilters) return {} as TFilters;
-    const result = { ...defaultFilters };
+    const defaults = defaultFilters as Record<string, FilterValue>;
+    const result: Record<string, FilterValue> = { ...defaults };
 
     Object.keys(defaultFilters).forEach((key) => {
-      const defaultValue = defaultFilters[key];
+      const defaultValue = defaults[key];
       const paramValue = searchParams.get(key);
 
       if (paramValue !== null && paramValue !== undefined && paramValue !== "") {
         if (Array.isArray(defaultValue)) {
-          (result as any)[key] = paramValue
+          result[key] = paramValue
             .split(",")
             .map((v) => v.trim())
             .filter(Boolean);
         } else if (typeof defaultValue === "number") {
           const num = Number(paramValue);
           if (!isNaN(num)) {
-            (result as any)[key] = num;
+            result[key] = num;
           }
         } else if (typeof defaultValue === "boolean") {
-          (result as any)[key] = paramValue === "true";
+          result[key] = paramValue === "true";
         } else {
-          (result as any)[key] = paramValue;
+          result[key] = paramValue;
         }
       }
     });
 
-    return result;
+    return result as TFilters;
   }, [searchParams, defaultFilters]);
 
   const updateUrlParams = useCallback(
@@ -54,7 +56,7 @@ export function useTableFilters<TFilters extends Record<string, any>>(
       const params = new URLSearchParams(searchParams.toString());
 
       Object.entries(newParams).forEach(([key, value]) => {
-        const defaultValue = defaultFilters[key];
+        const defaultValue = (defaultFilters as Record<string, FilterValue>)[key];
 
         if (
           value === null ||
@@ -74,9 +76,9 @@ export function useTableFilters<TFilters extends Record<string, any>>(
 
       const queryString = params.toString();
       const newUrl = queryString ? `${pathname}?${queryString}` : pathname;
-      router.push(newUrl, { scroll: false });
+      router[history](newUrl, { scroll: false });
     },
-    [defaultFilters, pathname, router, searchParams]
+    [defaultFilters, pathname, router, searchParams, history]
   );
 
   const setFilter = useCallback(

@@ -241,7 +241,7 @@ export function AuditLogDetailDrawer({
               </h3>
 
               <div className="rounded-app-xl border border-border bg-background/60 p-3.5 text-caption text-foreground/90 leading-relaxed min-h-[58px]">
-                {log.reason || "Nội dung được ghi thực tế trong bản ghi Audit Log, nếu có."}
+                {log.reason || "Không ghi nhận"}
               </div>
             </div>
 
@@ -268,28 +268,28 @@ export function AuditLogDetailDrawer({
                       Địa chỉ IP
                     </span>
                     <span className="font-mono font-semibold text-foreground">
-                      {log.technicalInfo?.ipAddress || "113.161.42.19"}
+                      {log.technicalInfo?.ipAddress || "Không ghi nhận"}
                     </span>
                   </div>
 
                   <div className="flex items-start justify-between gap-3 py-0.5">
                     <span className="text-muted shrink-0">User Agent</span>
                     <span className="text-right text-label font-mono text-muted break-all">
-                      {log.technicalInfo?.userAgent || "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+                      {log.technicalInfo?.userAgent || "Không ghi nhận"}
                     </span>
                   </div>
 
                   <div className="flex items-center justify-between gap-3 py-0.5">
                     <span className="text-muted">Mã yêu cầu (Request ID)</span>
                     <span className="font-mono text-label text-foreground">
-                      {log.technicalInfo?.requestId || "req_98a72b14c"}
+                      {log.technicalInfo?.requestId || "Không ghi nhận"}
                     </span>
                   </div>
 
                   <div className="flex items-center justify-between gap-3 py-0.5">
                     <span className="text-muted">Phiên làm việc (Session ID)</span>
                     <span className="font-mono text-label text-foreground">
-                      {log.technicalInfo?.sessionId || "sess_842af91c"}
+                      {log.technicalInfo?.sessionId || "Không ghi nhận"}
                     </span>
                   </div>
 
@@ -299,7 +299,7 @@ export function AuditLogDetailDrawer({
                       Endpoint
                     </span>
                     <span className="font-mono text-label font-semibold text-primary">
-                      {log.technicalInfo?.endpoint || "POST /api/v1/schedules/approve"}
+                      {log.technicalInfo?.endpoint || "Không ghi nhận"}
                     </span>
                   </div>
                 </div>

@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "./button";
 import { Popover, PopoverContent, PopoverTrigger } from "./Popover";
 import { Calendar, type DateRange } from "./Calendar";
+import { addCalendarDays, getVietnamDate } from "@/lib/dateUtils";
 
 export interface DateRangeValue {
   startDate: string;
@@ -58,7 +59,7 @@ export function DateRangePicker({
     to: value.endDate,
   });
 
-  React.useEffect(() => {
+  const initialRange = () => {
     let to = value.endDate;
     if (value.startDate && value.endDate && maxDays && maxDays > 0) {
       const start = new Date(value.startDate).getTime();
@@ -66,29 +67,27 @@ export function DateRangePicker({
       if (!isNaN(start) && !isNaN(end)) {
         const count = Math.max(0, Math.floor((end - start) / (1000 * 60 * 60 * 24)) + 1);
         if (count > maxDays) {
-          const clamped = new Date(value.startDate);
-          clamped.setDate(clamped.getDate() + maxDays - 1);
-          to = clamped.toISOString().slice(0, 10);
+          to = addCalendarDays(value.startDate, maxDays - 1);
         }
       }
     }
-    setTempRange({
+    return {
       from: value.startDate,
       to,
-    });
-  }, [value.startDate, value.endDate, maxDays]);
+    };
+  };
 
   const fromStr =
     typeof tempRange.from === "string"
       ? tempRange.from
       : tempRange.from
-        ? tempRange.from.toISOString().slice(0, 10)
+        ? getVietnamDate(tempRange.from)
         : "";
   const toStr =
     typeof tempRange.to === "string"
       ? tempRange.to
       : tempRange.to
-        ? tempRange.to.toISOString().slice(0, 10)
+        ? getVietnamDate(tempRange.to)
         : "";
 
   const displayText =
@@ -124,12 +123,8 @@ export function DateRangePicker({
   };
 
   const handlePreset = (days: number) => {
-    const start = new Date();
-    const end = new Date();
-    end.setDate(start.getDate() + days - 1);
-
-    const sStr = start.toISOString().slice(0, 10);
-    const eStr = end.toISOString().slice(0, 10);
+    const sStr = getVietnamDate();
+    const eStr = addCalendarDays(sStr, days - 1);
 
     setTempRange({ from: sStr, to: eStr });
     onChange({ startDate: sStr, endDate: eStr });
@@ -144,7 +139,7 @@ export function DateRangePicker({
         </label>
       )}
 
-      <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <Popover open={isOpen} onOpenChange={(open) => { if (open) setTempRange(initialRange()); setIsOpen(open); }}>
         <PopoverTrigger
           render={(triggerProps) => (
             <Button
