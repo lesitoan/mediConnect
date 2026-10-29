@@ -14,6 +14,7 @@ export class PrismaService
   implements OnModuleInit, OnModuleDestroy
 {
   private readonly logger = new Logger(PrismaService.name);
+  readonly schemaName: string;
 
   constructor(config: ConfigService) {
     const connectionString = config.getOrThrow<string>('database.url');
@@ -25,6 +26,7 @@ export class PrismaService
         { schema },
       ),
     });
+    this.schemaName = schema;
   }
 
   async onModuleInit(): Promise<void> {

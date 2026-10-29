@@ -70,4 +70,7 @@ apps/api/src/generated/prisma/
 *.tgz
 
 next-env.d.ts
+apps/ai/models/
+apps/ai/storage/
+apps/api/dist-seed/
 package-lock.json.*
