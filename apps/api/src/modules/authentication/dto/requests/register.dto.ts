@@ -42,11 +42,13 @@ export class RegisterDto extends PasswordDto {
   @MaxLength(254)
   email?: string;
 
-  @ApiProperty({ format: 'date' })
+  @ApiPropertyOptional({ format: 'date' })
+  @IsOptional()
   @IsDateString({ strict: true })
-  dateOfBirth: string;
+  dateOfBirth?: string;
 
-  @ApiProperty({ enum: PatientGender })
+  @ApiPropertyOptional({ enum: PatientGender })
+  @IsOptional()
   @IsEnum(PatientGender)
-  gender: PatientGender;
+  gender?: PatientGender;
 }
