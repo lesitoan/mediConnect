@@ -1,6 +1,8 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { randomBytes } from 'node:crypto';
 import { PrismaService } from '../database/services/prisma.service';
 import {
+  PatientGender,
   PermissionStatusEnum,
   RoleStatusEnum,
   UserStatus,
@@ -43,9 +45,11 @@ export class UsersRepository {
 
   async createPatient(input: {
     email?: string;
-    phone?: string;
+    phone: string;
     name: string;
     passwordHash: string;
+    dateOfBirth: string;
+    gender: PatientGender;
   }) {
     const role = await this.prisma.role.findUnique({
       where: { name: RoleEnum.PATIENT },
@@ -61,6 +65,16 @@ export class UsersRepository {
         passwordHash: input.passwordHash,
         roleId: role.id,
         status: UserStatus.PENDING_VERIFICATION,
+        patient: {
+          create: {
+            patientCode: `MC-${randomBytes(8).toString('hex').toUpperCase()}`,
+            fullName: input.name,
+            phone: input.phone,
+            email: input.email,
+            dateOfBirth: new Date(input.dateOfBirth),
+            gender: input.gender,
+          },
+        },
       },
       include: AUTHORIZATION_INCLUDE,
     });

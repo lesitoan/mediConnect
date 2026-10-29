@@ -114,7 +114,7 @@ export default function ProfilePage() {
             <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500">
               <span>
                 Mã số bệnh án (PID):{" "}
-                <b className="rounded bg-blue-100 px-1.5 py-0.5 text-[#0A5A84]">{user.pid}</b>
+                <b className="rounded bg-blue-100 px-1.5 py-0.5 text-[#0A5A84]">{user.pid ?? "Chưa cập nhật"}</b>
               </span>
               <span>
                 Cập nhật gần nhất: <b className="text-slate-700">{PROFILE.updatedAt}</b>
@@ -155,7 +155,7 @@ export default function ProfilePage() {
           <aside className="lg:sticky lg:top-32">
             <ProfileSidebar
               name={PROFILE.fullName.replace(/\b\w/g, (c) => c.toUpperCase()).toLowerCase() && user.fullName}
-              pid={user.pid}
+              pid={user.pid ?? "Chưa cập nhật"}
               dob={form.dob}
               gender={form.gender}
               active={active}

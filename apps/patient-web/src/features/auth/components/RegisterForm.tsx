@@ -10,14 +10,19 @@ import {
   Eye,
   EyeOff,
   Headset,
-  HelpCircle,
-  IdCard,
   Lock,
   Mail,
   PhoneCall,
   ShieldCheck,
   User,
 } from "@/components/layout/icons";
+import {
+  AuthApiError,
+  getAuthErrorMessage,
+  registerPatient,
+  resendRegistrationOtp,
+  type OtpChallenge,
+} from "../services/authService";
 import OtpVerifyForm from "./OtpVerifyForm";
 
 /* ---------- Style dùng chung ---------- */
@@ -121,7 +126,12 @@ function passwordStrength(pw: string) {
 }
 
 const STRENGTH_LABEL = ["", "Yếu", "Trung bình", "Mạnh"];
-const STRENGTH_COLOR = ["bg-slate-200", "bg-red-400", "bg-amber-400", "bg-emerald-500"];
+const STRENGTH_COLOR = [
+  "bg-slate-200",
+  "bg-red-400",
+  "bg-amber-400",
+  "bg-emerald-500",
+];
 
 /* ---------- Form chính ---------- */
 
@@ -129,19 +139,18 @@ export default function RegisterForm() {
   const [step, setStep] = useState<1 | 2>(1);
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [registrationError, setRegistrationError] = useState("");
+  const [otpChallenge, setOtpChallenge] = useState<OtpChallenge | null>(null);
 
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
-  const [idNumber, setIdNumber] = useState("");
   const [dob, setDob] = useState("");
-  const [gender, setGender] = useState("Nam");
+  const [gender, setGender] = useState<"MALE" | "FEMALE" | "OTHER">("MALE");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
-  const [hasVisited, setHasVisited] = useState(false);
-  const [pid, setPid] = useState("");
   const [agree, setAgree] = useState(false);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
 
@@ -150,16 +159,27 @@ export default function RegisterForm() {
 
   const errors = {
     fullName: fullName.trim().length < 2 ? "Vui lòng nhập họ và tên." : "",
-    phone: /^0\d{9}$/.test(phone) ? "" : "Số điện thoại gồm 10 chữ số, bắt đầu bằng 0.",
-    idNumber: /^\d{12}$/.test(idNumber) ? "" : "Số CCCD gồm đúng 12 chữ số.",
-    dob: !dob ? "Vui lòng chọn ngày sinh." : dob > today ? "Ngày sinh không hợp lệ." : "",
+    phone: /^0\d{9}$/.test(phone)
+      ? ""
+      : "Số điện thoại gồm 10 chữ số, bắt đầu bằng 0.",
+    dob: !dob
+      ? "Vui lòng chọn ngày sinh."
+      : dob > today
+        ? "Ngày sinh không hợp lệ."
+        : "",
     email:
       email.trim() === "" || /^\S+@\S+\.\S+$/.test(email.trim())
         ? ""
         : "Địa chỉ email chưa đúng định dạng.",
-    password: password.length >= 8 ? "" : "Mật khẩu tối thiểu 8 ký tự.",
-    confirm: confirm === password && confirm !== "" ? "" : "Mật khẩu xác nhận không khớp.",
-    pid: !hasVisited || pid.trim() !== "" ? "" : "Vui lòng nhập mã bệnh nhân (PID).",
+    password: /^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^a-zA-Z0-9]).{8,}$/.test(
+      password,
+    )
+      ? ""
+      : "Mật khẩu cần ít nhất 8 ký tự, gồm chữ hoa, chữ thường, số và ký tự đặc biệt.",
+    confirm:
+      confirm === password && confirm !== ""
+        ? ""
+        : "Mật khẩu xác nhận không khớp.",
   };
   const valid = Object.values(errors).every((e) => e === "") && agree;
 
@@ -171,20 +191,31 @@ export default function RegisterForm() {
     setTouched({
       fullName: true,
       phone: true,
-      idNumber: true,
       dob: true,
       email: true,
       password: true,
       confirm: true,
-      pid: true,
     });
     if (!valid || loading) return;
     setLoading(true);
+    setRegistrationError("");
     try {
-      // TODO: gọi API đăng ký của apps/api (module authentication) -> tạo tài khoản
-      // trạng thái chờ xác thực và gửi OTP tới số điện thoại/email.
-      await new Promise((r) => setTimeout(r, 600));
+      const challenge = await registerPatient({
+        name: fullName.trim(),
+        phone,
+        ...(email.trim() ? { email: email.trim() } : {}),
+        password,
+        dateOfBirth: dob,
+        gender,
+      });
+      setOtpChallenge(challenge);
       setStep(2);
+    } catch (error: unknown) {
+      setRegistrationError(
+        error instanceof AuthApiError && error.status === 409
+          ? "Số điện thoại hoặc email này đã được đăng ký."
+          : getAuthErrorMessage(error, "Không thể đăng ký tài khoản."),
+      );
     } finally {
       setLoading(false);
     }
@@ -197,9 +228,12 @@ export default function RegisterForm() {
         <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
           <CalendarCheck className="h-8 w-8" />
         </span>
-        <h2 className="mt-5 text-2xl font-extrabold text-slate-900">Đăng ký thành công</h2>
+        <h2 className="mt-5 text-2xl font-extrabold text-slate-900">
+          Đăng ký thành công
+        </h2>
         <p className="mx-auto mt-3 max-w-md text-sm text-slate-600">
-          Tài khoản của bạn đã được kích hoạt. Vui lòng đăng nhập để bắt đầu sử dụng.
+          Tài khoản của bạn đã được kích hoạt. Vui lòng đăng nhập để bắt đầu sử
+          dụng.
         </p>
         <Link
           href="/login"
@@ -222,7 +256,8 @@ export default function RegisterForm() {
         Đăng Ký Tài Khoản MediConnect
       </h1>
       <p className="mt-2 text-xs text-slate-500">
-        Kích hoạt hồ sơ bệnh án điện tử và kết nối trực tiếp với hệ thống y tế chỉ trong 1 phút.
+        Kích hoạt hồ sơ bệnh án điện tử và kết nối trực tiếp với hệ thống y tế
+        chỉ trong 1 phút.
       </p>
 
       <div className="mt-6">
@@ -255,7 +290,9 @@ export default function RegisterForm() {
             <Field
               label="Số điện thoại nhận OTP"
               required
-              hint={<span className="font-bold text-[#2B6CB0]">SMS miễn phí</span>}
+              hint={
+                <span className="font-bold text-[#2B6CB0]">SMS miễn phí</span>
+              }
               error={show("phone")}
             >
               <div className={wrap}>
@@ -275,35 +312,7 @@ export default function RegisterForm() {
             </Field>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-[1.4fr_1fr_0.8fr]">
-            <Field
-              label="Số CCCD / Mã định danh"
-              required
-              hint={
-                <Link
-                  href="/huong-dan"
-                  className="inline-flex items-center gap-1 font-bold text-[#2B6CB0] hover:underline"
-                >
-                  <HelpCircle className="h-3 w-3" />
-                  Tra cứu mã
-                </Link>
-              }
-              error={show("idNumber")}
-            >
-              <div className={wrap}>
-                <IdCard className="h-4 w-4 shrink-0 text-slate-400" />
-                <input
-                  inputMode="numeric"
-                  maxLength={12}
-                  className={base}
-                  placeholder="12 số trên CCCD"
-                  value={idNumber}
-                  onChange={(e) => setIdNumber(e.target.value.replace(/\D/g, ""))}
-                  onBlur={() => blur("idNumber")}
-                />
-              </div>
-            </Field>
-
+          <div className="grid gap-4 md:grid-cols-2">
             <Field label="Ngày sinh" required error={show("dob")}>
               <div className={wrap}>
                 <input
@@ -322,11 +331,13 @@ export default function RegisterForm() {
                 <select
                   className={base}
                   value={gender}
-                  onChange={(e) => setGender(e.target.value)}
+                  onChange={(e) =>
+                    setGender(e.target.value as "MALE" | "FEMALE" | "OTHER")
+                  }
                 >
-                  <option>Nam</option>
-                  <option>Nữ</option>
-                  <option>Khác</option>
+                  <option value="MALE">Nam</option>
+                  <option value="FEMALE">Nữ</option>
+                  <option value="OTHER">Khác</option>
                 </select>
               </div>
             </Field>
@@ -375,7 +386,11 @@ export default function RegisterForm() {
                   onClick={() => setShowPw((v) => !v)}
                   className="text-slate-400 transition hover:text-[#174A8F]"
                 >
-                  {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {showPw ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
                 </button>
               </div>
             </Field>
@@ -403,7 +418,11 @@ export default function RegisterForm() {
                   onClick={() => setShowConfirm((v) => !v)}
                   className="text-slate-400 transition hover:text-[#174A8F]"
                 >
-                  {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {showConfirm ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
                 </button>
               </div>
             </Field>
@@ -426,40 +445,6 @@ export default function RegisterForm() {
             </span>
           </div>
 
-          {/* Đã từng khám */}
-          <div className="rounded-xl bg-slate-50 px-4 py-3">
-            <label className="flex cursor-pointer items-start gap-3">
-              <input
-                type="checkbox"
-                checked={hasVisited}
-                onChange={(e) => setHasVisited(e.target.checked)}
-                className="mt-0.5 h-4 w-4 shrink-0 accent-[#2B6CB0]"
-              />
-              <span className="text-xs leading-relaxed text-slate-600">
-                <b className="text-slate-800">Tôi đã từng khám chữa bệnh tại MediConnect</b>
-                <br />
-                Tích chọn để nhập mã bệnh nhân (Mã PID trên đơn thuốc hoặc vòng đeo tay) nhằm
-                liên thông dữ liệu lịch sử khám cũ.
-              </span>
-            </label>
-            {hasVisited && (
-              <div className="mt-3">
-                <Field label="Mã bệnh nhân (PID)" required error={show("pid")}>
-                  <div className={wrap}>
-                    <IdCard className="h-4 w-4 shrink-0 text-slate-400" />
-                    <input
-                      className={base}
-                      placeholder="VD: BN-8896"
-                      value={pid}
-                      onChange={(e) => setPid(e.target.value)}
-                      onBlur={() => blur("pid")}
-                    />
-                  </div>
-                </Field>
-              </div>
-            )}
-          </div>
-
           {/* Cam kết */}
           <label className="flex cursor-pointer items-start gap-3 rounded-xl bg-blue-50/60 px-4 py-3">
             <input
@@ -470,7 +455,10 @@ export default function RegisterForm() {
             />
             <span className="text-xs leading-relaxed text-slate-700">
               Tôi cam kết thông tin kê khai là chính xác và đồng ý với{" "}
-              <Link href="/dieu-khoan" className="font-bold text-[#174A8F] hover:underline">
+              <Link
+                href="/dieu-khoan"
+                className="font-bold text-[#174A8F] hover:underline"
+              >
                 Điều khoản sử dụng
               </Link>{" "}
               cùng{" "}
@@ -484,6 +472,15 @@ export default function RegisterForm() {
             </span>
           </label>
 
+          {registrationError && (
+            <p
+              role="alert"
+              className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600"
+            >
+              {registrationError}
+            </p>
+          )}
+
           <button
             type="submit"
             disabled={!valid || loading}
@@ -496,10 +493,12 @@ export default function RegisterForm() {
       )}
 
       {/* ===================== BƯỚC 2: OTP ===================== */}
-      {step === 2 && (
+      {step === 2 && otpChallenge && (
         <OtpVerifyForm
           phone={phone}
+          challenge={otpChallenge}
           onBack={() => setStep(1)}
+          onResend={() => resendRegistrationOtp(phone)}
           onSuccess={() => setSuccess(true)}
         />
       )}
@@ -508,7 +507,10 @@ export default function RegisterForm() {
       <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4 text-[11px] text-slate-500">
         <span>
           Đã có tài khoản bệnh nhân?{" "}
-          <Link href="/login" className="font-bold text-[#174A8F] hover:underline">
+          <Link
+            href="/login"
+            className="font-bold text-[#174A8F] hover:underline"
+          >
             Đăng nhập ngay
           </Link>
         </span>

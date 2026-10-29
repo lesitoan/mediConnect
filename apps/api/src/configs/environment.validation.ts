@@ -10,6 +10,7 @@ const ENVIRONMENT_SCHEMA = Joi.object<Record<string, unknown>>({
   NODE_ENV: Joi.string()
     .valid('development', 'test', 'production')
     .default('development'),
+  OTP_DEV_MODE: Joi.boolean().truthy('true').falsy('false').default(false),
   PORT: Joi.number().port().default(4000),
   AI_SERVICE_URL: Joi.string()
     .uri({ scheme: ['http', 'https'] })
@@ -77,6 +78,9 @@ export function validateEnvironment(
     throw new Error(
       'AUTH_COOKIE_SAME_SITE=none requires AUTH_COOKIE_SECURE=true',
     );
+  }
+  if (values.OTP_DEV_MODE && values.NODE_ENV === 'production') {
+    throw new Error('OTP_DEV_MODE cannot be enabled in production');
   }
   return values;
 }

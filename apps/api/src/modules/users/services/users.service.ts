@@ -2,6 +2,7 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import type { Prisma } from '../../../generated/prisma/client';
 import { PrismaService } from '../../database/services/prisma.service';
 import {
+  PatientGender,
   PermissionStatusEnum,
   RoleStatusEnum,
   UserStatus,
@@ -22,9 +23,11 @@ export class UsersService {
 
   createPatient(input: {
     email?: string;
-    phone?: string;
+    phone: string;
     name: string;
     passwordHash: string;
+    dateOfBirth: string;
+    gender: PatientGender;
   }) {
     return this.usersRepository.createPatient(input);
   }

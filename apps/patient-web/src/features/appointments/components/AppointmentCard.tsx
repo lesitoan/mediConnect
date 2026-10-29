@@ -62,7 +62,7 @@ export default function AppointmentCard({
           {appt.kind === "confirmed" && (
             <span className="flex items-center gap-1.5 rounded-md bg-emerald-50 px-2.5 py-1 font-bold text-emerald-700">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              ĐÃ XÁC NHẬN • ĐÚNG HẸN
+              ĐÃ XÁC NHẬN
             </span>
           )}
           {appt.kind === "followup" && (
@@ -71,10 +71,25 @@ export default function AppointmentCard({
               Lịch hẹn tái khám định kỳ
             </span>
           )}
+          {appt.kind === "pending" && (
+            <span className="rounded-md bg-amber-50 px-2.5 py-1 font-bold text-amber-700">
+              ĐANG XỬ LÝ
+            </span>
+          )}
           {appt.kind === "completed" && (
             <span className="flex items-center gap-1.5 rounded-md bg-slate-100 px-2.5 py-1 font-bold text-slate-600">
               <Check className="h-3 w-3" />
               ĐÃ HOÀN TẤT
+            </span>
+          )}
+          {appt.kind === "incomplete" && (
+            <span className="rounded-md bg-slate-100 px-2.5 py-1 font-bold text-slate-600">
+              CHƯA HOÀN TẤT
+            </span>
+          )}
+          {appt.kind === "no-show" && (
+            <span className="rounded-md bg-amber-50 px-2.5 py-1 font-bold text-amber-700">
+              KHÔNG ĐẾN KHÁM
             </span>
           )}
           {appt.kind === "cancelled" && (
@@ -121,10 +136,14 @@ export default function AppointmentCard({
             </span>
             <h3 className="mt-1.5 text-lg font-extrabold text-slate-900">{appt.doctor.name}</h3>
             <p className="mt-0.5 text-[11px] text-slate-500">{appt.doctor.title}</p>
-            <p className="mt-1 flex items-center gap-1 text-[11px] text-slate-500">
-              <Star className="h-3 w-3 text-amber-400" />
-              <b className="text-slate-800">{appt.doctor.rating}</b> ({appt.doctor.reviews} đánh giá)
-            </p>
+            {appt.doctor.rating !== undefined &&
+              appt.doctor.reviews !== undefined && (
+                <p className="mt-1 flex items-center gap-1 text-[11px] text-slate-500">
+                  <Star className="h-3 w-3 text-amber-400" />
+                  <b className="text-slate-800">{appt.doctor.rating}</b> (
+                  {appt.doctor.reviews} đánh giá)
+                </p>
+              )}
           </div>
         </div>
 
@@ -144,10 +163,12 @@ export default function AppointmentCard({
         <div className={`${panelGray} p-4`}>
           <p className="text-[11px] text-slate-500">{appt.feeLabel}</p>
           <p className="mt-1 text-2xl font-extrabold text-[#0A5A84]">
-            {appt.fee} <span className="text-xs font-bold text-slate-500">VNĐ</span>
+            {appt.fee}
+            {appt.fee !== "Chưa có" && (
+              <span className="text-xs font-bold text-slate-500"> VNĐ</span>
+            )}
           </p>
-          <span className="mt-2 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold text-emerald-700">
-            <Check className="h-3 w-3" />
+          <span className="mt-2 inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-600">
             {appt.feeNote}
           </span>
         </div>
@@ -175,10 +196,10 @@ export default function AppointmentCard({
 
       {/* Hành động: Xem chi tiết • Mã QR Check-in • Đổi lịch • Hủy lịch */}
       <div className={`flex flex-wrap items-center justify-between gap-3 ${cardFoot}`}>
-        {appt.kind === "confirmed" ? (
+        {appt.kind === "confirmed" && appt.phone !== "Chưa cập nhật" ? (
           <p className="flex items-center gap-1.5 text-[11px] text-slate-500">
             <QrCode className="h-3.5 w-3.5" />
-            SMS &amp; QR xác nhận gửi tới: <b className="text-slate-800">{appt.phone}</b>
+            Số điện thoại liên hệ: <b className="text-slate-800">{appt.phone}</b>
           </p>
         ) : (
           <span />

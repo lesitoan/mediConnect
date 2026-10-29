@@ -41,7 +41,13 @@ export class OtpService {
 
   assertConfigured(contact: ContactDto): void {
     this.store.assertReady();
-    this.delivery.assertConfigured(contact.email ? 'EMAIL' : 'ZALO');
+    if (!this.isDevelopmentMode()) {
+      this.delivery.assertConfigured(contact.email ? 'EMAIL' : 'ZALO');
+    }
+  }
+
+  private isDevelopmentMode(): boolean {
+    return this.config.get<boolean>('otp.devMode') === true;
   }
 
   async assertCanSend(contact: ContactDto, ip: string): Promise<void> {
@@ -152,15 +158,16 @@ export class OtpService {
     );
     if (!isReserved) return response;
     try {
-      // Provider I/O happens after the PostgreSQL account lock is released.
-      await this.delivery.send({
-        challengeId: id,
-        destination,
-        channel,
-        purpose,
-        code,
-        expiresInSeconds: response.expiresIn,
-      });
+      if (!this.isDevelopmentMode()) {
+        await this.delivery.send({
+          challengeId: id,
+          destination,
+          channel,
+          purpose,
+          code,
+          expiresInSeconds: response.expiresIn,
+        });
+      }
       if (!(await this.store.markSent(record)))
         throw new BadRequestException(
           'OTP request was replaced or expired. Request a new OTP',
@@ -169,7 +176,10 @@ export class OtpService {
       await this.store.revoke(record);
       throw error;
     }
-    return response;
+    return {
+      ...response,
+      ...(this.isDevelopmentMode() ? { developmentCode: code } : {}),
+    };
   }
 
   async verify(

@@ -7,7 +7,6 @@ import {
   CalendarCheck,
   Check,
   ChevronRight,
-  Download,
   History,
   Home,
   Plus,
@@ -16,12 +15,13 @@ import {
 } from "@/components/layout/icons";
 import SecurityNotice from "@/components/layout/SecurityNotice";
 import { useAuth } from "@/features/auth/useAuth";
+import type { Appointment } from "../data";
 import {
-  MOCK_APPOINTMENTS,
-  MOCK_RECORDS,
-  type Appointment,
-  type MedicalRecord,
-} from "../data";
+  ApiRequestError,
+  cancelAppointment,
+  getMyAppointments,
+  rescheduleAppointment,
+} from "../services/appointmentsService";
 import AppointmentCard from "./AppointmentCard";
 import {
   CancelModal,
@@ -30,32 +30,73 @@ import {
   RescheduleModal,
 } from "./AppointmentModals";
 import { startOf } from "./dateUtils";
-import RecordCard from "./RecordCards";
 
 type Tab = "upcoming" | "history";
 type Range = "all" | "30" | "90" | "180";
 
-type HistoryEntry =
-  | { key: string; days: number; record: MedicalRecord }
-  | { key: string; days: number; appt: Appointment };
-
 const selectCls =
   "rounded-full border border-slate-200 bg-white px-4 py-2.5 text-xs font-semibold text-slate-700 outline-none transition focus:border-[#2B6CB0] focus:ring-2 focus:ring-[#2B6CB0]/20";
 
-const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
+function isUpcomingAppointment(appointment: Appointment, now: Date): boolean {
+  return (
+    (appointment.kind === "confirmed" ||
+      appointment.kind === "followup" ||
+      appointment.kind === "pending") &&
+    startOf(appointment, now).getTime() >= now.getTime()
+  );
+}
 
 export default function AppointmentHistoryPage() {
   const { user, ready } = useAuth();
 
   // `now` chỉ có sau khi mount để tránh lệch hydration
   const [now, setNow] = useState<Date | null>(null);
-  useEffect(() => setNow(new Date()), []);
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setNow(new Date()));
+    return () => cancelAnimationFrame(frame);
+  }, []);
 
-  const [items, setItems] = useState<Appointment[]>(MOCK_APPOINTMENTS);
+  const [items, setItems] = useState<Appointment[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const [tab, setTab] = useState<Tab>("upcoming");
   const [query, setQuery] = useState("");
   const [range, setRange] = useState<Range>("all");
   const [specialty, setSpecialty] = useState("all");
+
+  useEffect(() => {
+    if (!ready || !user) return;
+    let isCurrent = true;
+    getMyAppointments()
+      .then((appointments) => {
+        if (isCurrent) setItems(appointments);
+      })
+      .catch((error: unknown) => {
+        if (!isCurrent) return;
+        if (error instanceof ApiRequestError && error.status === 401) {
+          setLoadError("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
+        } else {
+          setLoadError(
+            error instanceof Error
+              ? error.message
+              : "Không thể tải lịch hẹn. Vui lòng thử lại.",
+          );
+        }
+      })
+      .finally(() => {
+        if (isCurrent) setIsLoading(false);
+      });
+    return () => {
+      isCurrent = false;
+    };
+  }, [ready, user, reloadKey]);
+
+  const reloadAppointments = () => {
+    setIsLoading(true);
+    setLoadError(null);
+    setReloadKey((key) => key + 1);
+  };
 
   // Popup (lưu mã phiếu để luôn lấy dữ liệu mới nhất trong `items`)
   const [detailCode, setDetailCode] = useState<string | null>(null);
@@ -78,28 +119,22 @@ export default function AppointmentHistoryPage() {
   const cancel = find(cancelCode);
 
   const specialties = useMemo(
-    () =>
-      Array.from(
-        new Set([
-          ...items.map((i) => i.doctor.specialty),
-          ...MOCK_RECORDS.map((r) => r.specialty),
-        ]),
-      ),
+    () => Array.from(new Set(items.map((item) => item.doctor.specialty))),
     [items],
   );
 
-  const upcomingCount = items.filter(
-    (i) => i.kind === "confirmed" || i.kind === "followup",
-  ).length;
-  const cancelledCount = items.filter((i) => i.kind === "cancelled").length;
-  const historyCount = MOCK_RECORDS.length + cancelledCount;
+  const upcomingCount = now
+    ? items.filter((appointment) =>
+        isUpcomingAppointment(appointment, now),
+      ).length
+    : 0;
+  const historyCount = items.length - upcomingCount;
 
-  // Tab sắp tới: chỉ lịch đã xác nhận / tái khám
   const list = useMemo(() => {
     if (!now || tab !== "upcoming") return [];
     const q = query.trim().toLowerCase();
     return items
-      .filter((i) => i.kind === "confirmed" || i.kind === "followup")
+      .filter((appointment) => isUpcomingAppointment(appointment, now))
       .filter((i) => specialty === "all" || i.doctor.specialty === specialty)
       .filter(
         (i) =>
@@ -112,64 +147,43 @@ export default function AppointmentHistoryPage() {
       .sort((a, b) => startOf(a, now).getTime() - startOf(b, now).getTime());
   }, [items, now, tab, query, range, specialty]);
 
-  // Tab lịch sử: phiên khám đã hoàn tất (hồ sơ) + lịch đã hủy, mới nhất trước
-  const history = useMemo<HistoryEntry[]>(() => {
+  const history = useMemo<Appointment[]>(() => {
     if (tab !== "history") return [];
     const q = query.trim().toLowerCase();
-
-    const fromRecords: HistoryEntry[] = MOCK_RECORDS.filter(
-      (r) =>
-        (specialty === "all" || r.specialty === specialty) &&
-        (!q ||
-          r.title.toLowerCase().includes(q) ||
-          r.doctor.name.toLowerCase().includes(q) ||
-          r.specialty.toLowerCase().includes(q) ||
-          r.visitCode.toLowerCase().includes(q)),
-    ).map((r) => ({ key: r.id, days: r.daysFromNow, record: r }));
-
-    const fromCancelled: HistoryEntry[] = items
+    return items
       .filter(
         (a) =>
-          a.kind === "cancelled" &&
+          now !== null &&
+          !isUpcomingAppointment(a, now) &&
           (specialty === "all" || a.doctor.specialty === specialty) &&
           (!q ||
             a.doctor.name.toLowerCase().includes(q) ||
             a.doctor.specialty.toLowerCase().includes(q) ||
             a.code.toLowerCase().includes(q)),
       )
-      .map((a) => ({ key: a.code, days: a.daysFromNow, appt: a }));
-
-    return [...fromRecords, ...fromCancelled]
-      .filter((e) => range === "all" || Math.abs(e.days) <= Number(range))
-      .sort((a, b) => b.days - a.days);
-  }, [tab, items, query, range, specialty]);
+      .filter((appointment) =>
+        range === "all" || Math.abs(appointment.daysFromNow) <= Number(range),
+      )
+      .sort(
+        (a, b) =>
+          startOf(b, now!).getTime() - startOf(a, now!).getTime(),
+      );
+  }, [tab, items, query, range, specialty, now]);
 
   const confirmCancel = async () => {
-    if (!cancel) return;
-    // TODO: gọi API hủy lịch (UC06). Backend kiểm tra lại: lịch ở trạng thái Confirmed
-    // và còn ≥ 2 giờ trước giờ khám; giải phóng khung giờ, gửi thông báo, ghi Audit Log.
-    await delay(600);
-    const code = cancel.code;
-    setItems((cur) => cur.map((i) => (i.code === code ? { ...i, kind: "cancelled" } : i)));
+    if (!cancel?.id) return;
+    await cancelAppointment(cancel.id);
     setCancelCode(null);
-    flash(`Đã hủy lịch khám #${code}.`);
+    reloadAppointments();
+    flash(`Đã hủy lịch khám #${cancel.code} thành công.`);
   };
 
-  const confirmReschedule = async (daysFromNow: number, time: string) => {
-    if (!reschedule) return;
-    // TODO: gọi API đổi lịch (UC06). Backend kiểm tra: trạng thái Confirmed, còn ≥ 2 giờ,
-    // chưa quá 2 lần đổi, khung giờ mới còn trống; giải phóng khung giờ cũ, gửi thông báo, ghi Audit Log.
-    await delay(700);
-    const code = reschedule.code;
-    setItems((cur) =>
-      cur.map((i) =>
-        i.code === code
-          ? { ...i, daysFromNow, time, rescheduleCount: (i.rescheduleCount ?? 0) + 1 }
-          : i,
-      ),
-    );
+  const confirmReschedule = async (newAppointmentSlotId: string) => {
+    if (!reschedule?.id) return;
+    await rescheduleAppointment(reschedule.id, newAppointmentSlotId);
     setRescheduleCode(null);
-    flash(`Đã đổi lịch khám #${code} thành công.`);
+    reloadAppointments();
+    flash(`Đã đổi lịch khám #${reschedule.code} thành công.`);
   };
 
   if (!ready) return <div className="min-h-[70vh]" aria-hidden="true" />;
@@ -235,26 +249,18 @@ export default function AppointmentHistoryPage() {
         <div className="mt-5 flex flex-wrap items-end justify-between gap-4">
           <div>
             <h1 className="flex flex-wrap items-center gap-3 text-3xl font-extrabold text-slate-900 md:text-4xl">
-              Lịch Sử Khám Bệnh &amp; Quản Lý Lịch Hẹn
+              Lịch Sử &amp; Quản Lý Lịch Hẹn
               <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2.5 py-1 text-[10px] font-bold text-[#0A5A84]">
                 <ShieldCheck className="h-3 w-3" />
-                Hồ sơ {user.pid}
+                Hồ sơ {user.pid ?? "bệnh nhân"}
               </span>
             </h1>
             <p className="mt-2 max-w-2xl text-xs leading-relaxed text-slate-500">
-              Theo dõi hồ sơ điều trị, toa thuốc điện tử và chủ động quản lý, dời hoặc hủy các lịch
-              khám sắp tới với chính sách hoàn hủy minh bạch.
+              Theo dõi lịch khám sắp tới, xem lại các lịch đã qua và chủ động đổi hoặc hủy lịch
+              theo chính sách của phòng khám.
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
-            <button
-              type="button"
-              // TODO: gọi API xuất EMR (PDF) của bệnh nhân
-              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-5 py-3 text-xs font-bold text-[#0A5A84] shadow-sm transition hover:bg-blue-50"
-            >
-              <Download className="h-4 w-4" />
-              Xuất dữ liệu EMR (PDF)
-            </button>
             <Link
               href="/dat-lich"
               className="inline-flex items-center gap-2 rounded-full bg-[#0A5A84] px-5 py-3 text-xs font-bold text-white shadow transition hover:bg-[#08486B]"
@@ -281,7 +287,7 @@ export default function AppointmentHistoryPage() {
             {(
               [
                 { key: "upcoming", label: "Lịch khám sắp tới", count: upcomingCount, icon: CalendarCheck },
-                { key: "history", label: "Lịch sử khám & Lịch hẹn", count: historyCount, icon: History },
+                { key: "history", label: "Lịch sử lịch hẹn", count: historyCount, icon: History },
               ] as const
             ).map(({ key, label, count, icon: Ico }) => {
               const active = tab === key;
@@ -368,8 +374,31 @@ export default function AppointmentHistoryPage() {
 
         {/* Danh sách */}
         <div className="mt-6 space-y-5">
-          {!now ? (
+          {!now || isLoading ? (
             <div className="h-64 animate-pulse rounded-2xl bg-white/70" />
+          ) : loadError ? (
+            <div className="rounded-2xl bg-white px-6 py-12 text-center shadow-[0_6px_24px_rgba(10,90,132,0.08)]">
+              <p role="alert" className="text-sm font-bold text-red-700">
+                {loadError}
+              </p>
+              <div className="mt-5 flex justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={reloadAppointments}
+                  className="rounded-full bg-[#0A5A84] px-6 py-2.5 text-xs font-bold text-white"
+                >
+                  Tải lại
+                </button>
+                {loadError.includes("đăng nhập lại") && (
+                  <Link
+                    href="/login"
+                    className="rounded-full border border-slate-200 px-6 py-2.5 text-xs font-bold text-slate-700"
+                  >
+                    Đăng nhập
+                  </Link>
+                )}
+              </div>
+            </div>
           ) : noResult ? (
             <div className="rounded-2xl bg-white px-6 py-16 text-center shadow-[0_6px_24px_rgba(10,90,132,0.08)]">
               <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-blue-50 text-[#2B6CB0]">
@@ -391,9 +420,7 @@ export default function AppointmentHistoryPage() {
           ) : tab === "upcoming" ? (
             list.map((a) => card(a))
           ) : (
-            history.map((e) =>
-              "record" in e ? <RecordCard key={e.key} record={e.record} /> : card(e.appt),
-            )
+            history.map((appointment) => card(appointment))
           )}
         </div>
       </div>
@@ -408,6 +435,7 @@ export default function AppointmentHistoryPage() {
       {now && qr && <QrModal appt={qr} now={now} onClose={() => setQrCode(null)} />}
       {now && reschedule && (
         <RescheduleModal
+          key={reschedule.id}
           appt={reschedule}
           now={now}
           onClose={() => setRescheduleCode(null)}

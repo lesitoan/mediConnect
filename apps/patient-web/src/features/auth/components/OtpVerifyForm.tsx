@@ -2,6 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, Clock, ShieldCheck } from "@/components/layout/icons";
+import {
+  verifyRegistrationOtp,
+  AuthApiError,
+  getAuthErrorMessage,
+  type OtpChallenge,
+} from "../services/authService";
 
 const OTP_LENGTH = 6;
 const OTP_TTL_SECONDS = 5 * 60; // hiệu lực 5 phút
@@ -10,6 +16,8 @@ const MAX_ATTEMPTS = 5;
 
 type Props = {
   phone: string;
+  challenge: OtpChallenge;
+  onResend: () => Promise<OtpChallenge>;
   onBack: () => void;
   onSuccess: () => void;
 };
@@ -20,12 +28,21 @@ const maskPhone = (p: string) =>
 const mmss = (s: number) =>
   `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 
-export default function OtpVerifyForm({ phone, onBack, onSuccess }: Props) {
+export default function OtpVerifyForm({
+  phone,
+  challenge,
+  onResend,
+  onBack,
+  onSuccess,
+}: Props) {
   const [digits, setDigits] = useState<string[]>(Array(OTP_LENGTH).fill(""));
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [ttl, setTtl] = useState(OTP_TTL_SECONDS);
-  const [resendIn, setResendIn] = useState(RESEND_SECONDS);
+  const [currentChallenge, setCurrentChallenge] = useState(challenge);
+  const [ttl, setTtl] = useState(challenge.expiresIn || OTP_TTL_SECONDS);
+  const [resendIn, setResendIn] = useState(
+    challenge.retryAfter || RESEND_SECONDS,
+  );
   const [attempts, setAttempts] = useState(0);
   const refs = useRef<(HTMLInputElement | null)[]>([]);
 
@@ -56,7 +73,10 @@ export default function OtpVerifyForm({ phone, onBack, onSuccess }: Props) {
     if (v && i < OTP_LENGTH - 1) refs.current[i + 1]?.focus();
   };
 
-  const handleKeyDown = (i: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = (
+    i: number,
+    e: React.KeyboardEvent<HTMLInputElement>,
+  ) => {
     if (e.key === "Backspace" && !digits[i] && i > 0) {
       refs.current[i - 1]?.focus();
     } else if (e.key === "ArrowLeft" && i > 0) {
@@ -67,7 +87,10 @@ export default function OtpVerifyForm({ phone, onBack, onSuccess }: Props) {
   };
 
   const handlePaste = (e: React.ClipboardEvent) => {
-    const text = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, OTP_LENGTH);
+    const text = e.clipboardData
+      .getData("text")
+      .replace(/\D/g, "")
+      .slice(0, OTP_LENGTH);
     if (!text) return;
     e.preventDefault();
     setDigits(Array.from({ length: OTP_LENGTH }, (_, i) => text[i] ?? ""));
@@ -80,54 +103,80 @@ export default function OtpVerifyForm({ phone, onBack, onSuccess }: Props) {
     setLoading(true);
     setError("");
     try {
-      // TODO: gọi API xác thực OTP của apps/api (module authentication):
-      // const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/verify-otp`, {
-      //   method: "POST",
-      //   headers: { "Content-Type": "application/json" },
-      //   body: JSON.stringify({ phone, otp: code }),
-      // });
-      // if (!res.ok) throw new Error("invalid");
-      await new Promise((r) => setTimeout(r, 600));
+      await verifyRegistrationOtp(currentChallenge.challengeId, code);
       onSuccess();
-    } catch {
-      const next = attempts + 1;
-      setAttempts(next);
+    } catch (error: unknown) {
+      const message =
+        getAuthErrorMessage(error, "Không thể xác thực mã OTP.");
+      if (error instanceof AuthApiError && error.status === 400) {
+        const next = attempts + 1;
+        setAttempts(next);
+        setDigits(Array(OTP_LENGTH).fill(""));
+        refs.current[0]?.focus();
+        setError(
+          next >= MAX_ATTEMPTS
+            ? "Bạn đã nhập sai quá số lần cho phép. Vui lòng thử lại sau 15 phút."
+            : `Mã OTP không chính xác hoặc đã hết hạn. Bạn còn ${MAX_ATTEMPTS - next} lần thử.`,
+        );
+      } else {
+        setError(message);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    if (resendIn > 0 || locked || loading) return;
+    setLoading(true);
+    setError("");
+    try {
+      const nextChallenge = await onResend();
+      setCurrentChallenge(nextChallenge);
       setDigits(Array(OTP_LENGTH).fill(""));
+      setTtl(nextChallenge.expiresIn || OTP_TTL_SECONDS);
+      setResendIn(nextChallenge.retryAfter || RESEND_SECONDS);
       refs.current[0]?.focus();
+    } catch (error: unknown) {
       setError(
-        next >= MAX_ATTEMPTS
-          ? "Bạn đã nhập sai quá số lần cho phép. Vui lòng thử lại sau 15 phút."
-          : `Mã OTP không chính xác. Bạn còn ${MAX_ATTEMPTS - next} lần thử.`,
+        getAuthErrorMessage(error, "Không thể gửi lại mã OTP."),
       );
     } finally {
       setLoading(false);
     }
   };
 
-  const handleResend = () => {
-    if (resendIn > 0 || locked) return;
-    // TODO: gọi API gửi lại OTP
-    setDigits(Array(OTP_LENGTH).fill(""));
-    setError("");
-    setTtl(OTP_TTL_SECONDS);
-    setResendIn(RESEND_SECONDS);
-    refs.current[0]?.focus();
-  };
-
   return (
-    <form onSubmit={handleSubmit} className="mx-auto mt-10 max-w-md text-center">
+    <form
+      onSubmit={handleSubmit}
+      className="mx-auto mt-10 max-w-md text-center"
+    >
       <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-blue-50 text-[#2B6CB0] ring-8 ring-blue-50/60">
         <ShieldCheck className="h-8 w-8" />
       </span>
 
-      <h2 className="mt-5 text-2xl font-extrabold text-slate-900">Xác thực số điện thoại</h2>
+      <h2 className="mt-5 text-2xl font-extrabold text-slate-900">
+        Xác thực số điện thoại
+      </h2>
       <p className="mt-2 text-sm leading-relaxed text-slate-500">
         Mã OTP gồm {OTP_LENGTH} chữ số đã được gửi đến số{" "}
         <b className="text-slate-800">{maskPhone(phone)}</b>
       </p>
+      {currentChallenge.developmentCode && (
+        <p
+          role="status"
+          className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800"
+        >
+          Mã OTP kiểm thử:{" "}
+          <b className="font-mono">{currentChallenge.developmentCode}</b>
+        </p>
+      )}
 
       {/* 6 ô nhập */}
-      <div className="mt-7 flex justify-center gap-2.5 sm:gap-3" onPaste={handlePaste}>
+      <div
+        className="mt-7 flex justify-center gap-2.5 sm:gap-3"
+        onPaste={handlePaste}
+      >
         {digits.map((d, i) => (
           <input
             key={i}
@@ -165,7 +214,10 @@ export default function OtpVerifyForm({ phone, onBack, onSuccess }: Props) {
       </p>
 
       {error && (
-        <p role="alert" className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">
+        <p
+          role="alert"
+          className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600"
+        >
           {error}
         </p>
       )}
@@ -182,8 +234,8 @@ export default function OtpVerifyForm({ phone, onBack, onSuccess }: Props) {
         Chưa nhận được mã?{" "}
         <button
           type="button"
-          onClick={handleResend}
-          disabled={resendIn > 0 || locked}
+          onClick={() => void handleResend()}
+          disabled={resendIn > 0 || locked || loading}
           className="font-bold text-[#174A8F] hover:underline disabled:cursor-not-allowed disabled:text-slate-400 disabled:no-underline"
         >
           {resendIn > 0 ? `Gửi lại sau ${resendIn}s` : "Gửi lại mã OTP"}
