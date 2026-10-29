@@ -46,4 +46,4 @@ import { SchedulesModule } from './modules/schedules/schedules.module';
     AuditLogsModule,
   ],
 })
-export class AppModule { }
+export class AppModule {}
