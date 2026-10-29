@@ -1,197 +1,125 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "react-hot-toast";
+import axios from "axios";
 import { useModal } from "@/hooks/useModal";
 import { useTableFilters } from "@/hooks/useTableFilters";
-import type {
-  AuditLogEntry,
-  AuditLogFilterValues,
-  AuditLogPreset,
-} from "../types/auditLogTypes";
+import type { AuditLogEntry, AuditLogFilterValues, AuditLogPreset } from "../types/auditLogTypes";
 import { DEFAULT_AUDIT_LOG_FILTERS } from "../types/auditLogTypes";
-import { INITIAL_AUDIT_LOGS } from "../services/auditLogService";
+import { resolveAuditDateRange, exportAuditLogs, getAuditLog, getAuditLogs, getAuditOptions, type FilterOption } from "../services/auditLogsApi";
 import { AuditLogHeader } from "./AuditLogHeader";
 import { AuditLogFilters } from "./AuditLogFilters";
 import { AuditLogTable } from "./AuditLogTable";
 import { AuditLogDetailDrawer } from "./AuditLogDetailDrawer";
 
 export function AuditLogView() {
-  const [logs] = useState<AuditLogEntry[]>(INITIAL_AUDIT_LOGS);
+  const { filters, setFilter, setFilters } = useTableFilters<AuditLogFilterValues>(DEFAULT_AUDIT_LOG_FILTERS, "replace");
+  const [now, setNow] = useState(() => Date.now());
+  const [searchText, setSearchText] = useState(filters.search);
+  const pendingSearches = useRef<string[]>([]);
   const searchParams = useSearchParams();
-
-  // Filters management
-  const { filters, setFilter, setFilters } =
-    useTableFilters<AuditLogFilterValues>(DEFAULT_AUDIT_LOG_FILTERS);
-
-  // Detail drawer modal state
   const detailDrawer = useModal<AuditLogEntry>();
+  const [logs, setLogs] = useState<AuditLogEntry[]>([]);
+  const [totalItems, setTotalItems] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [options, setOptions] = useState<{ actors: FilterOption[]; actions: FilterOption[] }>({ actors: [], actions: [] });
+  const [isExporting, setIsExporting] = useState(false);
+  const detailRequest = useRef<AbortController | null>(null);
+  const lastUrlId = useRef<string | null>(null);
+  const { open: openDetail, close: closeDetail } = detailDrawer;
+  const { preset, startDate, endDate } = resolveAuditDateRange(filters, now);
+  const effectiveFilters = useMemo(() => ({ ...filters, startDate, endDate }), [filters, startDate, endDate]);
 
-  const dateRange = useMemo(
-    () => ({
-      startDate: filters.startDate,
-      endDate: filters.endDate,
-    }),
-    [filters.startDate, filters.endDate]
-  );
-
-  // Open drawer if query param exists
   useEffect(() => {
-    const logId = searchParams.get("logId") || searchParams.get("id");
-    if (logId && !detailDrawer.isOpen) {
-      const found = logs.find(
-        (l) => l.id.toLowerCase() === logId.toLowerCase()
-      );
-      if (found) {
-        detailDrawer.open(found);
-      }
-    }
-  }, [searchParams, logs, detailDrawer.isOpen]);
+    const index = pendingSearches.current.indexOf(filters.search);
+    if (index >= 0) { pendingSearches.current.splice(0, index + 1); return; }
+    pendingSearches.current = [];
+    // External URL navigation resets the input; our own URL updates must preserve newer typing.
+    setSearchText(filters.search);
+  }, [filters.search]);
 
-  // Handle Preset changes
-  const handlePresetChange = (preset: AuditLogPreset) => {
-    let startDate = "2026-10-10";
-    let endDate = "2026-10-16";
-    if (preset === "TODAY") {
-      startDate = "2026-10-16";
-      endDate = "2026-10-16";
-    } else if (preset === "7_DAYS") {
-      startDate = "2026-10-10";
-      endDate = "2026-10-16";
-    } else if (preset === "30_DAYS") {
-      startDate = "2026-09-16";
-      endDate = "2026-10-16";
-    } else if (preset === "THIS_MONTH") {
-      startDate = "2026-10-01";
-      endDate = "2026-10-31";
-    }
+  useEffect(() => {
+    if (searchText === filters.search) return;
+    const timer = window.setTimeout(() => {
+      pendingSearches.current.push(searchText);
+      setFilters({ search: searchText, page: 1 });
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [searchText, filters.search, setFilters]);
 
-    setFilters({
-      preset,
-      startDate,
-      endDate,
-      page: 1,
-    });
-  };
-
-  // Filtered logs
-  const filteredLogs = useMemo(() => {
-    return logs.filter((log) => {
-      // Filter by executor
-      if (filters.executor !== "ALL" && log.executor !== filters.executor) {
-        return false;
-      }
-
-      // Filter by action
-      if (filters.actionType !== "ALL" && log.action !== filters.actionType) {
-        return false;
-      }
-
-      // Filter by date range
-      if (filters.startDate && filters.endDate && log.date) {
-        const parts = log.date.split("/").map(Number);
-        if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
-          const logIso = `${parts[2]}-${String(parts[1]).padStart(2, "0")}-${String(parts[0]).padStart(2, "0")}`;
-          if (logIso < filters.startDate || logIso > filters.endDate) {
-            return false;
-          }
+  useEffect(() => {
+    let controller: AbortController;
+    const load = () => {
+      setNow(Date.now());
+      controller?.abort();
+      const request = new AbortController();
+      controller = request;
+      setIsLoading(true);
+      void getAuditLogs(effectiveFilters, request.signal).then(({ items, totalItems: total }) => {
+        if (!request.signal.aborted) { setLogs(items); setTotalItems(total); setLoadError(null); }
+      }).catch((error: unknown) => {
+        if (!request.signal.aborted) {
+          const status = axios.isAxiosError(error) ? error.response?.status : undefined;
+          setLogs([]); setTotalItems(0);
+          if (status === 401 || status === 403) closeDetail();
+          setLoadError(status === 401 ? "Phiên đăng nhập đã hết hạn." : status === 403 ? "Bạn không có quyền xem nhật ký." : "Không thể tải nhật ký.");
         }
-      }
+      }).finally(() => { if (!request.signal.aborted) setIsLoading(false); });
+      void getAuditOptions(effectiveFilters.startDate, effectiveFilters.endDate, request.signal).then((result) => {
+        if (!request.signal.aborted) setOptions(result);
+      }).catch(() => { if (!request.signal.aborted) setOptions({ actors: [], actions: [] }); });
+    };
+    const initial = window.setTimeout(load, 0);
+    const timer = window.setInterval(load, 30_000);
+    window.addEventListener("focus", load);
+    return () => { window.clearTimeout(initial); window.clearInterval(timer); window.removeEventListener("focus", load); controller?.abort(); };
+  }, [effectiveFilters, closeDetail]);
 
-      // Filter by search query
-      if (filters.search.trim()) {
-        const query = filters.search.toLowerCase().trim();
-        const matchExecutor = log.executor.toLowerCase().includes(query);
-        const matchAction = log.action.toLowerCase().includes(query);
-        const matchTarget = log.target.toLowerCase().includes(query);
-        const matchId = log.id.toLowerCase().includes(query);
-        const matchActionCode = log.actionCode.toLowerCase().includes(query);
-        const matchResult = log.resultLabel.toLowerCase().includes(query);
-        return (
-          matchExecutor ||
-          matchAction ||
-          matchTarget ||
-          matchId ||
-          matchActionCode ||
-          matchResult
-        );
-      }
+  const showDetail = useCallback(async (id: string) => {
+    detailRequest.current?.abort();
+    const controller = new AbortController();
+    detailRequest.current = controller;
+    try { const item = await getAuditLog(id, controller.signal); if (!controller.signal.aborted) openDetail(item); }
+    catch { if (!controller.signal.aborted) toast.error("Không thể tải chi tiết nhật ký."); }
+  }, [openDetail]);
 
-      return true;
-    });
-  }, [
-    logs,
-    filters.executor,
-    filters.actionType,
-    filters.search,
-    filters.startDate,
-    filters.endDate,
-  ]);
+  useEffect(() => {
+    const id = searchParams.get("logId") || searchParams.get("id");
+    if (id && id !== lastUrlId.current) { lastUrlId.current = id; void showDetail(id); }
+    if (!id) lastUrlId.current = null;
+    return () => detailRequest.current?.abort();
+  }, [searchParams, showDetail]);
 
-  // Total count calculation: matches 12.847 in screenshot when no heavy filter is applied
-  const isDefaultView =
-    filters.executor === "ALL" &&
-    filters.actionType === "ALL" &&
-    filters.preset === "7_DAYS" &&
-    !filters.search.trim();
-
-  const totalItems = isDefaultView ? 12847 : filteredLogs.length;
-
-  // Handle Export report
-  const handleExport = () => {
-    toast.success("Đang xuất báo cáo nhật ký hệ thống (.xlsx)...");
-  };
-
-  // Handle advanced filter click
-  const handleAdvancedFilter = () => {
-    toast("Tính năng bộ lọc nâng cao theo IP & Module", { icon: "ℹ️" });
+  const handlePresetChange = (preset: AuditLogPreset) => setFilters({ preset, startDate: "", endDate: "", executor: "ALL", actionType: "ALL", page: 1 });
+  const handleExport = async () => {
+    if (isExporting) return;
+    setIsExporting(true);
+    try { await exportAuditLogs({ ...effectiveFilters, ...resolveAuditDateRange(filters), search: searchText }); toast.success("Đã xuất nhật ký CSV."); }
+    catch { toast.error("Không thể xuất nhật ký. Kiểm tra quyền, dữ liệu và khoảng ngày (tối đa 31 ngày)."); }
+    finally { setIsExporting(false); }
   };
 
   return (
     <div className="mx-auto w-full max-w-7xl">
-      {/* Header */}
-      <AuditLogHeader onExport={handleExport} />
-
-      {/* Filters Box */}
+      <AuditLogHeader onExport={() => void handleExport()} isExporting={isExporting} />
       <AuditLogFilters
-        dateRange={dateRange}
-        onDateRangeChange={(range) => {
-          setFilters({
-            startDate: range.startDate,
-            endDate: range.endDate,
-            preset: "",
-            page: 1,
-          });
-        }}
-        preset={filters.preset}
-        onPresetChange={handlePresetChange}
-        executor={filters.executor}
-        onExecutorChange={(val) => setFilters({ executor: val, page: 1 })}
-        actionType={filters.actionType}
-        onActionTypeChange={(val) => setFilters({ actionType: val, page: 1 })}
-        search={filters.search}
-        onSearchChange={(val) => setFilters({ search: val, page: 1 })}
-        onAdvancedFilterClick={handleAdvancedFilter}
+        dateRange={{ startDate, endDate }}
+        onDateRangeChange={(range) => setFilters({ ...range, preset: "", executor: "ALL", actionType: "ALL", page: 1 })}
+        preset={preset} onPresetChange={handlePresetChange}
+        executor={filters.executor} onExecutorChange={(executor) => setFilters({ executor, page: 1 })}
+        actionType={filters.actionType} onActionTypeChange={(actionType) => setFilters({ actionType, page: 1 })}
+        search={searchText} onSearchChange={setSearchText}
+        executorOptions={options.actors} actionOptions={options.actions}
       />
-
-      {/* Data Table */}
-      <AuditLogTable
-        logs={filteredLogs}
-        totalItems={totalItems}
-        currentPage={filters.page}
-        pageSize={filters.pageSize}
-        onPageChange={(page) => setFilter("page", page)}
-        onPageSizeChange={(size) => setFilters({ pageSize: size, page: 1 })}
-        onSelectLog={(log) => detailDrawer.open(log)}
-      />
-
-      {/* Detail Slide-over Drawer */}
-      <AuditLogDetailDrawer
-        isOpen={detailDrawer.isOpen}
-        log={detailDrawer.data}
-        onClose={detailDrawer.close}
-      />
+      {loadError ? <p role="alert" className="text-body text-error">Không thể tải nhật ký: {loadError}</p> : isLoading ? <p className="text-body text-muted">Đang tải nhật ký...</p> : (
+        <AuditLogTable logs={logs} totalItems={totalItems} currentPage={filters.page} pageSize={filters.pageSize}
+          onPageChange={(page) => setFilter("page", page)} onPageSizeChange={(pageSize) => setFilters({ pageSize, page: 1 })}
+          onSelectLog={(log) => void showDetail(log.id)} />
+      )}
+      <AuditLogDetailDrawer isOpen={detailDrawer.isOpen} log={detailDrawer.data} onClose={() => { detailRequest.current?.abort(); closeDetail(); }} />
     </div>
   );
 }

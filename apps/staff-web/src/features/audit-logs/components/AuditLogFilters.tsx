@@ -1,5 +1,6 @@
 "use client";
 
+
 import { Search, SlidersHorizontal } from "lucide-react";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
@@ -10,7 +11,7 @@ import {
 } from "@/components/ui/DateRangePicker";
 import { cn } from "@/lib/utils";
 import type { AuditLogPreset } from "../types/auditLogTypes";
-import { EXECUTOR_OPTIONS, ACTION_OPTIONS } from "../services/auditLogService";
+import type { FilterOption } from "../services/auditLogsApi";
 
 interface AuditLogFiltersProps {
   dateRange: DateRangeValue;
@@ -24,6 +25,8 @@ interface AuditLogFiltersProps {
   search: string;
   onSearchChange: (val: string) => void;
   onAdvancedFilterClick?: () => void;
+  executorOptions: FilterOption[];
+  actionOptions: FilterOption[];
 }
 
 const PRESET_OPTIONS: { id: AuditLogPreset; label: string }[] = [
@@ -45,6 +48,8 @@ export function AuditLogFilters({
   search,
   onSearchChange,
   onAdvancedFilterClick,
+  executorOptions,
+  actionOptions,
 }: AuditLogFiltersProps) {
   return (
     <div className="mb-4 rounded-app-xl border border-border bg-surface p-4 sm:p-5 shadow-xs">
@@ -70,7 +75,7 @@ export function AuditLogFilters({
             onChange={(e) => onExecutorChange(e.target.value)}
             className="h-10 text-body font-medium"
           >
-            {EXECUTOR_OPTIONS.map((opt) => (
+            {[{ value: "ALL", label: "Tất cả" }, ...executorOptions].map((opt) => (
               <option key={opt.value} value={opt.value}>
                 {opt.label}
               </option>
@@ -88,7 +93,7 @@ export function AuditLogFilters({
             onChange={(e) => onActionTypeChange(e.target.value)}
             className="h-10 text-body font-medium"
           >
-            {ACTION_OPTIONS.map((opt) => (
+            {[{ value: "ALL", label: "Tất cả" }, ...actionOptions].map((opt) => (
               <option key={opt.value} value={opt.value}>
                 {opt.label}
               </option>
@@ -106,8 +111,9 @@ export function AuditLogFilters({
             <Input
               type="text"
               value={search}
+              maxLength={200}
               onChange={(e) => onSearchChange(e.target.value)}
-              placeholder="Tìm bản ghi..."
+              placeholder="Tên người, hành động hoặc ID đối tượng..."
               className="h-10 pl-9.5 text-body"
             />
           </div>
@@ -144,6 +150,7 @@ export function AuditLogFilters({
           variant="outline"
           size="sm"
           onClick={onAdvancedFilterClick}
+          disabled={!onAdvancedFilterClick}
           className="h-8 gap-1.5 rounded-app-lg border-border bg-surface px-3 text-caption font-semibold text-primary hover:bg-item-hover hover:text-primary-hover shadow-xs"
         >
           <SlidersHorizontal className="size-3.5" />

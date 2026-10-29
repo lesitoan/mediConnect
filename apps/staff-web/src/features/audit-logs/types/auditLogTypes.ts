@@ -53,13 +53,13 @@ export interface AuditLogFilterValues {
 }
 
 export const DEFAULT_AUDIT_LOG_DATE_RANGE: AuditLogDateRange = {
-  startDate: "2026-10-10",
-  endDate: "2026-10-16",
+  startDate: "",
+  endDate: "",
 };
 
 export const DEFAULT_AUDIT_LOG_FILTERS: AuditLogFilterValues = {
   ...DEFAULT_AUDIT_LOG_DATE_RANGE,
-  preset: "7_DAYS",
+  preset: "",
   executor: "ALL",
   actionType: "ALL",
   search: "",
