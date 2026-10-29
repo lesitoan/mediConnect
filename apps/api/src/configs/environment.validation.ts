@@ -11,6 +11,10 @@ const ENVIRONMENT_SCHEMA = Joi.object<Record<string, unknown>>({
     .valid('development', 'test', 'production')
     .default('development'),
   PORT: Joi.number().port().default(4000),
+  AI_SERVICE_URL: Joi.string()
+    .uri({ scheme: ['http', 'https'] })
+    .default('http://127.0.0.1:4100'),
+  AI_INTERNAL_TOKEN: Joi.string().min(32).empty('').optional(),
   LOG_LEVEL: Joi.string()
     .valid('fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent')
     .default('info'),
