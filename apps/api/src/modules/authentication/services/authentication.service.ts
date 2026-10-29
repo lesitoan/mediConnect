@@ -263,17 +263,30 @@ export class AuthenticationService {
   }
 
   async register(input: RegisterDto, ip = 'UNKNOWN'): Promise<OtpChallengeDto> {
-    if (await this.usersService.findForAuthentication(input)) {
+    const existingByPhone = await this.usersService.findForAuthentication({
+      phone: input.phone,
+    });
+    const existingByEmail = input.email
+      ? await this.usersService.findForAuthentication({ email: input.email })
+      : null;
+    if (existingByPhone || existingByEmail) {
       throw new ConflictException('Account already exists');
     }
-    await this.otpService.assertCanSend(input, ip);
+    await this.otpService.assertCanSend({ phone: input.phone }, ip);
     const passwordHash = await hash(input.password, 12);
     const user = await this.usersService.createPatient({
       name: input.name,
       email: input.email,
       phone: input.phone,
       passwordHash,
+      dateOfBirth: input.dateOfBirth,
+      gender: input.gender,
     });
-    return this.otpService.send(input, 'REGISTER', user.id, ip);
+    return this.otpService.send(
+      { phone: input.phone },
+      'REGISTER',
+      user.id,
+      ip,
+    );
   }
 }

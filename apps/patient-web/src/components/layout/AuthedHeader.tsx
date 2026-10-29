@@ -110,7 +110,7 @@ export default function AuthedHeader({ user }: { user: SessionUser }) {
                     {user.fullName}
                   </span>
                   <span className="block text-[10px] font-bold text-[#2B6CB0]">
-                    {user.pid}
+                    {user.pid ?? "Tài khoản bệnh nhân"}
                   </span>
                 </span>
                 <ChevronDown className="hidden h-3.5 w-3.5 text-slate-400 sm:block" />

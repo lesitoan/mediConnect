@@ -1,12 +1,13 @@
 import type { Appointment } from "../data";
 
 export const WEEKDAYS = ["Chủ Nhật", "Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy"];
-export const CUTOFF_HOURS = 2; // đổi/hủy tối thiểu 2 giờ trước giờ khám (SRS)
+export const CUTOFF_HOURS = 12;
 export const MAX_RESCHEDULE = 2; // mỗi lịch đổi tối đa 2 lần (SRS)
 
 export const pad = (n: number) => String(n).padStart(2, "0");
 
 export function startOf(a: Appointment, now: Date) {
+  if (a.startsAt) return new Date(a.startsAt);
   const [h, m] = a.time.split(":").map(Number);
   return new Date(now.getFullYear(), now.getMonth(), now.getDate() + a.daysFromNow, h, m);
 }

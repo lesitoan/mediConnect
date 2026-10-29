@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
     ArrowLeft,
@@ -17,7 +19,9 @@ import {
     Sunset,
 } from "@/components/layout/icons";
 import BookingConsultCard from "./BookingSidebar";
+import { clearSession, useAuth } from "@/features/auth/useAuth";
 import {
+    ApiRequestError,
     bookAppointment,
     getAppointmentAvailability,
     type AvailabilitySlot,
@@ -33,6 +37,7 @@ type SessionKey = keyof typeof SESSIONS;
 
 const CUTOFF_HOURS = 2;
 const DAYS_AHEAD = 14;
+const BOOKING_LOGIN_URL = "/login?next=%2Fdat-lich";
 
 const WEEKDAY_FULL = ["Chủ nhật", "Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy"];
 
@@ -158,6 +163,8 @@ function Field({
 /* ---------- Form chính ---------- */
 
 export default function BookingForm() {
+    const router = useRouter();
+    const { user, ready: isAuthReady } = useAuth();
     const [now, setNow] = useState<Date | null>(null);
     // The client timestamp is initialized after hydration to keep date rendering stable.
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -242,12 +249,22 @@ export default function BookingForm() {
     );
     const slots = useMemo(() => {
         const { start, end } = SESSIONS[session];
-        return visibleSlots.filter((slot) => {
+        const sessionSlots = visibleSlots.filter((slot) => {
             const startsAt = new Date(slot.startsAt);
             const minutes = startsAt.getHours() * 60 + startsAt.getMinutes();
             return minutes >= start && minutes < end;
         });
-    }, [session, visibleSlots]);
+        if (specialtyId) return sessionSlots;
+
+        return Array.from(
+            new Map(
+                sessionSlots.map((slot) => [
+                    `${slot.startsAt}-${slot.endsAt}`,
+                    slot,
+                ]),
+            ).values(),
+        );
+    }, [session, specialtyId, visibleSlots]);
     const displaySlots = isLoadingAvailability ? [] : slots;
     const specialty = specialties.find((item) => item.id === specialtyId);
     const doctor = doctors.find((item) => item.id === doctorId);
@@ -262,6 +279,10 @@ export default function BookingForm() {
     const handleSubmit = async (e: React.SyntheticEvent) => {
         e.preventDefault();
         if (!canSubmit || !selectedSlot) return;
+        if (!user) {
+            router.push(BOOKING_LOGIN_URL);
+            return;
+        }
         setIsSubmitting(true);
         setBookingError("");
         try {
@@ -271,6 +292,11 @@ export default function BookingForm() {
             });
             setDone(true);
         } catch (error: unknown) {
+            if (error instanceof ApiRequestError && error.status === 401) {
+                clearSession();
+                router.push(BOOKING_LOGIN_URL);
+                return;
+            }
             setBookingError(
                 error instanceof Error ? error.message : "Không thể đặt lịch khám",
             );
@@ -278,6 +304,29 @@ export default function BookingForm() {
             setIsSubmitting(false);
         }
     };
+
+    if (!isAuthReady) {
+        return <div className="h-[560px] animate-pulse rounded-3xl bg-white/70" />;
+    }
+
+    if (!user) {
+        return (
+            <div className="mx-auto max-w-xl rounded-3xl bg-white p-8 text-center shadow-[0_6px_24px_rgba(23,74,143,0.08)]">
+                <h2 className="text-xl font-extrabold text-slate-900">
+                    Đăng nhập để đặt lịch khám
+                </h2>
+                <p className="mt-3 text-sm leading-relaxed text-slate-600">
+                    Bạn cần đăng nhập tài khoản bệnh nhân trước khi chọn và xác nhận lịch khám.
+                </p>
+                <Link
+                    href={BOOKING_LOGIN_URL}
+                    className="mt-6 inline-flex rounded-full bg-[#2B6CB0] px-7 py-3 text-sm font-bold text-white transition hover:bg-[#174A8F]"
+                >
+                    Đăng nhập
+                </Link>
+            </div>
+        );
+    }
 
     if (!now || !day) {
         return <div className="h-[560px] animate-pulse rounded-3xl bg-white/70" />;

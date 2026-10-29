@@ -10,18 +10,19 @@ import {
   Info,
   MapPin,
   PhoneCall,
-  Sun,
-  Sunset,
   Ticket,
   X,
 } from "@/components/layout/icons";
 import type { Appointment } from "../data";
 import {
+  getAppointmentAvailability,
+  type AvailabilitySlot,
+} from "../services/appointmentsService";
+import {
   CUTOFF_HOURS,
   dayText,
   fullText,
   MAX_RESCHEDULE,
-  minToText,
   pad,
   startOf,
 } from "./dateUtils";
@@ -103,7 +104,10 @@ const btnPrimary =
 const KIND_LABEL = {
   confirmed: { text: "Đã xác nhận", cls: "bg-emerald-50 text-emerald-700" },
   followup: { text: "Lịch tái khám", cls: "bg-blue-50 text-[#0A5A84]" },
+  pending: { text: "Đang xử lý", cls: "bg-amber-50 text-amber-700" },
   completed: { text: "Đã hoàn tất", cls: "bg-slate-100 text-slate-600" },
+  incomplete: { text: "Chưa hoàn tất", cls: "bg-slate-100 text-slate-600" },
+  "no-show": { text: "Không đến khám", cls: "bg-amber-50 text-amber-700" },
   cancelled: { text: "Đã hủy", cls: "bg-red-50 text-red-600" },
 } as const;
 
@@ -185,12 +189,13 @@ export function DetailModal({
           {appt.room}
         </InfoRow>
         <InfoRow icon={<ClipboardList className="h-4 w-4" />} label={appt.feeLabel.replace(/:$/, "")}>
-          {appt.fee} VNĐ{" "}
-          <span className="ml-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+          {appt.fee}
+          {appt.fee !== "Chưa có" && " VNĐ"}{" "}
+          <span className="ml-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
             {appt.feeNote}
           </span>
         </InfoRow>
-        <InfoRow icon={<PhoneCall className="h-4 w-4" />} label="SMS & QR xác nhận gửi tới">
+        <InfoRow icon={<PhoneCall className="h-4 w-4" />} label="Số điện thoại liên hệ">
           {appt.phone}
         </InfoRow>
         {(appt.kind === "confirmed" || appt.kind === "followup") && (
@@ -331,12 +336,6 @@ export function QrModal({
 
 /* ---------- 3. Đổi lịch ---------- */
 
-const SESSIONS = [
-  { key: "morning", label: "Buổi sáng", Ico: Sun, start: 420, end: 660 },
-  { key: "afternoon", label: "Buổi chiều", Ico: Sunset, start: 810, end: 960 },
-] as const;
-
-const SLOT_MIN = 30;
 const DAYS_AHEAD = 10;
 
 function buildDays(now: Date) {
@@ -349,15 +348,8 @@ function buildDays(now: Date) {
   return out;
 }
 
-/** TODO: thay bằng API số lượt còn trống theo bác sĩ/ngày/khung giờ */
-function mockRemaining(key: string, from: number) {
-  let h = 0;
-  for (const c of key + from) h = (h * 31 + c.charCodeAt(0)) >>> 0;
-  const r = h % 10;
-  return r < 2 ? 0 : r - 1;
-}
-
-const midnight = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+const toDateQuery = (date: Date) =>
+  `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 
 export function RescheduleModal({
   appt,
@@ -368,41 +360,69 @@ export function RescheduleModal({
   appt: Appointment;
   now: Date;
   onClose: () => void;
-  onConfirm: (daysFromNow: number, time: string) => Promise<void>;
+  onConfirm: (newAppointmentSlotId: string) => Promise<void>;
 }) {
   const current = startOf(appt, now);
   const days = useMemo(() => buildDays(now), [now]);
   const [dayIndex, setDayIndex] = useState(0);
-  const [slot, setSlot] = useState<number | null>(null);
+  const [availableSlots, setAvailableSlots] = useState<AvailabilitySlot[]>([]);
+  const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
+  const [isLoadingSlots, setIsLoadingSlots] = useState(true);
+  const [availabilityError, setAvailabilityError] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   const day = days[dayIndex];
   const used = appt.rescheduleCount ?? 0;
-  const cutoff = now.getTime() + CUTOFF_HOURS * 3600_000;
+  const dayQuery = toDateQuery(day);
+  const selectedSlot = availableSlots.find(
+    (availableSlot) => availableSlot.id === selectedSlotId,
+  );
+  const newStart = selectedSlot ? new Date(selectedSlot.startsAt) : null;
 
-  const statusOf = (m: number) => {
-    const at = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 0, m).getTime();
-    if (at === current.getTime()) return "current" as const;
-    if (at < cutoff) return "expired" as const;
-    const remaining = mockRemaining(`${appt.doctor.name}|${midnight(day)}`, m);
-    return remaining === 0 ? ("full" as const) : ("ok" as const);
-  };
-
-  const remainingOf = (m: number) => mockRemaining(`${appt.doctor.name}|${midnight(day)}`, m);
-
-  const newStart =
-    slot === null ? null : new Date(day.getFullYear(), day.getMonth(), day.getDate(), 0, slot);
+  useEffect(() => {
+    let isCurrent = true;
+    getAppointmentAvailability(dayQuery, appt.doctorId)
+      .then((slots) => {
+        if (isCurrent) {
+          setAvailableSlots(
+            slots.filter(
+              (slot) =>
+                slot.doctor.id === appt.doctorId &&
+                slot.id !== appt.appointmentSlotId,
+            ),
+          );
+        }
+      })
+      .catch((availabilityError: unknown) => {
+        if (isCurrent) {
+          setAvailabilityError(
+            availabilityError instanceof Error
+              ? availabilityError.message
+              : "Không thể tải khung giờ trống.",
+          );
+        }
+      })
+      .finally(() => {
+        if (isCurrent) setIsLoadingSlots(false);
+      });
+    return () => {
+      isCurrent = false;
+    };
+  }, [dayQuery, appt.doctorId, appt.appointmentSlotId]);
 
   const submit = async () => {
-    if (slot === null || !newStart || saving) return;
+    if (!selectedSlotId || !newStart || saving) return;
     setSaving(true);
     setError("");
     try {
-      const daysFromNow = Math.round((midnight(day) - midnight(now)) / 86_400_000);
-      await onConfirm(daysFromNow, `${pad(newStart.getHours())}:${pad(newStart.getMinutes())}`);
-    } catch {
-      setError("Không thể đổi lịch lúc này. Vui lòng thử lại.");
+      await onConfirm(selectedSlotId);
+    } catch (submitError: unknown) {
+      setError(
+        submitError instanceof Error
+          ? submitError.message
+          : "Không thể đổi lịch lúc này. Vui lòng thử lại.",
+      );
       setSaving(false);
     }
   };
@@ -418,7 +438,7 @@ export function RescheduleModal({
           <button type="button" disabled={saving} onClick={onClose} className={btnGhost}>
             Hủy bỏ
           </button>
-          <button type="button" disabled={slot === null || saving} onClick={submit} className={btnPrimary}>
+          <button type="button" disabled={!selectedSlotId || saving} onClick={submit} className={btnPrimary}>
             {saving ? "Đang đổi lịch..." : "Xác nhận đổi lịch"}
           </button>
         </>
@@ -456,8 +476,11 @@ export function RescheduleModal({
               key={d.toISOString()}
               type="button"
               onClick={() => {
+                setAvailableSlots([]);
+                setSelectedSlotId(null);
+                setAvailabilityError("");
+                setIsLoadingSlots(true);
                 setDayIndex(i);
-                setSlot(null);
               }}
               className={`flex w-[62px] shrink-0 flex-col items-center rounded-xl border py-2.5 transition ${
                 active
@@ -477,69 +500,44 @@ export function RescheduleModal({
         })}
       </div>
 
-      {SESSIONS.map(({ key, label, Ico, start, end }) => {
-        const ms: number[] = [];
-        for (let m = start; m < end; m += SLOT_MIN) ms.push(m);
-        return (
-          <div key={key} className="mt-4">
-            <p className="flex items-center gap-1.5 text-xs font-extrabold text-slate-700">
-              <Ico className="h-4 w-4 text-amber-500" />
-              {label}
-            </p>
-            <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {ms.map((m) => {
-                const st = statusOf(m);
-                const active = slot === m;
-                const disabled = st !== "ok";
-                return (
-                  <button
-                    key={m}
-                    type="button"
-                    disabled={disabled}
-                    onClick={() => setSlot(m)}
-                    className={`rounded-xl border px-2 py-2 text-center transition ${
-                      active
-                        ? "border-[#2B6CB0] bg-blue-50 ring-2 ring-[#2B6CB0]/40"
-                        : disabled
-                          ? "cursor-not-allowed border-slate-100 bg-slate-50"
-                          : "border-slate-200 bg-white hover:border-[#2B6CB0]"
-                    }`}
-                  >
-                    <span
-                      className={`block text-xs font-bold ${
-                        active ? "text-[#174A8F]" : disabled ? "text-slate-400 line-through" : "text-slate-800"
-                      }`}
-                    >
-                      {minToText(m)} - {minToText(m + SLOT_MIN)}
-                    </span>
-                    <span
-                      className={`mt-0.5 block text-[10px] font-bold ${
-                        active
-                          ? "text-[#2B6CB0]"
-                          : st === "ok"
-                            ? "text-emerald-600"
-                            : st === "full"
-                              ? "text-rose-500"
-                              : "text-slate-400"
-                      }`}
-                    >
-                      {active
-                        ? "Đang chọn"
-                        : st === "current"
-                          ? "Lịch hiện tại"
-                          : st === "expired"
-                            ? "Hết giờ nhận"
-                            : st === "full"
-                              ? "Đã hết chỗ"
-                              : `Còn ${remainingOf(m)} lượt`}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })}
+      {isLoadingSlots ? (
+        <p className="mt-4 text-xs text-slate-500">Đang tải khung giờ trống...</p>
+      ) : availabilityError ? (
+        <p role="alert" className="mt-4 text-xs text-red-600">
+          {availabilityError}
+        </p>
+      ) : availableSlots.length === 0 ? (
+        <p className="mt-4 text-xs text-slate-500">
+          Bác sĩ chưa có khung giờ trống trong ngày này.
+        </p>
+      ) : (
+        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {availableSlots.map((availableSlot) => {
+            const slotStart = new Date(availableSlot.startsAt);
+            const slotEnd = new Date(availableSlot.endsAt);
+            const isSelected = selectedSlotId === availableSlot.id;
+            return (
+              <button
+                key={availableSlot.id}
+                type="button"
+                onClick={() => setSelectedSlotId(availableSlot.id)}
+                className={`rounded-xl border px-2 py-2 text-center transition ${
+                  isSelected
+                    ? "border-[#2B6CB0] bg-blue-50 ring-2 ring-[#2B6CB0]/40"
+                    : "border-slate-200 bg-white hover:border-[#2B6CB0]"
+                }`}
+              >
+                <span className="block text-xs font-bold text-slate-800">
+                  {`${pad(slotStart.getHours())}:${pad(slotStart.getMinutes())} - ${pad(slotEnd.getHours())}:${pad(slotEnd.getMinutes())}`}
+                </span>
+                <span className="mt-0.5 block text-[10px] font-bold text-emerald-600">
+                  {isSelected ? "Đang chọn" : "Còn trống"}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       <div
         className={`mt-5 rounded-xl border px-4 py-3 text-xs ${
@@ -549,7 +547,11 @@ export function RescheduleModal({
         {newStart ? (
           <span className="flex items-center gap-2">
             <Check className="h-4 w-4 shrink-0" />
-            Lịch mới: <b>{minToText(slot!)} - {minToText(slot! + SLOT_MIN)}</b>, {dayText(newStart)}
+            Lịch mới:{" "}
+            <b>
+              {pad(newStart.getHours())}:{pad(newStart.getMinutes())}
+            </b>
+            , {dayText(newStart)}
           </span>
         ) : (
           "Vui lòng chọn ngày và khung giờ mới."
@@ -558,8 +560,8 @@ export function RescheduleModal({
 
       <p className="mt-3 flex items-start gap-2 text-[11px] leading-relaxed text-slate-500">
         <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#2B6CB0]" />
-        Chỉ nhận lịch mới từ hiện tại + {CUTOFF_HOURS} giờ trở đi. Khung giờ cũ sẽ được giải phóng
-        sau khi đổi lịch thành công.
+        Yêu cầu đổi lịch cần được thực hiện ít nhất {CUTOFF_HOURS} giờ trước giờ khám ban đầu.
+        Khung giờ cũ được giải phóng sau khi đổi lịch thành công.
       </p>
 
       {error && (
