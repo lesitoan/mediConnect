@@ -12,6 +12,10 @@ import { createLoggerConfig } from './configs/logger.config';
 import { AuthenticationModule } from './modules/authentication/authentication.module';
 import { HealthCheckModule } from './modules/health-check/health-check.module';
 import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
+import { AiAssistantModule } from './modules/ai-assistant/ai-assistant.module';
+import { ProvidersModule } from './modules/providers/providers.module';
+import { SpecialtiesModule } from './modules/specialties/specialties.module';
+import { SchedulesModule } from './modules/schedules/schedules.module';
 
 @Module({
   imports: [
@@ -34,6 +38,10 @@ import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
       useFactory: createLoggerConfig,
     }),
     HealthCheckModule,
+    AiAssistantModule,
+    ProvidersModule,
+    SpecialtiesModule,
+    SchedulesModule,
     AuthenticationModule,
     AuditLogsModule,
   ],
