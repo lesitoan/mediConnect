@@ -13,6 +13,8 @@
 **/*.key
 **/*.log
 apps/api/src/generated/prisma
+apps/ai/models
+apps/ai/storage
 docs
 tmp
 temp
