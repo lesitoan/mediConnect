@@ -18,7 +18,7 @@ import { SpecialtiesModule } from './modules/specialties/specialties.module';
 import { SchedulesModule } from './modules/schedules/schedules.module';
 import { AppointmentsModule } from './modules/appointments/appointments.module';
 import { ReviewsModule } from './modules/reviews/reviews.module';
-
+import { AdminUsersModule } from './modules/users/admin-users.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -48,6 +48,7 @@ import { ReviewsModule } from './modules/reviews/reviews.module';
     AuditLogsModule,
     AppointmentsModule,
     ReviewsModule,
+    AdminUsersModule,
   ],
 })
 export class AppModule {}

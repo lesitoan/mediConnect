@@ -9,4 +9,4 @@ import { AuditLogsService } from './audit-logs.service';
   providers: [AuditLogsService],
   exports: [AuditLogsService],
 })
-export class AuditLogsModule {}
+export class AuditLogsModule { }

@@ -27,7 +27,7 @@ import {
 @ApiTags('Admin audit logs')
 @Controller('admin/audit-logs')
 export class AdminAuditLogsController {
-  constructor(private readonly auditLogs: AuditLogsService) {}
+  constructor(private readonly auditLogs: AuditLogsService) { }
 
   @Get()
   @Header('Cache-Control', 'no-store')
