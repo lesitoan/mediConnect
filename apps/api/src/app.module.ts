@@ -7,6 +7,7 @@ import { databaseConfig } from './configs/database.config';
 import { validateEnvironment } from './configs/environment.validation';
 import { otpConfig } from './configs/otp.config';
 import { redisConfig } from './configs/redis.config';
+import { textbeeConfig } from './configs/textbee.config';
 import { jwtConfig } from './configs/jwt.config';
 import { createLoggerConfig } from './configs/logger.config';
 import { AuthenticationModule } from './modules/authentication/authentication.module';
@@ -31,6 +32,7 @@ import { AdminUsersModule } from './modules/users/admin-users.module';
         authenticationConfig,
         otpConfig,
         redisConfig,
+        textbeeConfig,
       ],
       validate: validateEnvironment,
     }),
