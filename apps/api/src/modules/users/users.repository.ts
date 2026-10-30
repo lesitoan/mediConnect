@@ -44,17 +44,18 @@ export class UsersRepository {
     });
   }
 
-
-  async createPatient(input: {
-    email?: string;
-    phone: string;
-    name: string;
-    passwordHash: string;
-    dateOfBirth?: string;
-    gender?: PatientGender;
-  }, tx: Prisma.TransactionClient,) {
+  async createPatient(
+    input: {
+      email?: string;
+      phone: string;
+      name: string;
+      passwordHash: string;
+      dateOfBirth?: string;
+      gender?: PatientGender;
+    },
+    tx: Prisma.TransactionClient,
+  ) {
     const role = await tx.role.findUnique({
-
       where: { name: RoleEnum.PATIENT },
     });
     if (!role || role.status !== RoleStatusEnum.ACTIVE || role.deletedAt) {
