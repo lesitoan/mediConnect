@@ -4,14 +4,13 @@ import { useMemo, useSyncExternalStore } from "react";
 
 export type SessionUser = {
   fullName: string;
-  pid: string;
+  pid?: string;
 };
 
 const KEY = "mc_session_user";
 const EVENT = "mc-auth-change";
 const LOADING = "__loading__";
 
-// TODO: thay bằng phiên thật (access token JWT, tốt nhất lưu cookie httpOnly)
 export function saveSession(user: SessionUser) {
   localStorage.setItem(KEY, JSON.stringify(user));
   window.dispatchEvent(new Event(EVENT));

@@ -95,6 +95,12 @@ export class AuthenticationService {
         ipAddress: metadata.ip && isIP(metadata.ip) ? metadata.ip : null,
         expiresAt,
       });
+      await this.usersService.recordAccountEvent(
+        tx,
+        current.id,
+        'ACCOUNT_LOGIN',
+        { sessionId: id },
+      );
       return tokens;
     });
   }
@@ -215,6 +221,13 @@ export class AuthenticationService {
             'REFRESH_TOKEN_REUSE',
             session.id,
           );
+          await this.usersService.recordAccountEvent(
+            tx,
+            user.id,
+            'ACCOUNT_REVOKE_REUSED_SESSION',
+            { sessionId: session.id },
+            true,
+          );
           return null;
         }
         const tokens = await this.issueTokens(
@@ -243,9 +256,21 @@ export class AuthenticationService {
   }
 
   async logout(userId: string, id?: string): Promise<{ message: string }> {
-    await this.usersService.withLockedAccount(userId, (tx) =>
-      this.sessions.revoke(tx, userId, id ? 'LOGOUT' : 'LOGOUT_ALL', id),
-    );
+    await this.usersService.withLockedAccount(userId, async (tx) => {
+      const revoked = await this.sessions.revoke(
+        tx,
+        userId,
+        id ? 'LOGOUT' : 'LOGOUT_ALL',
+        id,
+      );
+      if (revoked.count)
+        await this.usersService.recordAccountEvent(
+          tx,
+          userId,
+          id ? 'ACCOUNT_LOGOUT' : 'ACCOUNT_LOGOUT_ALL',
+          { revokedSessions: revoked.count, ...(id ? { sessionId: id } : {}) },
+        );
+    });
     return { message: id ? 'Signed out' : 'Signed out from all devices' };
   }
 
@@ -257,23 +282,48 @@ export class AuthenticationService {
       const session = await this.sessions.findById(tx, id);
       if (!session || session.userId !== userId)
         throw new NotFoundException('Session not found');
-      await this.sessions.revoke(tx, userId, 'USER_REVOKED', id);
+      const revoked = await this.sessions.revoke(
+        tx,
+        userId,
+        'USER_REVOKED',
+        id,
+      );
+      if (revoked.count)
+        await this.usersService.recordAccountEvent(
+          tx,
+          userId,
+          'ACCOUNT_REVOKE_SESSION',
+          { sessionId: id },
+        );
     });
     return { message: 'Session revoked' };
   }
 
   async register(input: RegisterDto, ip = 'UNKNOWN'): Promise<OtpChallengeDto> {
-    if (await this.usersService.findForAuthentication(input)) {
+    const existingByPhone = await this.usersService.findForAuthentication({
+      phone: input.phone,
+    });
+    const existingByEmail = input.email
+      ? await this.usersService.findForAuthentication({ email: input.email })
+      : null;
+    if (existingByPhone || existingByEmail) {
       throw new ConflictException('Account already exists');
     }
-    await this.otpService.assertCanSend(input, ip);
+    await this.otpService.assertCanSend({ phone: input.phone }, ip);
     const passwordHash = await hash(input.password, 12);
     const user = await this.usersService.createPatient({
       name: input.name,
       email: input.email,
       phone: input.phone,
       passwordHash,
+      dateOfBirth: input.dateOfBirth,
+      gender: input.gender,
     });
-    return this.otpService.send(input, 'REGISTER', user.id, ip);
+    return this.otpService.send(
+      { phone: input.phone },
+      'REGISTER',
+      user.id,
+      ip,
+    );
   }
 }

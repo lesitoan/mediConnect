@@ -13,11 +13,26 @@ import {
   User,
 } from "@/components/layout/icons";
 import { saveSession } from "../useAuth";
+import { authenticatePatient } from "../services/authService";
 
 const inputWrap =
   "flex items-center gap-2.5 rounded-xl border border-slate-200 bg-slate-50 px-3.5 transition focus-within:border-[#2B6CB0] focus-within:bg-white focus-within:ring-2 focus-within:ring-[#2B6CB0]/20";
 const inputBase =
   "w-full bg-transparent py-3 text-sm text-slate-900 outline-none placeholder:text-slate-400";
+
+function getPostLoginPath() {
+  const next = new URLSearchParams(window.location.search).get("next");
+  if (!next) return "/";
+
+  try {
+    const redirectUrl = new URL(next, window.location.origin);
+    return redirectUrl.origin === window.location.origin
+      ? `${redirectUrl.pathname}${redirectUrl.search}${redirectUrl.hash}`
+      : "/";
+  } catch {
+    return "/";
+  }
+}
 
 export default function LoginForm() {
   const router = useRouter();
@@ -37,22 +52,17 @@ export default function LoginForm() {
     setError("");
     setLoading(true);
     try {
-      // TODO: gọi API đăng nhập của apps/api (module authentication), ví dụ:
-      // const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/login`, {
-      //   method: "POST",
-      //   headers: { "Content-Type": "application/json" },
-      //   body: JSON.stringify({ identifier: identifier.trim(), password, remember }),
-      // });
-      // if (!res.ok) throw new Error("Sai thông tin đăng nhập");
-      // const data = await res.json();
-      // rồi lấy fullName, pid từ phản hồi thay cho dữ liệu mẫu bên dưới
-      await new Promise((r) => setTimeout(r, 600));
-
-      // Session giả lập để dựng giao diện sau đăng nhập
-      saveSession({ fullName: "Nguyễn Văn An", pid: "BN-8896" });
-      router.push("/");
-    } catch {
-      setError("Thông tin đăng nhập không chính xác. Vui lòng thử lại.");
+      const user = await authenticatePatient(identifier, password);
+      saveSession({ fullName: user.name });
+      router.replace(getPostLoginPath());
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : "Không thể đăng nhập.";
+      setError(
+        message === "Invalid credentials"
+          ? "Thông tin đăng nhập không chính xác. Vui lòng thử lại."
+          : message,
+      );
     } finally {
       setLoading(false);
     }
@@ -68,26 +78,23 @@ export default function LoginForm() {
         Đăng Nhập Tài Khoản
       </h1>
       <p className="mt-2 text-xs text-slate-500">
-        Nhập số điện thoại/PID hoặc quét mã để truy cập hồ sơ bệnh án.
+        Nhập số điện thoại hoặc email đã đăng ký để truy cập hồ sơ bệnh án.
       </p>
 
       <form onSubmit={handleSubmit} className="mt-6 space-y-4">
         {/* Định danh */}
         <div>
-          <div className="mb-1.5 flex items-center justify-between text-xs">
+          <div className="mb-1.5 text-xs">
             <label htmlFor="identifier" className="font-bold text-slate-700">
-              Số điện thoại / Email / Mã PID
+              Số điện thoại / Email
             </label>
-            <Link href="/ma-pid" className="font-bold text-[#174A8F] hover:underline">
-              Mã PID là gì?
-            </Link>
           </div>
           <div className={inputWrap}>
             <User className="h-4 w-4 shrink-0 text-[#2B6CB0]" />
             <input
               id="identifier"
               className={inputBase}
-              placeholder="VD: 0905 123 456 hoặc BN-8896"
+              placeholder="VD: 0905 123 456 hoặc email@example.com"
               autoComplete="username"
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}

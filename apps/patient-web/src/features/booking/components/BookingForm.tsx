@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
     ArrowLeft,
@@ -10,7 +12,6 @@ import {
     Check,
     Clock,
     Info,
-    Lightbulb,
     MapPin,
     ShieldCheck,
     Stethoscope,
@@ -18,34 +19,27 @@ import {
     Sunset,
 } from "@/components/layout/icons";
 import BookingConsultCard from "./BookingSidebar";
+import { clearSession, useAuth } from "@/features/auth/useAuth";
+import {
+    ApiRequestError,
+    bookAppointment,
+    getAppointmentAvailability,
+    type AvailabilitySlot,
+} from "@/features/appointments/services/appointmentsService";
 
 /* ---------- Hằng số & tiện ích ---------- */
 
 const SESSIONS = {
-    morning: { label: "Buổi sáng", range: "7:00 - 11:00", start: 420, end: 660 },
-    afternoon: { label: "Buổi chiều", range: "13:30 - 16:00", start: 810, end: 960 },
+    morning: { label: "Buổi sáng", range: "8:00 - 12:00", start: 480, end: 720 },
+    afternoon: { label: "Buổi chiều", range: "13:00 - 18:00", start: 780, end: 1080 },
 } as const;
 type SessionKey = keyof typeof SESSIONS;
 
-const SLOT_MINUTES = 30;
 const CUTOFF_HOURS = 2;
-const DAYS_AHEAD = 10;
+const DAYS_AHEAD = 14;
+const BOOKING_LOGIN_URL = "/login?next=%2Fdat-lich";
 
 const WEEKDAY_FULL = ["Chủ nhật", "Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy"];
-
-const SPECIALTIES = [
-    { id: "noi-tong-quat", name: "Nội tổng quát" },
-    { id: "tim-mach", name: "Tim mạch" },
-    { id: "da-lieu", name: "Da liễu" },
-    { id: "nhi", name: "Nhi khoa" },
-];
-const DOCTORS = [
-    { id: "bs-1", name: "BS. Nguyễn Văn An", specialtyId: "noi-tong-quat" },
-    { id: "bs-2", name: "BS. Trần Thị Bình", specialtyId: "noi-tong-quat" },
-    { id: "bs-3", name: "BS. Lê Minh Châu", specialtyId: "tim-mach" },
-    { id: "bs-4", name: "BS. Phạm Quốc Dũng", specialtyId: "da-lieu" },
-    { id: "bs-5", name: "BS. Hoàng Thu Hà", specialtyId: "nhi" },
-];
 
 const TRUST_ITEMS = [
     { icon: ShieldCheck, title: "Bảo mật chuẩn Y tế", desc: "Mã hóa dữ liệu bệnh án" },
@@ -54,44 +48,16 @@ const TRUST_ITEMS = [
 ];
 
 const pad = (n: number) => String(n).padStart(2, "0");
-const fmtMin = (m: number) => `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
 const dateKey = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const fmtVN = (d: Date) => `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
-const isWeekend = (d: Date) => d.getDay() === 0 || d.getDay() === 6;
-
 function buildDays(now: Date) {
     const out: Date[] = [];
     const d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     while (out.length < DAYS_AHEAD) {
-        if (!isWeekend(d)) out.push(new Date(d));
+        out.push(new Date(d));
         d.setDate(d.getDate() + 1);
     }
     return out;
-}
-
-/** TODO: thay bằng API số lượt còn trống theo bác sĩ/ngày/khung giờ */
-function mockRemaining(key: string, from: number) {
-    let h = 0;
-    for (const c of key + from) h = (h * 31 + c.charCodeAt(0)) >>> 0;
-    const r = h % 10;
-    return r < 2 ? 0 : r - 1;
-}
-
-type SlotStatus = "available" | "full" | "expired";
-type Slot = { from: number; to: number; status: SlotStatus; remaining: number };
-
-function buildSlots(day: Date, session: SessionKey, now: Date, resourceKey: string): Slot[] {
-    const { start, end } = SESSIONS[session];
-    const cutoff = now.getTime() + CUTOFF_HOURS * 3600_000;
-    const slots: Slot[] = [];
-    for (let m = start; m < end; m += SLOT_MINUTES) {
-        const startAt = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 0, m).getTime();
-        const remaining = mockRemaining(`${resourceKey}|${dateKey(day)}`, m);
-        const status: SlotStatus =
-            startAt < cutoff ? "expired" : remaining === 0 ? "full" : "available";
-        slots.push({ from: m, to: m + SLOT_MINUTES, status, remaining });
-    }
-    return slots;
 }
 
 const inputClass =
@@ -197,7 +163,11 @@ function Field({
 /* ---------- Form chính ---------- */
 
 export default function BookingForm() {
+    const router = useRouter();
+    const { user, ready: isAuthReady } = useAuth();
     const [now, setNow] = useState<Date | null>(null);
+    // The client timestamp is initialized after hydration to keep date rendering stable.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     useEffect(() => setNow(new Date()), []);
 
     const [step, setStep] = useState<1 | 2>(1);
@@ -207,7 +177,12 @@ export default function BookingForm() {
     const [doctorId, setDoctorId] = useState("");
     const [dayIndex, setDayIndex] = useState(0);
     const [session, setSession] = useState<SessionKey>("morning");
-    const [slotFrom, setSlotFrom] = useState<number | null>(null);
+    const [slotId, setSlotId] = useState<string | null>(null);
+    const [availability, setAvailability] = useState<AvailabilitySlot[]>([]);
+    const [availabilityLoadedDate, setAvailabilityLoadedDate] = useState("");
+    const [availabilityError, setAvailabilityError] = useState("");
+    const [bookingError, setBookingError] = useState("");
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const [lastName, setLastName] = useState(""); // Họ và tên đệm
     const [firstName, setFirstName] = useState(""); // Tên
@@ -218,37 +193,153 @@ export default function BookingForm() {
 
     const days = useMemo(() => (now ? buildDays(now) : []), [now]);
     const day = days[dayIndex];
-    const resourceKey = doctorId || specialtyId || "all";
-    const slots = useMemo(
-        () => (now && day ? buildSlots(day, session, now, resourceKey) : []),
-        [now, day, session, resourceKey],
+    useEffect(() => {
+        if (!day) return;
+        let isCancelled = false;
+        getAppointmentAvailability(dateKey(day))
+            .then((data) => {
+                if (!isCancelled) {
+                    setAvailability(data);
+                    setAvailabilityError("");
+                    setAvailabilityLoadedDate(dateKey(day));
+                }
+            })
+            .catch((error: unknown) => {
+                if (!isCancelled) {
+                    setAvailability([]);
+                    setAvailabilityError(
+                        error instanceof Error ? error.message : "Không thể tải khung giờ khám",
+                    );
+                    setAvailabilityLoadedDate(dateKey(day));
+                }
+            });
+        return () => {
+            isCancelled = true;
+        };
+    }, [day]);
+
+    const isLoadingAvailability = !!day && availabilityLoadedDate !== dateKey(day);
+
+    const specialties = useMemo(
+        () =>
+            Array.from(
+                new Map(availability.map((slot) => [slot.doctor.specialty.id, slot.doctor.specialty])).values(),
+            ),
+        [availability],
     );
-    const doctors = DOCTORS.filter((d) => d.specialtyId === specialtyId);
-    const specialty = SPECIALTIES.find((s) => s.id === specialtyId);
-    const doctor = DOCTORS.find((d) => d.id === doctorId);
-    const selectedSlot = slots.find((s) => s.from === slotFrom);
-    const hasExpired = slots.some((s) => s.status === "expired");
+    const doctors = useMemo(
+        () =>
+            Array.from(
+                new Map(
+                    availability
+                        .filter((slot) => !specialtyId || slot.doctor.specialty.id === specialtyId)
+                        .map((slot) => [slot.doctor.id, slot.doctor]),
+                ).values(),
+            ),
+        [availability, specialtyId],
+    );
+    const visibleSlots = useMemo(
+        () =>
+            availability.filter(
+                (slot) =>
+                    (!specialtyId || slot.doctor.specialty.id === specialtyId) &&
+                    (!doctorId || slot.doctor.id === doctorId),
+            ),
+        [availability, doctorId, specialtyId],
+    );
+    const slots = useMemo(() => {
+        const { start, end } = SESSIONS[session];
+        const sessionSlots = visibleSlots.filter((slot) => {
+            const startsAt = new Date(slot.startsAt);
+            const minutes = startsAt.getHours() * 60 + startsAt.getMinutes();
+            return minutes >= start && minutes < end;
+        });
+        if (specialtyId) return sessionSlots;
+
+        return Array.from(
+            new Map(
+                sessionSlots.map((slot) => [
+                    `${slot.startsAt}-${slot.endsAt}`,
+                    slot,
+                ]),
+            ).values(),
+        );
+    }, [session, specialtyId, visibleSlots]);
+    const displaySlots = isLoadingAvailability ? [] : slots;
+    const specialty = specialties.find((item) => item.id === specialtyId);
+    const doctor = doctors.find((item) => item.id === doctorId);
+    const selectedSlot = availability.find((slot) => slot.id === slotId);
 
     const phoneOk = /^0\d{9}$/.test(phone.trim());
     const emailOk = email.trim() === "" || /^\S+@\S+\.\S+$/.test(email.trim());
-    const canNext = !!specialtyId && slotFrom !== null;
+    const canNext = !!specialtyId && slotId !== null;
     const canSubmit =
         lastName.trim() !== "" && firstName.trim() !== "" && phoneOk && emailOk && agree;
 
-    const handleSubmit = (e: React.SyntheticEvent) => {
+    const handleSubmit = async (e: React.SyntheticEvent) => {
         e.preventDefault();
-        if (!canSubmit || !day || !selectedSlot) return;
-        // TODO: gọi API đặt lịch: { specialtyId, doctorId, date: dateKey(day), from: selectedSlot.from,
-        //   fullName: `${lastName} ${firstName}`, phone, email, reason }
-        setDone(true);
+        if (!canSubmit || !selectedSlot) return;
+        if (!user) {
+            router.push(BOOKING_LOGIN_URL);
+            return;
+        }
+        setIsSubmitting(true);
+        setBookingError("");
+        try {
+            await bookAppointment({
+                appointmentSlotId: selectedSlot.id,
+                reason: reason.trim() || undefined,
+            });
+            setDone(true);
+        } catch (error: unknown) {
+            if (error instanceof ApiRequestError && error.status === 401) {
+                clearSession();
+                router.push(BOOKING_LOGIN_URL);
+                return;
+            }
+            setBookingError(
+                error instanceof Error ? error.message : "Không thể đặt lịch khám",
+            );
+        } finally {
+            setIsSubmitting(false);
+        }
     };
+
+    if (!isAuthReady) {
+        return <div className="h-[560px] animate-pulse rounded-3xl bg-white/70" />;
+    }
+
+    if (!user) {
+        return (
+            <div className="mx-auto max-w-xl rounded-3xl bg-white p-8 text-center shadow-[0_6px_24px_rgba(23,74,143,0.08)]">
+                <h2 className="text-xl font-extrabold text-slate-900">
+                    Đăng nhập để đặt lịch khám
+                </h2>
+                <p className="mt-3 text-sm leading-relaxed text-slate-600">
+                    Bạn cần đăng nhập tài khoản bệnh nhân trước khi chọn và xác nhận lịch khám.
+                </p>
+                <Link
+                    href={BOOKING_LOGIN_URL}
+                    className="mt-6 inline-flex rounded-full bg-[#2B6CB0] px-7 py-3 text-sm font-bold text-white transition hover:bg-[#174A8F]"
+                >
+                    Đăng nhập
+                </Link>
+            </div>
+        );
+    }
 
     if (!now || !day) {
         return <div className="h-[560px] animate-pulse rounded-3xl bg-white/70" />;
     }
 
     const slotText = selectedSlot
-        ? `${fmtMin(selectedSlot.from)} - ${fmtMin(selectedSlot.to)}`
+        ? `${new Date(selectedSlot.startsAt).toLocaleTimeString("vi-VN", {
+            hour: "2-digit",
+            minute: "2-digit",
+        })} - ${new Date(selectedSlot.endsAt).toLocaleTimeString("vi-VN", {
+            hour: "2-digit",
+            minute: "2-digit",
+        })}`
         : "";
 
     return (
@@ -283,7 +374,7 @@ export default function BookingForm() {
                                         Chọn ngày &amp; khung giờ
                                     </h2>
                                     <p className="mt-1 text-xs text-slate-500">
-                                        Không nhận Thứ 7 / Chủ nhật. Chỉ nhận đặt từ{" "}
+                                        Chỉ nhận đặt từ{" "}
                                         <b className="text-[#2B6CB0]">Hiện tại + {CUTOFF_HOURS} giờ</b> trở đi.
                                     </p>
 
@@ -299,11 +390,11 @@ export default function BookingForm() {
                                                 onChange={(e) => {
                                                     setSpecialtyId(e.target.value);
                                                     setDoctorId("");
-                                                    setSlotFrom(null);
+                                                    setSlotId(null);
                                                 }}
                                             >
                                                 <option value="">-- Chọn chuyên khoa --</option>
-                                                {SPECIALTIES.map((s) => (
+                                                {specialties.map((s) => (
                                                     <option key={s.id} value={s.id}>
                                                         {s.name}
                                                     </option>
@@ -316,7 +407,7 @@ export default function BookingForm() {
                                                 value={doctorId}
                                                 onChange={(e) => {
                                                     setDoctorId(e.target.value);
-                                                    setSlotFrom(null);
+                                                    setSlotId(null);
                                                 }}
                                                 disabled={!specialtyId}
                                             >
@@ -351,7 +442,7 @@ export default function BookingForm() {
                                                     type="button"
                                                     onClick={() => {
                                                         setDayIndex(i);
-                                                        setSlotFrom(null);
+                                                    setSlotId(null);
                                                     }}
                                                     className={`flex w-[62px] shrink-0 flex-col items-center rounded-xl border py-2.5 transition ${active
                                                         ? "border-[#2B6CB0] bg-[#2B6CB0] text-white shadow-md"
@@ -391,7 +482,7 @@ export default function BookingForm() {
                                                     type="button"
                                                     onClick={() => {
                                                         setSession(key);
-                                                        setSlotFrom(null);
+                                                        setSlotId(null);
                                                     }}
                                                     className={`flex flex-col items-center gap-1 rounded-2xl border py-5 transition ${active
                                                         ? "border-transparent bg-gradient-to-br from-[#2B6CB0] to-[#0E9A8C] text-white shadow-lg"
@@ -415,63 +506,46 @@ export default function BookingForm() {
                                     <p className="mt-6 text-xs font-semibold text-slate-600">
                                         Các khung giờ {SESSIONS[session].label.toLowerCase()} khả dụng:
                                     </p>
+                                    {isLoadingAvailability && (
+                                        <p className="mt-3 text-xs text-slate-500">Đang tải khung giờ còn trống...</p>
+                                    )}
+                                    {availabilityError && (
+                                        <p className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs text-rose-600">
+                                            {availabilityError}
+                                        </p>
+                                    )}
+                                    {!isLoadingAvailability && !availabilityError && displaySlots.length === 0 && (
+                                        <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-700">
+                                            Không còn khung giờ phù hợp trong buổi này. Vui lòng chọn ngày, bác sĩ hoặc buổi khác.
+                                        </p>
+                                    )}
                                     <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                                        {slots.map((s) => {
-                                            const disabled = s.status !== "available";
-                                            const active = slotFrom === s.from;
+                                        {displaySlots.map((s) => {
+                                            const active = slotId === s.id;
+                                            const startsAt = new Date(s.startsAt);
+                                            const endsAt = new Date(s.endsAt);
                                             return (
                                                 <button
-                                                    key={s.from}
+                                                    key={s.id}
                                                     type="button"
-                                                    disabled={disabled}
-                                                    onClick={() => setSlotFrom(s.from)}
+                                                    onClick={() => setSlotId(s.id)}
                                                     className={`rounded-xl border px-2 py-2.5 text-center transition ${active
                                                         ? "border-[#2B6CB0] bg-blue-50 ring-2 ring-[#2B6CB0]/40"
-                                                        : disabled
-                                                            ? "cursor-not-allowed border-slate-100 bg-slate-50"
-                                                            : "border-slate-200 bg-white hover:border-[#2B6CB0]"
+                                                        : "border-slate-200 bg-white hover:border-[#2B6CB0]"
                                                         }`}
                                                 >
                                                     <span
-                                                        className={`block text-xs font-bold ${active
-                                                            ? "text-[#174A8F]"
-                                                            : disabled
-                                                                ? "text-slate-400 line-through"
-                                                                : "text-slate-800"
-                                                            }`}
+                                                        className={`block text-xs font-bold ${active ? "text-[#174A8F]" : "text-slate-800"}`}
                                                     >
-                                                        {fmtMin(s.from)} - {fmtMin(s.to)}
+                                                        {startsAt.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })} - {endsAt.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}
                                                     </span>
-                                                    <span
-                                                        className={`mt-0.5 block text-[10px] font-bold ${active
-                                                            ? "text-[#2B6CB0]"
-                                                            : s.status === "expired"
-                                                                ? "text-slate-400"
-                                                                : s.status === "full"
-                                                                    ? "text-rose-500"
-                                                                    : "text-emerald-600"
-                                                            }`}
-                                                    >
-                                                        {active
-                                                            ? "Đang chọn"
-                                                            : s.status === "expired"
-                                                                ? "Hết giờ nhận"
-                                                                : s.status === "full"
-                                                                    ? "Đã hết chỗ"
-                                                                    : `Còn ${s.remaining} lượt`}
+                                                    <span className={`mt-0.5 block text-[10px] font-bold ${active ? "text-[#2B6CB0]" : "text-emerald-600"}`}>
+                                                        {active ? "Đang chọn" : "Còn trống"}
                                                     </span>
                                                 </button>
                                             );
                                         })}
                                     </div>
-
-                                    {hasExpired && (
-                                        <div className="mt-5 flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-slate-700">
-                                            <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
-                                            Một số khung giờ đã quá thời hạn quy định (Hiện tại + {CUTOFF_HOURS} giờ).
-                                            Quý khách vui lòng chọn các khung giờ còn lại.
-                                        </div>
-                                    )}
 
                                     <div className="mt-8 flex items-center justify-between gap-3 border-t border-slate-100 pt-6">
                                         <p className="text-xs text-slate-400">
@@ -588,12 +662,18 @@ export default function BookingForm() {
 
                                     <button
                                         type="submit"
-                                        disabled={!canSubmit}
+                                        disabled={!canSubmit || isSubmitting}
                                         className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-[#174A8F] px-6 py-3.5 text-sm font-bold uppercase text-white shadow transition hover:bg-[#0E3A75] disabled:cursor-not-allowed disabled:bg-slate-300"
                                     >
                                         <CalendarCheck className="h-4 w-4" />
-                                        Xem lại &amp; xác nhận lịch khám
+                                        {isSubmitting ? "Đang đặt lịch..." : "Xem lại & xác nhận lịch khám"}
                                     </button>
+
+                                    {bookingError && (
+                                        <p className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs text-rose-600">
+                                            {bookingError}
+                                        </p>
+                                    )}
 
                                     <p className="mt-4 text-center text-xs leading-relaxed text-slate-500">
                                         Bạn sẽ nhận được thông báo xác nhận qua số điện thoại hoặc email. Đội ngũ điều

@@ -1,6 +1,17 @@
-export type ApptKind = "confirmed" | "followup" | "completed" | "cancelled";
+export type ApptKind =
+  | "confirmed"
+  | "followup"
+  | "pending"
+  | "completed"
+  | "incomplete"
+  | "no-show"
+  | "cancelled";
 
 export type Appointment = {
+  id?: string;
+  appointmentSlotId?: string;
+  doctorId?: string;
+  startsAt?: string;
   code: string;
   kind: ApptKind;
   daysFromNow: number; // âm = đã qua
@@ -11,8 +22,8 @@ export type Appointment = {
     title: string;
     initials: string;
     specialty: string;
-    rating: number;
-    reviews: number;
+    rating?: number;
+    reviews?: number;
   };
   room: string;
   feeLabel: string;

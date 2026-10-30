@@ -16,6 +16,8 @@ import { AiAssistantModule } from './modules/ai-assistant/ai-assistant.module';
 import { ProvidersModule } from './modules/providers/providers.module';
 import { SpecialtiesModule } from './modules/specialties/specialties.module';
 import { SchedulesModule } from './modules/schedules/schedules.module';
+import { AppointmentsModule } from './modules/appointments/appointments.module';
+import { ReviewsModule } from './modules/reviews/reviews.module';
 
 @Module({
   imports: [
@@ -44,6 +46,8 @@ import { SchedulesModule } from './modules/schedules/schedules.module';
     SchedulesModule,
     AuthenticationModule,
     AuditLogsModule,
+    AppointmentsModule,
+    ReviewsModule,
   ],
 })
 export class AppModule { }

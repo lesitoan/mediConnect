@@ -84,20 +84,26 @@ model User {
   createdAt         DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  patient               Patient?               @relation("PatientUserId")
-  createdMedicalRecords PatientMedicalRecord[] @relation("PatientMedicalRecordCreatedBy")
-  doctor                Doctor?                @relation("DoctorUserId")
-  createdSchedules      DoctorSchedule[]       @relation("DoctorScheduleCreatedBy")
-  reviewedLeaveRequests LeaveRequest[]         @relation("LeaveRequestReviewedBy")
-  createdAppointments   Appointment[]          @relation("AppointmentCreatedBy")
-  cancelledAppointments Appointment[]          @relation("AppointmentCancelledBy")
-  processedPayments     PaymentTransaction[]   @relation("PaymentTransactionProcessedBy")
-  notifications         Notification[]         @relation("NotificationUserId")
-  authIdentities        UserAuthIdentity[]     @relation("UserAuthIdentityUserId")
-  authSessions          AuthSession[]          @relation("AuthSessionUserId")
-  auditLogs             AuditLog[]             @relation("AuditLogActorUserId")
-  role                  role?                  @relation(fields: [roleId], references: [id])
-  roleId                String
+  patient                    Patient?               @relation("PatientUserId")
+  createdMedicalRecords      PatientMedicalRecord[] @relation("PatientMedicalRecordCreatedBy")
+  doctor                     Doctor?                @relation("DoctorUserId")
+  staffWorkSchedules         StaffWorkSchedule[]    @relation("StaffWorkScheduleStaffUser")
+  createdWorkSchedules       StaffWorkSchedule[]    @relation("StaffWorkScheduleCreatedBy")
+  createdSchedules           DoctorSchedule[]       @relation("DoctorScheduleCreatedBy")
+  reviewedLeaveRequests      LeaveRequest[]         @relation("LeaveRequestReviewedBy")
+  staffLeaveRequests         LeaveRequest[]         @relation("LeaveRequestStaffUser")
+  createdAppointments        Appointment[]          @relation("AppointmentCreatedBy")
+  cancelledAppointments      Appointment[]          @relation("AppointmentCancelledBy")
+  processedPayments          PaymentTransaction[]   @relation("PaymentTransactionProcessedBy")
+  notifications              Notification[]         @relation("NotificationUserId")
+  authIdentities             UserAuthIdentity[]     @relation("UserAuthIdentityUserId")
+  authSessions               AuthSession[]          @relation("AuthSessionUserId")
+  auditLogs                  AuditLog[]             @relation("AuditLogActorUserId")
+  resolvedScheduleExceptions ScheduleException[]    @relation("ScheduleExceptionResolvedBy")
+  proposedReassignments      ScheduleReassignment[] @relation("ScheduleReassignmentProposedBy")
+  confirmedReassignments     ScheduleReassignment[] @relation("ScheduleReassignmentConfirmedBy")
+  role                       role?                  @relation(fields: [roleId], references: [id])
+  roleId                     String
 
   @@map("users")
 }
@@ -186,12 +192,15 @@ model Doctor {
   createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt     DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  confirmedMedicalRecords PatientMedicalRecord[] @relation("PatientMedicalRecordConfirmedBy")
-  user                    User                   @relation("DoctorUserId", fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  specialty               Specialty              @relation("DoctorSpecialtyId", fields: [specialtyId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  schedules               DoctorSchedule[]       @relation("DoctorScheduleDoctorId")
-  leaveRequests           LeaveRequest[]         @relation("LeaveRequestDoctorId")
-  requestedReferrals      InternalReferral[]     @relation("InternalReferralRequestedDoctorId")
+  confirmedMedicalRecords    PatientMedicalRecord[] @relation("PatientMedicalRecordConfirmedBy")
+  user                       User                   @relation("DoctorUserId", fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  specialty                  Specialty              @relation("DoctorSpecialtyId", fields: [specialtyId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  schedules                  DoctorSchedule[]       @relation("DoctorScheduleDoctorId")
+  leaveRequests              LeaveRequest[]         @relation("LeaveRequestDoctorId")
+  originalScheduleExceptions ScheduleException[]    @relation("ScheduleExceptionOriginalDoctor")
+  reassignmentsFrom          ScheduleReassignment[] @relation("ScheduleReassignmentFromDoctor")
+  reassignmentsTo            ScheduleReassignment[] @relation("ScheduleReassignmentToDoctor")
+  requestedReferrals         InternalReferral[]     @relation("InternalReferralRequestedDoctorId")
 
   @@index([specialtyId, isActive])
   @@map("doctors")
@@ -220,29 +229,79 @@ model DoctorSchedule {
   @@map("doctor_schedules")
 }
 
-model LeaveRequest {
-  id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  doctorId          String             @map("doctor_id") @db.Uuid
-  requestType       LeaveRequestType   @default(ABSENT) @map("request_type")
-  startsAt          DateTime           @map("starts_at") @db.Timestamptz(6)
-  endsAt            DateTime           @map("ends_at") @db.Timestamptz(6)
-  reason            String             @db.Text
-  status            LeaveRequestStatus @default(PENDING)
-  createdScheduleId String?            @unique @map("created_schedule_id") @db.Uuid
-  reviewedBy        String?            @map("reviewed_by") @db.Uuid
-  reviewedAt        DateTime?          @map("reviewed_at") @db.Timestamptz(6)
-  rejectionReason   String?            @map("rejection_reason") @db.Text
-  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt         DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+model StaffWorkSchedule {
+  id                  String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  staffUserId         String                  @map("staff_user_id") @db.Uuid
+  staffType           StaffType               @map("staff_type")
+  startsAt            DateTime                @map("starts_at") @db.Timestamptz(6)
+  endsAt              DateTime                @map("ends_at") @db.Timestamptz(6)
+  dayOfWeek           Int                     @default(1) @map("day_of_week") @db.SmallInt
+  effectiveFrom       DateTime                @default(now()) @map("effective_from") @db.Date
+  effectiveTo         DateTime?               @map("effective_to") @db.Date
+  isRecurring         Boolean                 @default(true) @map("is_recurring")
+  scheduleType        ScheduleType            @default(REGULAR) @map("schedule_type")
+  slotDurationMinutes Int?                    @map("slot_duration_minutes") @db.SmallInt
+  status              StaffWorkScheduleStatus @default(DRAFT)
+  createdBy           String                  @map("created_by") @db.Uuid
+  publishedAt         DateTime?               @map("published_at") @db.Timestamptz(6)
+  createdAt           DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime                @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  doctor          Doctor          @relation("LeaveRequestDoctorId", fields: [doctorId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  createdSchedule DoctorSchedule? @relation("LeaveRequestCreatedScheduleId", fields: [createdScheduleId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  reviewedByUser  User?           @relation("LeaveRequestReviewedBy", fields: [reviewedBy], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  staffUser         User                   @relation("StaffWorkScheduleStaffUser", fields: [staffUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  createdByUser     User                   @relation("StaffWorkScheduleCreatedBy", fields: [createdBy], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  leaveRequestLinks LeaveRequestSchedule[]
+
+  @@index([staffUserId, startsAt])
+  @@index([staffUserId, dayOfWeek, effectiveFrom])
+  @@index([status, startsAt])
+  @@index([createdBy])
+  @@map("staff_work_schedules")
+}
+
+model LeaveRequest {
+  id                String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  doctorId          String?              @map("doctor_id") @db.Uuid
+  staffUserId       String?              @map("staff_user_id") @db.Uuid
+  requestType       LeaveRequestType     @default(ABSENT) @map("request_type")
+  priority          LeaveRequestPriority @default(NORMAL)
+  source            LeaveRequestSource @default(DOCTOR_REQUEST)
+  startsAt          DateTime             @map("starts_at") @db.Timestamptz(6)
+  endsAt            DateTime?            @map("ends_at") @db.Timestamptz(6)
+  reason            String               @db.Text
+  status            LeaveRequestStatus   @default(PENDING)
+  noticeHours       Int?                 @map("notice_hours") @db.SmallInt
+  createdScheduleId String?              @unique @map("created_schedule_id") @db.Uuid
+  reviewedBy        String?              @map("reviewed_by") @db.Uuid
+  reviewedAt        DateTime?            @map("reviewed_at") @db.Timestamptz(6)
+  rejectionReason   String?              @map("rejection_reason") @db.Text
+  createdAt         DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  doctor          Doctor?                @relation("LeaveRequestDoctorId", fields: [doctorId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  staffUser       User?                  @relation("LeaveRequestStaffUser", fields: [staffUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  createdSchedule DoctorSchedule?        @relation("LeaveRequestCreatedScheduleId", fields: [createdScheduleId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  reviewedByUser  User?                  @relation("LeaveRequestReviewedBy", fields: [reviewedBy], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  scheduleLinks   LeaveRequestSchedule[]
+  exceptions      ScheduleException[]
 
   @@index([doctorId, startsAt])
   @@index([status, createdAt])
   @@index([reviewedBy])
   @@map("leave_requests")
+}
+
+model LeaveRequestSchedule {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  leaveRequestId      String   @map("leave_request_id") @db.Uuid
+  staffWorkScheduleId String   @map("staff_work_schedule_id") @db.Uuid
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  leaveRequest      LeaveRequest      @relation(fields: [leaveRequestId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  staffWorkSchedule StaffWorkSchedule @relation(fields: [staffWorkScheduleId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([leaveRequestId, staffWorkScheduleId])
+  @@index([staffWorkScheduleId])
+  @@map("leave_request_schedules")
 }
 
 model AppointmentSlot {
@@ -254,8 +313,10 @@ model AppointmentSlot {
   blockReason      String?  @map("block_reason") @db.Text
   createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  doctorSchedule DoctorSchedule @relation("AppointmentSlotDoctorScheduleId", fields: [doctorScheduleId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  careSessions   CareSession[]  @relation("CareSessionAppointmentSlotId")
+  doctorSchedule    DoctorSchedule         @relation("AppointmentSlotDoctorScheduleId", fields: [doctorScheduleId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  careSessions      CareSession[]          @relation("CareSessionAppointmentSlotId")
+  reassignmentsFrom ScheduleReassignment[] @relation("ScheduleReassignmentFromSlot")
+  reassignmentsTo   ScheduleReassignment[] @relation("ScheduleReassignmentToSlot")
 
   @@unique([doctorScheduleId, startsAt])
   @@map("appointment_slots")
@@ -303,17 +364,76 @@ model CareSession {
   createdAt          DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime                 @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  appointment      Appointment       @relation("CareSessionAppointmentId", fields: [appointmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  appointmentSlot  AppointmentSlot   @relation("CareSessionAppointmentSlotId", fields: [appointmentSlotId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  specialty        Specialty         @relation("CareSessionSpecialtyId", fields: [specialtyId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  incomingReferral InternalReferral? @relation("CareSessionIncomingReferralId", fields: [incomingReferralId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  consultation     Consultation?     @relation("ConsultationCareSessionId")
+  appointment        Appointment         @relation("CareSessionAppointmentId", fields: [appointmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  appointmentSlot    AppointmentSlot     @relation("CareSessionAppointmentSlotId", fields: [appointmentSlotId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  specialty          Specialty           @relation("CareSessionSpecialtyId", fields: [specialtyId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  incomingReferral   InternalReferral?   @relation("CareSessionIncomingReferralId", fields: [incomingReferralId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  consultation       Consultation?       @relation("ConsultationCareSessionId")
+  scheduleExceptions ScheduleException[]
 
   @@index([appointmentId])
   @@index([status, queueDate, queuePosition])
   @@index([appointmentSlotId])
   @@index([specialtyId])
   @@map("care_sessions")
+}
+
+model ScheduleException {
+  id               String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  leaveRequestId   String                       @map("leave_request_id") @db.Uuid
+  careSessionId    String                       @map("care_session_id") @db.Uuid
+  originalDoctorId String                       @map("original_doctor_id") @db.Uuid
+  status           ScheduleExceptionStatus      @default(PENDING_REASSIGNMENT)
+  resolution       ScheduleExceptionResolution?
+  reason           String?                      @db.Text
+  resolvedBy       String?                      @map("resolved_by") @db.Uuid
+  resolvedAt       DateTime?                    @map("resolved_at") @db.Timestamptz(6)
+  createdAt        DateTime                     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime                     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  leaveRequest   LeaveRequest           @relation(fields: [leaveRequestId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  careSession    CareSession            @relation(fields: [careSessionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  originalDoctor Doctor                 @relation("ScheduleExceptionOriginalDoctor", fields: [originalDoctorId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  resolvedByUser User?                  @relation("ScheduleExceptionResolvedBy", fields: [resolvedBy], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  reassignments  ScheduleReassignment[]
+
+  @@unique([leaveRequestId, careSessionId])
+  @@index([status, createdAt])
+  @@index([originalDoctorId])
+  @@index([resolvedBy])
+  @@map("schedule_exceptions")
+}
+
+model ScheduleReassignment {
+  id           String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  exceptionId  String                     @map("exception_id") @db.Uuid
+  fromDoctorId String                     @map("from_doctor_id") @db.Uuid
+  toDoctorId   String?                    @map("to_doctor_id") @db.Uuid
+  fromSlotId   String                     @map("from_slot_id") @db.Uuid
+  toSlotId     String?                    @map("to_slot_id") @db.Uuid
+  status       ScheduleReassignmentStatus @default(PROPOSED)
+  notes        String?                    @db.Text
+  proposedBy   String                     @map("proposed_by") @db.Uuid
+  confirmedBy  String?                    @map("confirmed_by") @db.Uuid
+  proposedAt   DateTime                   @default(now()) @map("proposed_at") @db.Timestamptz(6)
+  confirmedAt  DateTime?                  @map("confirmed_at") @db.Timestamptz(6)
+  createdAt    DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime                   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  exception       ScheduleException @relation(fields: [exceptionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  fromDoctor      Doctor            @relation("ScheduleReassignmentFromDoctor", fields: [fromDoctorId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  toDoctor        Doctor?           @relation("ScheduleReassignmentToDoctor", fields: [toDoctorId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  fromSlot        AppointmentSlot   @relation("ScheduleReassignmentFromSlot", fields: [fromSlotId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  toSlot          AppointmentSlot?  @relation("ScheduleReassignmentToSlot", fields: [toSlotId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  proposedByUser  User              @relation("ScheduleReassignmentProposedBy", fields: [proposedBy], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  confirmedByUser User?             @relation("ScheduleReassignmentConfirmedBy", fields: [confirmedBy], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([exceptionId, status])
+  @@index([fromDoctorId])
+  @@index([toDoctorId])
+  @@index([fromSlotId])
+  @@index([toSlotId])
+  @@map("schedule_reassignments")
 }
 
 model Consultation {
@@ -606,13 +726,58 @@ enum DoctorScheduleStatus {
   CANCELLED
 }
 
+enum StaffType {
+  DOCTOR
+  RECEPTIONIST
+}
+
+enum StaffWorkScheduleStatus {
+  DRAFT
+  PUBLISHED
+  ABSENT
+  CANCELLED
+}
+
 enum LeaveRequestType {
   ABSENT
+  PLANNED_LEAVE
+  URGENT_ABSENCE
+}
+
+enum LeaveRequestPriority {
+  NORMAL
+  URGENT
+}
+
+enum LeaveRequestSource {
+  DOCTOR_REQUEST
+  ADMIN_PAUSE
 }
 
 enum LeaveRequestStatus {
   PENDING
   APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum ScheduleExceptionStatus {
+  PENDING_REASSIGNMENT
+  PROPOSED
+  RESOLVED
+  RESCHEDULE_REQUIRED
+  CANCELLED
+}
+
+enum ScheduleExceptionResolution {
+  REASSIGNED
+  RESCHEDULED
+  CANCELLED
+}
+
+enum ScheduleReassignmentStatus {
+  PROPOSED
+  CONFIRMED
   REJECTED
   CANCELLED
 }
@@ -632,6 +797,7 @@ enum AppointmentStatus {
 
 enum CareSessionStatus {
   SCHEDULED
+  CHECKED_IN
   WAITING
   CALLED
   SKIPPED
