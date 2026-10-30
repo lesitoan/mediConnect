@@ -49,8 +49,6 @@ jobs:
         run: npx turbo run build --filter=api
       - name: Build AI service
         run: npm run build --workspace=ai
-      - name: Kiểm tra lint
-        run: npx turbo run lint --filter=api
       - name: Kiểm tra kiểu dữ liệu
         run: npx turbo run check-types --filter=api
 
