@@ -264,8 +264,9 @@ model LeaveRequest {
   staffUserId       String?              @map("staff_user_id") @db.Uuid
   requestType       LeaveRequestType     @default(ABSENT) @map("request_type")
   priority          LeaveRequestPriority @default(NORMAL)
+  source            LeaveRequestSource @default(DOCTOR_REQUEST)
   startsAt          DateTime             @map("starts_at") @db.Timestamptz(6)
-  endsAt            DateTime             @map("ends_at") @db.Timestamptz(6)
+  endsAt            DateTime?            @map("ends_at") @db.Timestamptz(6)
   reason            String               @db.Text
   status            LeaveRequestStatus   @default(PENDING)
   noticeHours       Int?                 @map("notice_hours") @db.SmallInt
@@ -746,6 +747,11 @@ enum LeaveRequestType {
 enum LeaveRequestPriority {
   NORMAL
   URGENT
+}
+
+enum LeaveRequestSource {
+  DOCTOR_REQUEST
+  ADMIN_PAUSE
 }
 
 enum LeaveRequestStatus {

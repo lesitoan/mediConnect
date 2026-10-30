@@ -12,6 +12,13 @@ const ENVIRONMENT_SCHEMA = Joi.object<Record<string, unknown>>({
     .default('development'),
   OTP_DEV_MODE: Joi.boolean().truthy('true').falsy('false').default(false),
   PORT: Joi.number().port().default(4000),
+  CLOUDINARY_CLOUD_NAME: Joi.string()
+    .pattern(/^[a-zA-Z0-9_-]+$/)
+    .empty('')
+    .optional(),
+  CLOUDINARY_API_KEY: Joi.string().empty('').optional(),
+  CLOUDINARY_API_SECRET: Joi.string().empty('').optional(),
+  CLOUDINARY_UPLOAD_FOLDER: Joi.string().max(200).empty('').optional(),
   AI_SERVICE_URL: Joi.string()
     .uri({ scheme: ['http', 'https'] })
     .default('http://127.0.0.1:4100'),

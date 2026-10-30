@@ -1,4 +1,10 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  ServiceUnavailableException,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { hash } from 'bcrypt';
 import type { Prisma } from '../../../generated/prisma/client';
 import { PrismaService } from '../../database/services/prisma.service';
 import {
@@ -6,15 +12,25 @@ import {
   PermissionStatusEnum,
   RoleStatusEnum,
   UserStatus,
+  UserRole,
+  AuditLogResult,
 } from '../../../generated/prisma/enums';
+import { STAFF_EMAIL_DOMAIN, staffEmailName } from '../utils/staff-email.util';
+import {
+  AuditLogsService,
+  type AuditEvent,
+} from '../../audit-logs/audit-logs.service';
 import { CurrentUserDto } from '../dto/responses/current-user.dto';
 import { UsersRepository, type AuthenticationUser } from '../users.repository';
+import { RoleEnum } from '../constants/roles.constant';
+import { sqlTable } from '../../database/utils/sql-table';
 
 @Injectable()
 export class UsersService {
   constructor(
     private readonly usersRepository: UsersRepository,
     private readonly prisma: PrismaService,
+    private readonly audit: AuditLogsService,
   ) {}
 
   findForAuthentication(contact: { email?: string; phone?: string }) {
@@ -29,7 +45,101 @@ export class UsersService {
     dateOfBirth?: string;
     gender?: PatientGender;
   }) {
-    return this.usersRepository.createPatient(input);
+    return this.prisma.$transaction(async (tx) => {
+      const user = await this.usersRepository.createPatient(input, tx);
+      await this.audit.record(
+        {
+          actor: { type: 'ANONYMOUS' },
+          actionCode: 'ACCOUNT_REGISTER',
+          module: 'USERS',
+          targetType: 'USER',
+          targetId: user.id,
+          result: AuditLogResult.SUCCESS,
+          after: { status: user.status },
+        },
+        tx,
+      );
+      return user;
+    });
+  }
+
+  async createStaffAccount(
+    tx: Prisma.TransactionClient,
+    input: {
+      fullName: string;
+      phone?: string;
+      role: RoleEnum.ADMIN | RoleEnum.RECEPTIONIST | RoleEnum.DOCTOR;
+    },
+  ) {
+    const role = await tx.role.findUnique({ where: { name: input.role } });
+    if (!role || role.status !== RoleStatusEnum.ACTIVE || role.deletedAt) {
+      throw new ServiceUnavailableException('Vai trò nhân sự không khả dụng.');
+    }
+    const name = staffEmailName(input.fullName);
+    // Same-name creations across API instances must choose different suffixes.
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext('STAFF_EMAIL'), hashtext(${name}))`;
+    const email = await this.availableStaffEmail(tx, name);
+    const passwordHash = await hash('123456', 12);
+    return tx.user.create({
+      data: {
+        fullName: input.fullName,
+        email,
+        phone: input.phone,
+        roleId: role.id,
+        status: UserStatus.ACTIVE,
+        passwordHash,
+        passwordChangedAt: new Date(),
+      },
+      select: { id: true },
+    });
+  }
+
+  async previewStaffEmail(fullName: string) {
+    return {
+      email: await this.availableStaffEmail(
+        this.prisma,
+        staffEmailName(fullName),
+      ),
+    };
+  }
+
+  private async availableStaffEmail(
+    db: Pick<Prisma.TransactionClient, 'user'>,
+    name: string,
+  ) {
+    const existing = await db.user.findMany({
+      where: {
+        OR: [
+          {
+            email: {
+              equals: `${name}@${STAFF_EMAIL_DOMAIN}`,
+              mode: 'insensitive',
+            },
+          },
+          {
+            email: {
+              startsWith: `${name}.`,
+              endsWith: `@${STAFF_EMAIL_DOMAIN}`,
+              mode: 'insensitive',
+            },
+          },
+        ],
+      },
+      select: { email: true },
+    });
+    const used = new Set(existing.map((user) => user.email?.toLowerCase()));
+    let localPart = name;
+    for (
+      let suffix = 2;
+      used.has(`${localPart}@${STAFF_EMAIL_DOMAIN}`);
+      suffix++
+    )
+      localPart = `${name}.${suffix}`;
+    if (localPart.length > 64)
+      throw new ServiceUnavailableException(
+        'Họ tên quá dài để tạo email không trùng.',
+      );
+    return `${localPart}@${STAFF_EMAIL_DOMAIN}`;
   }
 
   isAllowedToAuthenticate(user: {
@@ -43,6 +153,45 @@ export class UsersService {
       user.role?.status === RoleStatusEnum.ACTIVE &&
       user.role.deletedAt === null
     );
+  }
+
+  async assertAdminPermissions(
+    tx: Prisma.TransactionClient,
+    actorId: string,
+    permissions: readonly string[],
+  ) {
+    const current = await tx.user.findUnique({
+      where: { id: actorId },
+      include: {
+        role: {
+          include: {
+            infoPermission: {
+              where: {
+                deletedAt: null,
+                permission: { status: 'ACTIVE', deletedAt: null },
+              },
+              include: { permission: true },
+            },
+          },
+        },
+      },
+    });
+    if (
+      !current ||
+      !this.isAllowedToAuthenticate(current) ||
+      current.role?.name !== RoleEnum.ADMIN
+    )
+      throw new ForbiddenException(
+        'Tài khoản không còn quyền thực hiện thao tác.',
+      );
+    const grants = current.role.infoPermission.map(
+      (grant) => grant.permission.name,
+    );
+    if (permissions.some((permission) => !grants.includes(permission)))
+      throw new ForbiddenException(
+        'Tài khoản không còn quyền thực hiện thao tác.',
+      );
+    return grants;
   }
 
   async getAuthenticatedUser(
@@ -64,13 +213,13 @@ export class UsersService {
     return this.toCurrentUser(user);
   }
 
-  // Serialize account lifecycle changes across API instances, using one short DB transaction.
+  // Serialize account changes while allowing foreign-key references from other audited writes.
   withLockedAccount<T>(
     userId: string,
     action: (tx: Prisma.TransactionClient) => Promise<T>,
   ): Promise<T> {
     return this.prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT id FROM users WHERE id = ${userId}::uuid FOR UPDATE`;
+      await tx.$queryRaw`SELECT id FROM ${sqlTable(this.prisma.schemaName, 'users')} WHERE id = ${userId}::uuid FOR NO KEY UPDATE`;
       return action(tx);
     });
   }
@@ -90,6 +239,7 @@ export class UsersService {
           : { phoneVerifiedAt: now }),
       },
     });
+    await this.recordAccountEvent(tx, userId, 'ACCOUNT_ACTIVATE');
   }
 
   async resetPassword(
@@ -102,10 +252,43 @@ export class UsersService {
       where: { id: userId },
       data: { passwordHash, passwordChangedAt: now },
     });
-    await tx.authSession.updateMany({
+    const revoked = await tx.authSession.updateMany({
       where: { userId, revokedAt: null },
       data: { revokedAt: now, revocationReason: 'PASSWORD_RESET' },
     });
+    await this.recordAccountEvent(tx, userId, 'ACCOUNT_RESET_CREDENTIALS', {
+      revokedSessions: revoked.count,
+    });
+  }
+
+  async recordAccountEvent(
+    tx: Prisma.TransactionClient,
+    userId: string,
+    actionCode: string,
+    after?: AuditEvent['after'],
+    isSystem = false,
+  ): Promise<void> {
+    const user = await tx.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { id: true, fullName: true, role: { select: { name: true } } },
+    });
+    const role = user.role?.name as UserRole;
+    if (!isSystem && !Object.values(UserRole).includes(role))
+      throw new ServiceUnavailableException('Account role is unavailable');
+    await this.audit.record(
+      {
+        actor: isSystem
+          ? { type: 'SYSTEM' }
+          : { type: 'USER', id: user.id, name: user.fullName, role },
+        actionCode,
+        module: 'USERS',
+        targetType: 'USER',
+        targetId: userId,
+        result: AuditLogResult.SUCCESS,
+        after,
+      },
+      tx,
+    );
   }
 
   toCurrentUser(user: AuthenticationUser): CurrentUserDto {

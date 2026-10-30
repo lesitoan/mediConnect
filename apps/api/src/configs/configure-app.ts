@@ -10,6 +10,7 @@ export function configureApp(app: INestApplication): void {
   app.enableCors({
     origin: config.getOrThrow<string[]>('authentication.corsOrigins'),
     credentials: true,
+    exposedHeaders: ['Content-Disposition'],
   });
   app.use(cookieParser());
   app.useGlobalPipes(

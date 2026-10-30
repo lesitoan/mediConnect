@@ -95,6 +95,12 @@ export class AuthenticationService {
         ipAddress: metadata.ip && isIP(metadata.ip) ? metadata.ip : null,
         expiresAt,
       });
+      await this.usersService.recordAccountEvent(
+        tx,
+        current.id,
+        'ACCOUNT_LOGIN',
+        { sessionId: id },
+      );
       return tokens;
     });
   }
@@ -215,6 +221,13 @@ export class AuthenticationService {
             'REFRESH_TOKEN_REUSE',
             session.id,
           );
+          await this.usersService.recordAccountEvent(
+            tx,
+            user.id,
+            'ACCOUNT_REVOKE_REUSED_SESSION',
+            { sessionId: session.id },
+            true,
+          );
           return null;
         }
         const tokens = await this.issueTokens(
@@ -243,9 +256,21 @@ export class AuthenticationService {
   }
 
   async logout(userId: string, id?: string): Promise<{ message: string }> {
-    await this.usersService.withLockedAccount(userId, (tx) =>
-      this.sessions.revoke(tx, userId, id ? 'LOGOUT' : 'LOGOUT_ALL', id),
-    );
+    await this.usersService.withLockedAccount(userId, async (tx) => {
+      const revoked = await this.sessions.revoke(
+        tx,
+        userId,
+        id ? 'LOGOUT' : 'LOGOUT_ALL',
+        id,
+      );
+      if (revoked.count)
+        await this.usersService.recordAccountEvent(
+          tx,
+          userId,
+          id ? 'ACCOUNT_LOGOUT' : 'ACCOUNT_LOGOUT_ALL',
+          { revokedSessions: revoked.count, ...(id ? { sessionId: id } : {}) },
+        );
+    });
     return { message: id ? 'Signed out' : 'Signed out from all devices' };
   }
 
@@ -257,7 +282,19 @@ export class AuthenticationService {
       const session = await this.sessions.findById(tx, id);
       if (!session || session.userId !== userId)
         throw new NotFoundException('Session not found');
-      await this.sessions.revoke(tx, userId, 'USER_REVOKED', id);
+      const revoked = await this.sessions.revoke(
+        tx,
+        userId,
+        'USER_REVOKED',
+        id,
+      );
+      if (revoked.count)
+        await this.usersService.recordAccountEvent(
+          tx,
+          userId,
+          'ACCOUNT_REVOKE_SESSION',
+          { sessionId: id },
+        );
     });
     return { message: 'Session revoked' };
   }
