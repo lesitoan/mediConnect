@@ -4,9 +4,10 @@ import { UsersController } from './users.controller';
 import { UsersRepository } from './users.repository';
 import { UsersService } from './services/users.service';
 import { UserSessionsService } from './services/user-sessions.service';
+import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 
 @Module({
-  imports: [DatabaseModule],
+  imports: [DatabaseModule, AuditLogsModule],
   controllers: [UsersController],
   providers: [UsersRepository, UsersService, UserSessionsService],
   exports: [UsersService, UserSessionsService],

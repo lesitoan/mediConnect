@@ -8,6 +8,7 @@ import {
   UserStatus,
 } from '../../generated/prisma/enums';
 import { RoleEnum } from './constants/roles.constant';
+import type { Prisma } from '../../generated/prisma/client';
 
 const AUTHORIZATION_INCLUDE = {
   role: {
@@ -43,6 +44,7 @@ export class UsersRepository {
     });
   }
 
+
   async createPatient(input: {
     email?: string;
     phone: string;
@@ -50,14 +52,15 @@ export class UsersRepository {
     passwordHash: string;
     dateOfBirth?: string;
     gender?: PatientGender;
-  }) {
-    const role = await this.prisma.role.findUnique({
+  }, tx: Prisma.TransactionClient,) {
+    const role = await tx.role.findUnique({
+
       where: { name: RoleEnum.PATIENT },
     });
     if (!role || role.status !== RoleStatusEnum.ACTIVE || role.deletedAt) {
       throw new ServiceUnavailableException('Patient role is unavailable');
     }
-    return this.prisma.user.create({
+    return tx.user.create({
       data: {
         fullName: input.name,
         email: input.email,

@@ -1,5 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
+import { normalizePhone } from '../../../../common/utils/normalize-phone';
 import {
   IsEmail,
   Matches,
@@ -43,12 +44,7 @@ export class ContactDto {
     example: '+84901234567',
     description: 'Vietnamese mobile number: 09…, 849… or +849….',
   })
-  @Transform(({ value }: { value: unknown }) => {
-    if (typeof value !== 'string') return value;
-    const phone = value.trim().replace(/[ -]/g, '');
-    if (phone.startsWith('0')) return '+84' + phone.slice(1);
-    return phone.startsWith('84') ? '+' + phone : phone;
-  })
+  @Transform(({ value }: { value: unknown }) => normalizePhone(value))
   @ValidateIf((input: ContactDto) => input.phone !== undefined)
   @Validate(ExactlyOneContact)
   @Matches(/^\+84[35789]\d{8}$/)

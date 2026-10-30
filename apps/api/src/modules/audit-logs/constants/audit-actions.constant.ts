@@ -1,4 +1,9 @@
 export const AUDIT_ACTION_LABELS: Readonly<Record<string, string>> = {
+  USER_CREATE: 'Tạo tài khoản nhân sự',
+  USER_UPDATE: 'Cập nhật thông tin tài khoản',
+  USER_ROLE_CHANGE: 'Thay đổi vai trò tài khoản',
+  USER_LOCK: 'Khóa tài khoản nhân sự',
+  USER_UNLOCK: 'Mở khóa tài khoản nhân sự',
   DOCTOR_CREATE: 'Tạo hồ sơ bác sĩ',
   DOCTOR_UPDATE: 'Cập nhật hồ sơ bác sĩ',
   DOCTOR_PAUSE_SCHEDULE: 'Lên kế hoạch tạm dừng bác sĩ',

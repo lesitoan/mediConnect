@@ -97,7 +97,7 @@
       "ts"
     ],
     "rootDir": ".",
-    "testRegex": ".*\\.e2e-spec\\.ts$",
+    "testRegex": ".*\\.spec\\.ts$",
     "setupFiles": ["<rootDir>/test/setup-env.ts"],
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
