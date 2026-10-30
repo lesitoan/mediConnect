@@ -464,7 +464,7 @@ export class SchedulesService {
 
   async getLeaveImpact(id: string) {
     const request = await this.getLeaveRequest(id);
-    if (!request.doctorId || !request.doctor)
+    if (!request.doctorId || !request.doctor || !request.endsAt)
       return {
         request,
         affectedSessions: [],
@@ -548,6 +548,8 @@ export class SchedulesService {
         throw new ConflictException(
           'Leave request changed while it was being reviewed',
         );
+      if (!current.endsAt)
+        throw new BadRequestException('Leave request is missing an end date');
       const affected = current.doctorId
         ? await this.repository.findAffectedCareSessions(
             current.doctorId,
