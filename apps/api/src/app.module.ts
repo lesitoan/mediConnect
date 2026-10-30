@@ -50,4 +50,4 @@ import { ReviewsModule } from './modules/reviews/reviews.module';
     ReviewsModule,
   ],
 })
-export class AppModule { }
+export class AppModule {}
