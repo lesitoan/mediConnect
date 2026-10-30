@@ -11,7 +11,7 @@ on:
       - ".dockerignore"
       - ".github/workflows/deploy.yml"
   push:
-    branches: [main]
+    branches: ["**"]
     paths:
       - "apps/api/**"
       - "apps/ai/**"
@@ -121,7 +121,7 @@ jobs:
           cache-to: type=gha,scope=ai,mode=max
 
   deploy:
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     needs: build
     runs-on: ubuntu-latest
     environment: production
@@ -244,14 +244,52 @@ jobs:
           EOF
 
       - name: Migrate và khởi động API, AI
+        id: startServices
         run: |
           ssh server bash -s -- "$DEPLOY_PATH" <<'EOF'
           set -euo pipefail
           cd "$1"
           docker compose pull api ai
-          docker compose run --rm --no-deps -T migrate
+          # SSH truyền script qua stdin; migration không được đọc các lệnh phía sau.
+          docker compose run --rm --no-deps -T --interactive=false migrate < /dev/null
           docker compose up -d --no-deps --wait --wait-timeout 300 ai
           docker compose up -d --no-deps --wait --wait-timeout 180 api
+          EOF
+
+      - name: Lấy log khi khởi động API hoặc AI thất bại
+        if: failure() && steps.startServices.outcome == 'failure'
+        run: |
+          ssh server bash -s -- "$DEPLOY_PATH" <<'EOF'
+          set -euo pipefail
+          cd "$1"
+          docker compose ps --all api ai || true
+          docker compose logs --no-color --tail=150 api ai || true
+          for service in api ai; do
+            containerId=$(docker compose ps --all --quiet "$service") || continue
+            if [[ -n $containerId ]]; then
+              printf '\n%s container state and healthcheck:\n' "$service"
+              docker inspect --format '{{json .State}}' "$containerId" | jq . || true
+            fi
+          done
+          EOF
+
+      - name: Xác nhận container dùng image đã deploy
+        run: |
+          ssh server bash -s -- "$DEPLOY_PATH" <<'EOF'
+          set -euo pipefail
+          cd "$1"
+          config=$(docker compose config --format json)
+          for service in ai api; do
+            expectedImage=$(jq -er --arg service "$service" '.services[$service].image' <<< "$config")
+            expectedId=$(docker image inspect --format '{{.Id}}' "$expectedImage")
+            containerId=$(docker compose ps --all --quiet "$service")
+            docker inspect "${containerId:?Service container not found}" | jq -e \
+              --arg image "$expectedImage" --arg imageId "$expectedId" '
+              .[0] | .Config.Image == $image and .Image == $imageId
+              and .State.Running == true and .State.Health.Status == "healthy"
+            ' > /dev/null
+            printf '%s is healthy: %s (%s)\n' "$service" "$expectedImage" "$expectedId"
+          done
           EOF
 
       - name: Xóa secrets tạm trên runner
