@@ -9,7 +9,23 @@ import { PrismaService } from '../database/services/prisma.service';
 type DatabaseClient = PrismaService | Prisma.TransactionClient;
 
 const APPOINTMENT_INCLUDE = {
-  patient: true,
+  patient: {
+    select: {
+      id: true,
+      userId: true,
+      patientCode: true,
+      fullName: true,
+      dateOfBirth: true,
+      gender: true,
+      phone: true,
+      email: true,
+      address: true,
+      emergencyContactName: true,
+      emergencyContactPhone: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  },
   careSessions: {
     include: {
       specialty: true,

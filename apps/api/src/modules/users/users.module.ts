@@ -5,11 +5,18 @@ import { UsersRepository } from './users.repository';
 import { UsersService } from './services/users.service';
 import { UserSessionsService } from './services/user-sessions.service';
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
+import { PatientsModule } from '../patients/patients.module';
+import { MeUsersService } from './services/me-users.service';
 
 @Module({
-  imports: [DatabaseModule, AuditLogsModule],
+  imports: [DatabaseModule, AuditLogsModule, PatientsModule],
   controllers: [UsersController],
-  providers: [UsersRepository, UsersService, UserSessionsService],
+  providers: [
+    UsersRepository,
+    UsersService,
+    UserSessionsService,
+    MeUsersService,
+  ],
   exports: [UsersService, UserSessionsService],
 })
 export class UsersModule {}

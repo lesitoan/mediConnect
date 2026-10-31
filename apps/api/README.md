@@ -99,6 +99,9 @@ Build tạo `dist/` cho API và `dist-seed/` cho seed. Chạy production bằng 
 
 ## Tài liệu
 
+- [Khôi phục và kiểm tra API bác sĩ/chuyên khoa](docs/catalog-recovery.md)
+- [Quản lý tài khoản người dùng, khóa tài khoản và Audit](docs/users.md)
+- [API bác sĩ và kế hoạch tạm dừng](docs/doctors.md)
 - [Luồng hoạt động, luồng dữ liệu và nơi lưu token — đọc từ đầu](docs/authentication-data-flow.md)
 - [Common kế thừa từ tripBackend và cách sử dụng](docs/common.md)
 - [Xác thực, Redis OTP, refresh token và phiên đăng nhập](docs/authentication.md)

@@ -58,7 +58,7 @@ const SUMMARY_SELECT = {
 } satisfies Prisma.AuditLogSelect;
 
 const SENSITIVE_FIELD =
-  /password|secret|token|cookie|otp|authorization|clinical|diagnos|prescription|medical|allergy|symptom|webhook/i;
+  /password|secret|token|cookie|otp|authorization|clinical|diagnos|prescription|medical|allergy|symptom|webhook|(?:^|\.)nationalId$/i;
 const DAY_MS = 86_400_000;
 
 function validateSnapshot(snapshot?: Snapshot): void {
