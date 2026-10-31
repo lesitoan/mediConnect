@@ -4,15 +4,11 @@ import { Download, Upload, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface ScheduleCalendarHeaderProps {
-  dayCount?: number;
-  totalShifts?: number;
-  conflictCount?: number;
   draftCount?: number;
   isBusy?: boolean;
   onExport: () => void;
   onOpenPublishModal: () => void;
   onOpenCreateModal: () => void;
-  onOpenConflictModal?: () => void;
 }
 
 export function ScheduleCalendarHeader({

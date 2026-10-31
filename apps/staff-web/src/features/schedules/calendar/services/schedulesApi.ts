@@ -1,82 +1,112 @@
 import { baseApi } from "@/lib/redux/baseApi";
-import { INITIAL_DOCTOR_SCHEDULES } from "../constants";
-import { getSchedulesInDateRange } from "./schedulesService";
 import type {
+  AdminDoctor,
   CreateScheduleInput,
-  ResolveConflictInput,
-  ScheduleCalendarData,
   ScheduleDateRange,
-  ScheduleShift,
-  UpdateScheduleInput,
+  WorkSchedule,
 } from "../types/scheduleTypes";
 
-const mockSuccess = () => ({
-  data: { message: "Thao tác thành công (mock)." },
-});
+interface ApiResponse<T> {
+  success: boolean;
+  data: T;
+  pagination?: { totalPages: number };
+}
 
 export const schedulesApi = baseApi
   .enhanceEndpoints({ addTagTypes: ["SCHEDULES"] })
   .injectEndpoints({
     endpoints: (build) => ({
-      getSchedules: build.query<ScheduleCalendarData, ScheduleDateRange>({
-        queryFn: (range) => ({
-          data: getSchedulesInDateRange(
-            structuredClone(INITIAL_DOCTOR_SCHEDULES),
-            range,
-          ),
+      getSchedules: build.query<WorkSchedule[], ScheduleDateRange>({
+        query: (range) => ({
+          url: "/admin/work-schedules",
+          params: {
+            from: range.startDate,
+            to: range.endDate,
+            staffType: "DOCTOR",
+          },
         }),
+        transformResponse: (response: ApiResponse<WorkSchedule[]>) =>
+          response.data,
         providesTags: [{ type: "SCHEDULES", id: "LIST" }],
       }),
-      getSchedule: build.query<ScheduleShift, string>({
-        queryFn: (id) => {
-          const shift = INITIAL_DOCTOR_SCHEDULES.flatMap((doctor) =>
-            Object.values(doctor.shifts),
-          ).find((shift) => shift?.id === id);
+      getAdminDoctors: build.query<AdminDoctor[], void>({
+        async queryFn(_arg, _queryApi, _extraOptions, baseQuery) {
+          const doctors: AdminDoctor[] = [];
+          let page = 1;
 
-          return shift
-            ? { data: { ...shift } }
-            : {
+          while (true) {
+            const result = await baseQuery({
+              url: "/admin/doctors",
+              params: { page, limit: 100 },
+            });
+            if (result.error) return { error: result.error };
+
+            const response = result.data;
+            if (
+              typeof response !== "object" ||
+              response === null ||
+              !("success" in response) ||
+              response.success !== true ||
+              !("data" in response) ||
+              !Array.isArray(response.data) ||
+              !("pagination" in response) ||
+              typeof response.pagination !== "object" ||
+              response.pagination === null ||
+              !("totalPages" in response.pagination) ||
+              typeof response.pagination.totalPages !== "number" ||
+              !Number.isInteger(response.pagination.totalPages) ||
+              response.pagination.totalPages < 0
+            ) {
+              return {
                 error: {
-                  status: 404,
-                  message: "Không tìm thấy ca trực.",
-                  data: null,
+                  status: "FETCH_ERROR",
+                  message: "Invalid doctor list response",
+                  data: result.data,
                 },
               };
+            }
+            const pageDoctors = response.data as AdminDoctor[];
+            doctors.push(...pageDoctors);
+
+            const totalPages = response.pagination.totalPages;
+            if (page >= totalPages) {
+              return { data: doctors };
+            }
+            page += 1;
+          }
         },
-        providesTags: (_result, _error, id) => [{ type: "SCHEDULES", id }],
+        providesTags: [{ type: "SCHEDULES", id: "DOCTORS" }],
       }),
-      createSchedule: build.mutation<{ message: string }, CreateScheduleInput>({
-        queryFn: mockSuccess,
-        invalidatesTags: (_result, error) => (error ? [] : ["SCHEDULES"]),
+      createSchedule: build.mutation<WorkSchedule, CreateScheduleInput>({
+        query: (data) => ({
+          url: "/admin/work-schedules",
+          method: "POST",
+          data,
+        }),
+        transformResponse: (response: ApiResponse<WorkSchedule>) =>
+          response.data,
+        invalidatesTags: (_result, error) =>
+          error ? [] : [{ type: "SCHEDULES", id: "LIST" }],
       }),
-      updateSchedule: build.mutation<{ message: string }, UpdateScheduleInput>({
-        queryFn: mockSuccess,
-        invalidatesTags: (_result, error) => (error ? [] : ["SCHEDULES"]),
-      }),
-      deleteSchedule: build.mutation<{ message: string }, string>({
-        queryFn: mockSuccess,
-        invalidatesTags: (_result, error) => (error ? [] : ["SCHEDULES"]),
-      }),
-      publishSchedules: build.mutation<{ message: string }, ScheduleDateRange>({
-        queryFn: mockSuccess,
-        invalidatesTags: (_result, error) => (error ? [] : ["SCHEDULES"]),
-      }),
-      resolveScheduleConflict: build.mutation<
-        { message: string },
-        ResolveConflictInput
-      >({
-        queryFn: mockSuccess,
-        invalidatesTags: (_result, error) => (error ? [] : ["SCHEDULES"]),
+      publishSchedules: build.mutation<{ publishedCount: number }, string[]>({
+        async queryFn(ids, _queryApi, _extraOptions, baseQuery) {
+          for (const id of ids) {
+            const result = await baseQuery({
+              url: `/admin/work-schedules/${encodeURIComponent(id)}/publish`,
+              method: "POST",
+            });
+            if (result.error) return { error: result.error };
+          }
+          return { data: { publishedCount: ids.length } };
+        },
+        invalidatesTags: () => [{ type: "SCHEDULES", id: "LIST" }],
       }),
     }),
   });
 
 export const {
   useGetSchedulesQuery,
-  useGetScheduleQuery,
+  useGetAdminDoctorsQuery,
   useCreateScheduleMutation,
-  useUpdateScheduleMutation,
-  useDeleteScheduleMutation,
   usePublishSchedulesMutation,
-  useResolveScheduleConflictMutation,
 } = schedulesApi;

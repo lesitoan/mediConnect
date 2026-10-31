@@ -1,9 +1,5 @@
 import { DEFAULT_DATE_RANGE, MAX_SCHEDULE_RANGE_DAYS } from "./constants";
-import type {
-  ShiftStatus,
-  DayOfWeek,
-  ScheduleDateRange,
-} from "./types/scheduleTypes";
+import type { DayOfWeek, ScheduleDateRange } from "./types/scheduleTypes";
 
 const MILLISECONDS_PER_DAY = 86_400_000;
 const DAYS_OF_WEEK: DayOfWeek[] = [
@@ -68,48 +64,6 @@ export function formatScheduleDate(date: string) {
 
 export function getScheduleDayOfWeek(date: string): DayOfWeek {
   return DAYS_OF_WEEK[new Date(`${date}T00:00:00Z`).getUTCDay()];
-}
-
-export function getShiftStatusLabel(status: ShiftStatus): string {
-  switch (status) {
-    case "APPROVED":
-      return "Đã duyệt";
-    case "PUBLISHED":
-      return "Đã công bố";
-    case "PENDING_APPROVAL":
-      return "Chờ duyệt";
-    case "CONFLICT":
-      return "Xung đột";
-    case "DRAFT":
-      return "Nháp";
-    case "ON_LEAVE":
-      return "Nghỉ phép";
-    case "OFF":
-      return "Nghỉ trực";
-    default:
-      return status;
-  }
-}
-
-export function getShiftStatusBadgeVariant(
-  status: ShiftStatus,
-): "success" | "warning" | "danger" | "neutral" | "default" | "secondary" {
-  switch (status) {
-    case "APPROVED":
-    case "PUBLISHED":
-      return "success";
-    case "PENDING_APPROVAL":
-      return "warning";
-    case "CONFLICT":
-      return "danger";
-    case "DRAFT":
-      return "secondary";
-    case "ON_LEAVE":
-    case "OFF":
-      return "neutral";
-    default:
-      return "neutral";
-  }
 }
 
 export function getDayOfWeekLabel(day: DayOfWeek): string {

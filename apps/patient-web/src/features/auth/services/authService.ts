@@ -83,7 +83,6 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export async function registerPatient(input: {
   name: string;
   phone: string;
-  email?: string;
   password: string;
 }) {
   return request<OtpChallenge>("/authentication/register", {

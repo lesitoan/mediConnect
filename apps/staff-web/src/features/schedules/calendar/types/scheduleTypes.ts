@@ -1,97 +1,77 @@
-export type ShiftType = "MORNING" | "AFTERNOON" | "FULL_DAY";
-
-export type ShiftStatus =
-  | "APPROVED"
-  | "PUBLISHED"
-  | "PENDING_APPROVAL"
-  | "CONFLICT"
-  | "DRAFT"
-  | "ON_LEAVE"
-  | "OFF";
+export type ShiftStatus = "PUBLISHED" | "DRAFT";
 
 export type DayOfWeek = "MON" | "TUE" | "WED" | "THU" | "FRI" | "SAT" | "SUN";
+
+export type ScheduleType = "REGULAR" | "SHIFT";
 
 export interface ScheduleShift {
   id: string;
   doctorId: string;
   dayOfWeek: DayOfWeek;
   date: string;
-  shiftType: ShiftType;
+  scheduleType: ScheduleType;
   shiftStatus: ShiftStatus;
-  room: string;
   timeRange: string;
-  patientCount?: number;
-  note?: string;
-  swapWithDoctorName?: string;
-  conflictDoctorId?: string;
-  conflictDoctorName?: string;
-  suggestedRoom?: string;
-  actionLabel?: string;
 }
 
 export interface ScheduleShiftCardOption {
-  statuses?: readonly ShiftStatus[];
-  shiftTypes?: readonly ShiftType[];
+  statuses: readonly ShiftStatus[];
   className: string;
   titleClassName: string;
   descriptionClassName: string;
-  noteClassName: string;
-  indicatorClassName?: string;
-  indicatorPosition?: "START" | "END";
   badge?: { label: string; className: string };
-  action?: {
-    type: "RESOLVE_CONFLICT" | "VIEW_PENDING_REQUEST";
-    placement: "CARD" | "HEADER";
-    label?: string;
-    className?: string;
-  };
-  getContent: (shift: ScheduleShift) => {
-    title: string;
-    description: string;
-    note: string;
-  };
+  getTitle: (shift: ScheduleShift) => string;
 }
 
 export interface DoctorScheduleRow {
+  scheduleId: string;
   doctorId: string;
   doctorCode: string;
   doctorName: string;
   specialtyName: string;
   initials: string;
-  avatarBgColor: string;
-  avatarTextColor: string;
   shifts: Partial<Record<DayOfWeek, ScheduleShift | null>>;
 }
 
-export interface ResolveConflictInput {
-  doctorId: string;
-  targetRoom: string;
-  dayOfWeek: DayOfWeek;
-  shiftId: string;
+export interface AdminDoctor {
+  id: string;
+  userId: string;
+  isActive: boolean;
+  doctorCode: string;
+  user: { fullName: string };
+  specialty: { name: string };
+}
+
+export interface WorkSchedule {
+  id: string;
+  staffUserId: string;
+  staffType: "DOCTOR" | "RECEPTIONIST";
+  dayOfWeek: number;
+  startsAt: string;
+  endsAt: string;
+  effectiveFrom: string;
+  effectiveTo: string | null;
+  scheduleType: ScheduleType;
+  slotDurationMinutes: number | null;
+  status: "DRAFT" | "PUBLISHED" | "ABSENT" | "CANCELLED";
 }
 
 export interface CreateScheduleInput {
-  doctorId: string;
-  dayOfWeek: DayOfWeek;
-  date: string;
-  shiftType: ShiftType;
-  room: string;
-  timeRange: string;
-  isDraft: boolean;
-  note?: string;
-}
-
-export interface UpdateScheduleInput extends CreateScheduleInput {
-  id: string;
+  staffUserId: string;
+  staffType: "DOCTOR";
+  dayOfWeek: number;
+  startsAt: string;
+  endsAt: string;
+  effectiveFrom: string;
+  effectiveTo?: string;
+  scheduleType: ScheduleType;
+  slotDurationMinutes: number;
 }
 
 export interface ScheduleStatistics {
   totalShifts: number;
   publishedShifts: number;
   draftShifts: number;
-  conflictCount: number;
-  coverageRate: number;
-  pendingRequestsCount: number;
 }
 
 export interface ScheduleCalendarData {

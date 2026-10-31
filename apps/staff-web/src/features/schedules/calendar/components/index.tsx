@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo } from "react";
-import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { Empty } from "@/components/ui/Empty";
@@ -10,34 +9,30 @@ import { Pagination } from "@/components/shared/Pagination";
 import { useModal } from "@/hooks/useModal";
 import { useTableFilters } from "@/hooks/useTableFilters";
 import { DEFAULT_FILTERS } from "../constants";
-import { useGetSchedulesQuery } from "../services/schedulesApi";
-import { filterSchedules } from "../services/schedulesService";
+import {
+  useGetAdminDoctorsQuery,
+  useGetSchedulesQuery,
+} from "../services/schedulesApi";
+import {
+  filterSchedules,
+  getSchedulesInDateRange,
+} from "../services/schedulesService";
 import { getScheduleDates, normalizeScheduleDateRange } from "../utils";
 import type {
-  DoctorScheduleRow,
-  ScheduleShift,
-  ScheduleStatistics,
+  AdminDoctor,
   ScheduleTableFilterValues,
+  WorkSchedule,
 } from "../types/scheduleTypes";
 import { ScheduleCalendarHeader } from "./ScheduleCalendarHeader";
 import { ScheduleFilters } from "./ScheduleFilters";
 import { ScheduleWeeklyGrid } from "./ScheduleWeeklyGrid";
 import { CreateScheduleModal } from "./modals/CreateScheduleModal";
-import { ConflictResolutionModal } from "./modals/ConflictResolutionModal";
 import { PublishScheduleModal } from "./modals/PublishScheduleModal";
 
-const EMPTY_SCHEDULES: DoctorScheduleRow[] = [];
-const EMPTY_STATISTICS: ScheduleStatistics = {
-  totalShifts: 0,
-  publishedShifts: 0,
-  draftShifts: 0,
-  conflictCount: 0,
-  coverageRate: 0,
-  pendingRequestsCount: 0,
-};
+const EMPTY_DOCTORS: AdminDoctor[] = [];
+const EMPTY_WORK_SCHEDULES: WorkSchedule[] = [];
 
 export function ScheduleCalendarView() {
-  const router = useRouter();
   const { filters, setFilter, setFilters, resetFilters } =
     useTableFilters<ScheduleTableFilterValues>(DEFAULT_FILTERS);
   const dateRange = useMemo(
@@ -49,18 +44,43 @@ export function ScheduleCalendarView() {
     [filters.startDate, filters.endDate],
   );
   const dates = useMemo(() => getScheduleDates(dateRange), [dateRange]);
-  const { currentData: data, isLoading, isFetching, isError, refetch } =
-    useGetSchedulesQuery(dateRange);
-  const schedules = data?.schedules ?? EMPTY_SCHEDULES;
-  const statistics = data?.statistics ?? EMPTY_STATISTICS;
-  
+  const {
+    currentData: workSchedules,
+    isLoading: isLoadingSchedules,
+    isFetching: isFetchingSchedules,
+    isError: isSchedulesError,
+    refetch: refetchSchedules,
+  } = useGetSchedulesQuery(dateRange);
+  const {
+    currentData: doctors,
+    isLoading: isLoadingDoctors,
+    isFetching: isFetchingDoctors,
+    isError: isDoctorsError,
+    refetch: refetchDoctors,
+  } = useGetAdminDoctorsQuery();
+  const isLoading = isLoadingSchedules || isLoadingDoctors;
+  const isFetching = isFetchingSchedules || isFetchingDoctors;
+  const isError = isSchedulesError || isDoctorsError;
+  const data = useMemo(
+    () =>
+      getSchedulesInDateRange(
+        workSchedules ?? EMPTY_WORK_SCHEDULES,
+        doctors ?? EMPTY_DOCTORS,
+        dateRange,
+      ),
+    [dateRange, doctors, workSchedules],
+  );
+  const schedules = data.schedules;
+  const statistics = data.statistics;
   const createModal = useModal();
-  const conflictModal = useModal<ScheduleShift>();
   const publishModal = useModal();
 
   const specialties = useMemo(
-    () => Array.from(new Set(schedules.map((doctor) => doctor.specialtyName))),
-    [schedules],
+    () =>
+      Array.from(
+        new Set((doctors ?? []).map((doctor) => doctor.specialty.name)),
+      ),
+    [doctors],
   );
   const filteredSchedules = useMemo(
     () => filterSchedules(schedules, filters),
@@ -83,35 +103,31 @@ export function ScheduleCalendarView() {
     return filteredSchedules.slice(start, start + pageSize);
   }, [filteredSchedules, currentPage, pageSize]);
 
-  const handleOpenConflict = () => {
-    const shift = schedules
-      .flatMap((doctor) => Object.values(doctor.shifts))
-      .find((shift) => shift?.shiftStatus === "CONFLICT");
-    if (shift) conflictModal.open(shift);
-  };
-
-  const handleViewPendingRequest = (shift: ScheduleShift) => {
-    const doctor = schedules.find(
-      (doctor) => doctor.doctorId === shift.doctorId,
-    );
-    const query = new URLSearchParams({ search: doctor?.doctorName ?? "" });
-    router.push("/schedules/approvals?" + query.toString());
-  };
+  const draftScheduleIds = useMemo(
+    () =>
+      schedules
+        .filter((schedule) =>
+          Object.values(schedule.shifts).some(
+            (shift) => shift?.shiftStatus === "DRAFT",
+          ),
+        )
+        .map((schedule) => schedule.scheduleId),
+    [schedules],
+  );
+  const totalDoctors = new Set(
+    filteredSchedules.map((schedule) => schedule.doctorId),
+  ).size;
 
   return (
     <div className="mx-auto w-full max-w-7xl">
       <ScheduleCalendarHeader
-        dayCount={dates.length}
-        totalShifts={statistics.totalShifts}
-        conflictCount={statistics.conflictCount}
-        draftCount={statistics.draftShifts}
-        isBusy={isFetching || isError}
+        draftCount={draftScheduleIds.length}
+        isBusy={isFetching}
         onExport={() =>
           toast.error("Tính năng xuất lịch đang được phát triển.")
         }
         onOpenCreateModal={() => createModal.open()}
         onOpenPublishModal={() => publishModal.open()}
-        onOpenConflictModal={handleOpenConflict}
       />
       <ScheduleFilters
         filters={filters}
@@ -124,7 +140,7 @@ export function ScheduleCalendarView() {
         className="mt-4 overflow-hidden rounded-app-xl border border-border bg-surface shadow-2xs"
         aria-busy={isFetching}
       >
-        {isLoading || (isFetching && !data) ? (
+        {isLoading || (isFetching && (!workSchedules || !doctors)) ? (
           <Loading label="Đang tải lịch làm việc..." className="min-h-[50vh]" />
         ) : isError ? (
           <Empty
@@ -132,7 +148,13 @@ export function ScheduleCalendarView() {
             title="Không thể tải lịch làm việc"
             description="Vui lòng thử lại."
             action={
-              <Button onClick={() => refetch()} disabled={isFetching}>
+              <Button
+                onClick={() => {
+                  void refetchSchedules();
+                  void refetchDoctors();
+                }}
+                disabled={isFetching}
+              >
                 Thử lại
               </Button>
             }
@@ -149,16 +171,14 @@ export function ScheduleCalendarView() {
               dates={dates}
               schedules={paginatedSchedules}
               statistics={statistics}
-              totalDoctors={filteredSchedules.length}
-              onResolveConflict={conflictModal.open}
-              onViewPendingRequest={handleViewPendingRequest}
+              totalDoctors={totalDoctors}
             />
             <Pagination
               currentPage={currentPage}
               totalPages={totalPages}
               totalItems={filteredSchedules.length}
               pageSize={pageSize}
-              itemName="bác sĩ"
+              itemName="quy tắc lịch"
               onPageChange={(page) => setFilter("page", page)}
               onPageSizeChange={(size) => setFilter("pageSize", size)}
             />
@@ -169,19 +189,12 @@ export function ScheduleCalendarView() {
         dates={dates}
         isOpen={createModal.isOpen}
         onClose={createModal.close}
-        doctors={schedules}
-      />
-      <ConflictResolutionModal
-        isOpen={conflictModal.isOpen}
-        onClose={conflictModal.close}
-        shift={conflictModal.data}
-        doctors={schedules}
+        doctors={doctors ?? EMPTY_DOCTORS}
       />
       <PublishScheduleModal
-        dateRange={dateRange}
         isOpen={publishModal.isOpen}
         onClose={publishModal.close}
-        draftCount={statistics.draftShifts}
+        scheduleIds={draftScheduleIds}
       />
     </div>
   );
