@@ -79,6 +79,7 @@ export class AdminUsersController {
     );
   }
   @Patch(':id')
+  @Header('Cache-Control', 'no-store')
   @Auth({ permissions: [PermissionEnum.USERS_WRITE] })
   async update(
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
