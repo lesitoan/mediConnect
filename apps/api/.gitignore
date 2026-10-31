@@ -1,4 +1,5 @@
 *.spec.ts
+!src/swagger/setup-swagger.spec.ts
 *.md
 test
 docs

@@ -7,6 +7,7 @@ import { databaseConfig } from './configs/database.config';
 import { validateEnvironment } from './configs/environment.validation';
 import { otpConfig } from './configs/otp.config';
 import { redisConfig } from './configs/redis.config';
+import { textbeeConfig } from './configs/textbee.config';
 import { jwtConfig } from './configs/jwt.config';
 import { createLoggerConfig } from './configs/logger.config';
 import { AuthenticationModule } from './modules/authentication/authentication.module';
@@ -18,7 +19,7 @@ import { SpecialtiesModule } from './modules/specialties/specialties.module';
 import { SchedulesModule } from './modules/schedules/schedules.module';
 import { AppointmentsModule } from './modules/appointments/appointments.module';
 import { ReviewsModule } from './modules/reviews/reviews.module';
-
+import { AdminUsersModule } from './modules/users/admin-users.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -31,6 +32,7 @@ import { ReviewsModule } from './modules/reviews/reviews.module';
         authenticationConfig,
         otpConfig,
         redisConfig,
+        textbeeConfig,
       ],
       validate: validateEnvironment,
     }),
@@ -48,6 +50,7 @@ import { ReviewsModule } from './modules/reviews/reviews.module';
     AuditLogsModule,
     AppointmentsModule,
     ReviewsModule,
+    AdminUsersModule,
   ],
 })
 export class AppModule {}
