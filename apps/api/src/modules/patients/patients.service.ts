@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -21,6 +22,7 @@ import { UpdatePatientProfileDto } from './dto/patient/update-patient-profile.dt
 const PROFILE_SELECT = {
   id: true,
   patientCode: true,
+  nationalId: true,
   dateOfBirth: true,
   gender: true,
   address: true,
@@ -105,6 +107,7 @@ export class PatientsService {
     const data: Prisma.PatientUpdateInput = {};
     const changed: NonNullable<AuditEvent['after']> = {};
     for (const field of [
+      'nationalId',
       'dateOfBirth',
       'gender',
       'address',
@@ -123,11 +126,16 @@ export class PatientsService {
       }
     }
     if (!Object.keys(changed).length) return current;
-    const updated = await tx.patient.update({
-      where: { id: profile.id },
-      data,
-      select: PROFILE_SELECT,
-    });
+    const updated = await tx.patient
+      .update({ where: { id: profile.id }, data, select: PROFILE_SELECT })
+      .catch((error: unknown) => {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2002'
+        )
+          throw new ConflictException('Số căn cước đã được sử dụng.');
+        throw error;
+      });
     await this.audit.record(
       {
         actor: {

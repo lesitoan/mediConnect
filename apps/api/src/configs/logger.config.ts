@@ -17,6 +17,7 @@ const REDACTED_LOG_PATHS = [
   'req.body.code',
   'req.body.resetToken',
   'req.body.continuationToken',
+  'req.body.nationalId',
   'res.headers["set-cookie"]',
 ];
 
