@@ -2,27 +2,16 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import {
   IsEnum,
-  IsNotEmpty,
   IsOptional,
-  IsString,
   IsUUID,
   Matches,
-  MaxLength,
   ValidateIf,
 } from 'class-validator';
-import { AutoTrim } from '../../../../common/decorators/auto-trim.decorator';
 import { UserRole } from '../../../../generated/prisma/enums';
 import { normalizePhone } from '../../../../common/utils/normalize-phone';
+import { UpdateMeDto } from '../me/update-me.dto';
 
-export class UpdateUserDto {
-  @ApiPropertyOptional()
-  @AutoTrim()
-  @ValidateIf((_, value: unknown) => value !== undefined)
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(100)
-  @Matches(/^[^\p{Cc}]+$/u)
-  fullName?: string;
+export class UpdateUserDto extends UpdateMeDto {
   @ApiPropertyOptional({ nullable: true })
   @Transform(({ value }: { value: unknown }) => normalizePhone(value))
   @IsOptional()

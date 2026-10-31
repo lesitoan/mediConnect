@@ -24,6 +24,7 @@ import { CurrentUserDto } from '../dto/responses/current-user.dto';
 import { UsersRepository, type AuthenticationUser } from '../users.repository';
 import { RoleEnum } from '../constants/roles.constant';
 import { sqlTable } from '../../database/utils/sql-table';
+import { PermissionEnum } from '../../authentication/constants/permissions.constant';
 
 @Injectable()
 export class UsersService {
@@ -211,6 +212,83 @@ export class UsersService {
       throw new UnauthorizedException('Please sign in again');
     }
     return this.toCurrentUser(user);
+  }
+
+  async assertSelfPermission(
+    tx: Prisma.TransactionClient,
+    userId: string,
+    permission: PermissionEnum,
+  ): Promise<CurrentUserDto> {
+    const user = await this.usersRepository.findById(userId, tx);
+    if (!user || !this.isAllowedToAuthenticate(user))
+      throw new UnauthorizedException('Tài khoản không còn khả dụng.');
+    const current = this.toCurrentUser(user);
+    if (
+      !Object.values(RoleEnum).includes(current.role as RoleEnum) ||
+      !current.permissions.includes(permission)
+    )
+      throw new ForbiddenException(
+        'Tài khoản không còn quyền thực hiện thao tác.',
+      );
+    return current;
+  }
+
+  async updateName(
+    tx: Prisma.TransactionClient,
+    current: CurrentUserDto,
+    fullName: string,
+  ) {
+    const isNameChanged = current.name !== fullName;
+    if (isNameChanged)
+      await tx.user.update({
+        where: { id: current.id },
+        data: { fullName },
+      });
+    const patientUpdate = await this.synchronizePatientAccount(tx, current.id, {
+      fullName,
+    });
+    if (!isNameChanged && !Object.keys(patientUpdate).length) return current;
+    await this.audit.record(
+      {
+        actor: {
+          type: 'USER',
+          id: current.id,
+          name: current.name,
+          role: current.role as UserRole,
+        },
+        actionCode: 'USER_UPDATE',
+        module: 'USERS',
+        targetType: 'USER',
+        targetId: current.id,
+        result: AuditLogResult.SUCCESS,
+        before: isNameChanged ? { fullName: current.name } : undefined,
+        after: isNameChanged ? { fullName } : { patientNameSynchronized: true },
+      },
+      tx,
+    );
+    return { ...current, name: fullName };
+  }
+
+  async synchronizePatientAccount(
+    tx: Prisma.TransactionClient,
+    userId: string,
+    input: { fullName?: string; phone?: string | null },
+  ) {
+    const fields = ['fullName', 'phone'] as const;
+    const data: { fullName?: string; phone?: string | null } = {};
+    if (!fields.some((field) => input[field] !== undefined)) return data;
+    const patient = await tx.patient.findUnique({
+      where: { userId },
+      select: { id: true, fullName: true, phone: true },
+    });
+    if (!patient) return data;
+    for (const field of fields) {
+      if (input[field] !== undefined && input[field] !== patient[field])
+        Object.assign(data, { [field]: input[field] });
+    }
+    if (Object.keys(data).length)
+      await tx.patient.update({ where: { id: patient.id }, data });
+    return data;
   }
 
   // Serialize account changes while allowing foreign-key references from other audited writes.
