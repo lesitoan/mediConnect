@@ -37,8 +37,8 @@ export class UsersRepository {
     });
   }
 
-  findById(id: string) {
-    return this.prisma.user.findUnique({
+  findById(id: string, db: Prisma.TransactionClient = this.prisma) {
+    return db.user.findUnique({
       where: { id },
       include: AUTHORIZATION_INCLUDE,
     });

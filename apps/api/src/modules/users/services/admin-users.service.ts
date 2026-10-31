@@ -27,6 +27,7 @@ import { UserQueryDto } from '../dto/admin/user-query.dto';
 import { UsersService } from './users.service';
 import { ProvidersService } from '../../providers/providers.service';
 import { sqlTable } from '../../database/utils/sql-table';
+import { PatientsService } from '../../patients/patients.service';
 
 const USER_SELECT = {
   id: true,
@@ -80,6 +81,7 @@ export class AdminUsersService {
     private readonly users: UsersService,
     private readonly audit: AuditLogsService,
     private readonly providers: ProvidersService,
+    private readonly patients: PatientsService,
   ) {}
 
   async list(query: UserQueryDto, actor: CurrentUserDto) {
@@ -134,7 +136,14 @@ export class AdminUsersService {
       select: USER_SELECT,
     });
     if (!user) throw new NotFoundException('Không tìm thấy tài khoản.');
-    return present(user, actor.id);
+    const patientProfile =
+      user.role?.name === RoleEnum.PATIENT && user.patient
+        ? await this.patients.getByUserId(id)
+        : undefined;
+    return {
+      ...present(user, actor.id),
+      ...(patientProfile ? { patientProfile } : {}),
+    };
   }
 
   async options() {
@@ -232,15 +241,29 @@ export class AdminUsersService {
 
   async update(id: string, input: UpdateUserDto, actor: CurrentUserDto) {
     id = id.toLowerCase();
-    if (!Object.keys(input).length)
+    if (!Object.values(input).some((value) => value !== undefined))
       throw new BadRequestException('Chưa có thông tin cập nhật.');
+    const {
+      fullName,
+      phone,
+      role: nextRole,
+      specialtyId: nextSpecialtyId,
+      ...profileInput
+    } = input;
+    const hasPatientChanges = Object.values(profileInput).some(
+      (value) => value !== undefined,
+    );
     return this.manage(
       id,
       actor,
       PermissionEnum.USERS_WRITE,
       async (tx, user, grants) => {
+        if (hasPatientChanges && user.role!.name !== 'PATIENT')
+          throw new BadRequestException(
+            'Chỉ bệnh nhân mới có các trường hồ sơ này.',
+          );
         const roleChanged =
-          input.role !== undefined && input.role !== user.role!.name;
+          nextRole !== undefined && nextRole !== user.role!.name;
         const data: Prisma.UserUncheckedUpdateInput = {};
         const before: AuditEvent['before'] = {};
         const after: AuditEvent['after'] = {};
@@ -256,14 +279,14 @@ export class AdminUsersService {
             throw new ForbiddenException(
               'Không thể tự thay đổi vai trò của chính mình.',
             );
-          if (user.role!.name !== 'RECEPTIONIST' || input.role !== 'ADMIN')
+          if (user.role!.name !== 'RECEPTIONIST' || nextRole !== 'ADMIN')
             throw new BadRequestException(
               'Chỉ cho phép nâng vai trò Lễ tân lên Quản trị viên.',
             );
           if (!grants.includes(PermissionEnum.USERS_ASSIGN_ROLE))
             throw new ForbiddenException('Thiếu quyền phân vai trò.');
           const role = await tx.role.findUnique({
-            where: { name: input.role },
+            where: { name: nextRole },
           });
           if (!role || role.status !== 'ACTIVE' || role.deletedAt)
             throw new BadRequestException('Vai trò không khả dụng.');
@@ -278,10 +301,10 @@ export class AdminUsersService {
           throw new BadRequestException(
             'Tài khoản phải có ít nhất một email hoặc số điện thoại.',
           );
-        if (input.specialtyId !== undefined) {
+        if (nextSpecialtyId !== undefined) {
           if (user.role!.name !== 'DOCTOR' || !user.doctor)
             throw new BadRequestException('Chỉ bác sĩ mới có chuyên khoa.');
-          const specialtyId = input.specialtyId.toLowerCase();
+          const specialtyId = nextSpecialtyId.toLowerCase();
           if (specialtyId !== user.doctor.specialty.id) {
             if (!grants.includes(PermissionEnum.DOCTORS_WRITE))
               throw new ForbiddenException(
@@ -295,21 +318,23 @@ export class AdminUsersService {
             );
           }
         }
-        if (!Object.keys(after).length)
-          return present(
-            await tx.user.findUniqueOrThrow({
-              where: { id },
-              select: USER_SELECT,
-            }),
-            actor.id,
-          );
+        const synchronized = await this.users.synchronizePatientAccount(
+          tx,
+          id,
+          { fullName, phone },
+        );
+        if ('fullName' in synchronized && !('fullName' in after))
+          after.patientNameSynchronized = true;
+        if ('phone' in synchronized && !('phone' in after))
+          after.patientPhoneSynchronized = true;
         const contactChanged = 'phone' in after;
         if ('phone' in after) data.phoneVerifiedAt = null;
-        const updated = await tx.user.update({
-          where: { id },
-          data,
-          select: USER_SELECT,
-        });
+        const updated = Object.keys(data).length
+          ? await tx.user.update({ where: { id }, data, select: USER_SELECT })
+          : await tx.user.findUniqueOrThrow({
+              where: { id },
+              select: USER_SELECT,
+            });
         if (roleChanged || contactChanged) {
           const revoked = await tx.authSession.updateMany({
             where: { userId: id, revokedAt: null },
@@ -322,15 +347,22 @@ export class AdminUsersService {
           });
           after.revokedSessions = revoked.count;
         }
-        await this.record(
-          tx,
-          actor,
-          id,
-          roleChanged ? 'USER_ROLE_CHANGE' : 'USER_UPDATE',
-          before,
-          after,
-        );
-        return present(updated, actor.id);
+        const patientProfile = hasPatientChanges
+          ? await this.patients.updateProfile(id, profileInput, actor, tx)
+          : undefined;
+        if (Object.keys(after).length)
+          await this.record(
+            tx,
+            actor,
+            id,
+            roleChanged ? 'USER_ROLE_CHANGE' : 'USER_UPDATE',
+            before,
+            after,
+          );
+        return {
+          ...present(updated, actor.id),
+          ...(patientProfile ? { patientProfile } : {}),
+        };
       },
     );
   }
