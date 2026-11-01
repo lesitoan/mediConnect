@@ -19,7 +19,7 @@ export function ReceptionHeader({ onOpenWalkInModal }: ReceptionHeaderProps) {
           Tiếp nhận & Check-in Bệnh nhân
         </h1>
         <p className="text-caption text-muted">
-          Danh sách bệnh nhân trong ngày · Ca sáng (07:30–12:00)
+          Danh sách bệnh nhân trong ngày 
         </p>
       </div>
 

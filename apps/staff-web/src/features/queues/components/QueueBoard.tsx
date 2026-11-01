@@ -1,31 +1,38 @@
 import { Empty } from "@/components/ui/Empty";
 import { QUEUE_COLUMNS } from "../constants";
+import { getQueueColumnKey } from "../utils";
 import type { QueueAction, QueueItem } from "../types/queueTypes";
 import { QueueCard } from "./QueueCard";
 
 interface QueueBoardProps {
   items: QueueItem[];
+  getSecondsToSkip: (item: QueueItem) => number;
   onDetails: (item: QueueItem) => void;
   onAction: (item: QueueItem, action: QueueAction) => void;
 }
 
-export function QueueBoard({ items, onDetails, onAction }: QueueBoardProps) {
+export function QueueBoard({
+  items,
+  getSecondsToSkip,
+  onDetails,
+  onAction,
+}: QueueBoardProps) {
   return (
     <div className="grid items-stretch gap-5 sm:grid-cols-2 xl:grid-cols-4">
       {QUEUE_COLUMNS.map((column) => {
         const columnItems = items.filter(
-          (item) => item.status === column.status,
+          (item) => getQueueColumnKey(item.status) === column.key,
         );
 
         return (
           <section
-            key={column.status}
-            aria-labelledby={`queue-column-${column.status}`}
+            key={column.key}
+            aria-labelledby={`queue-column-${column.key}`}
             className="min-w-0 rounded-app-xl border border-border-strong bg-surface p-4 shadow-xs sm:min-h-[560px]"
           >
             <div className="mb-3.5 flex items-center justify-between gap-3 pb-1">
               <h2
-                id={`queue-column-${column.status}`}
+                id={`queue-column-${column.key}`}
                 className="text-base font-bold text-foreground"
               >
                 {column.label}
@@ -41,8 +48,9 @@ export function QueueBoard({ items, onDetails, onAction }: QueueBoardProps) {
               {columnItems.length > 0 ? (
                 columnItems.map((item) => (
                   <QueueCard
-                    key={item.id}
+                    key={item.careSessionId}
                     item={item}
+                    secondsToSkip={getSecondsToSkip(item)}
                     onDetails={onDetails}
                     onAction={onAction}
                   />

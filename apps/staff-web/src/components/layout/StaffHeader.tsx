@@ -13,10 +13,13 @@ export function StaffHeader({ onToggleSidebar }: StaffHeaderProps) {
   const pathname = usePathname();
 
   const getBreadcrumbLabel = () => {
+    if (pathname.startsWith("/examinations/queue")) return "Hàng chờ khám bác sĩ";
+    if (pathname.startsWith("/examinations")) return "Quản lý khám bệnh";
     if (pathname.startsWith("/reception")) return "Tiếp nhận bệnh nhân";
     if (pathname.startsWith("/doctors")) return "Bác sĩ & Chuyên khoa";
     if (pathname.startsWith("/users")) return "Quản lý tài khoản";
     if (pathname.startsWith("/queues")) return "Hàng chờ khám";
+    if (pathname.startsWith("/consultations")) return "Khám bệnh ngoại trú";
     if (pathname.startsWith("/schedules")) return "Lịch làm việc & Duyệt";
     if (pathname.startsWith("/exceptions")) return "Xử lý ngoại lệ";
     if (pathname.startsWith("/audit-logs")) return "Nhật ký hệ thống";
