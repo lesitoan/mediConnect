@@ -8,6 +8,7 @@ import { Loading } from "@/components/shared/Loading";
 import { Pagination } from "@/components/shared/Pagination";
 import { useTableFilters } from "@/hooks/useTableFilters";
 import { DEFAULT_FILTERS } from "../constants";
+import { useGetAuthUserQuery } from "@/features/auth/services/authApi";
 import { useGetSchedulesQuery } from "../services/schedulesApi";
 import {
   filterSchedules,
@@ -21,10 +22,19 @@ import type {
 import { ScheduleCalendarHeader } from "./ScheduleCalendarHeader";
 import { ScheduleFilters } from "./ScheduleFilters";
 import { ScheduleWeeklyGrid } from "./ScheduleWeeklyGrid";
+import { MyScheduleCalendar } from "./MyScheduleCalendar";
 
 const EMPTY_MATRIX: WorkScheduleMatrixResponse = { dates: [], staff: [] };
 
 export function ScheduleCalendarView() {
+  const {
+    data: currentUser,
+    isLoading: isLoadingCurrentUser,
+    isFetching: isFetchingCurrentUser,
+    error: currentUserError,
+    refetch: refetchCurrentUser,
+  } = useGetAuthUserQuery();
+  const isAdmin = currentUser?.role === "ADMIN";
   const { filters, setFilter, setFilters, resetFilters } =
     useTableFilters<ScheduleTableFilterValues>(DEFAULT_FILTERS);
   const dateRange = useMemo(
@@ -36,16 +46,24 @@ export function ScheduleCalendarView() {
     [filters.startDate, filters.endDate],
   );
   const dates = useMemo(() => getScheduleDates(dateRange), [dateRange]);
-  const {
-    currentData: matrix,
-    isLoading: isLoadingSchedules,
-    isFetching: isFetchingSchedules,
-    isError: isSchedulesError,
-    refetch: refetchSchedules,
-  } = useGetSchedulesQuery(dateRange);
-  const isLoading = isLoadingSchedules;
-  const isFetching = isFetchingSchedules;
-  const isError = isSchedulesError;
+  const adminSchedulesQuery = useGetSchedulesQuery(dateRange, {
+    skip: !currentUser || !isAdmin,
+  });
+  const matrix = adminSchedulesQuery.currentData;
+  const isLoading =
+    isLoadingCurrentUser ||
+    (!currentUser ? isFetchingCurrentUser : isAdmin && adminSchedulesQuery.isLoading);
+  const isFetching = isFetchingCurrentUser || (isAdmin && adminSchedulesQuery.isFetching);
+  const isError = currentUser
+    ? isAdmin && adminSchedulesQuery.isError
+    : Boolean(currentUserError);
+  const refetchSchedules = () => {
+    if (!currentUser) {
+      void refetchCurrentUser();
+    } else if (isAdmin) {
+      void adminSchedulesQuery.refetch();
+    }
+  };
   const data = useMemo(
     () => getSchedulesInDateRange(matrix ?? EMPTY_MATRIX, dateRange),
     [dateRange, matrix],
@@ -83,6 +101,10 @@ export function ScheduleCalendarView() {
   const totalDoctors = new Set(
     filteredSchedules.map((schedule) => schedule.doctorId),
   ).size;
+
+  if (currentUser && !isAdmin) {
+    return <MyScheduleCalendar user={currentUser} />;
+  }
 
   return (
     <div className="mx-auto w-full max-w-7xl">

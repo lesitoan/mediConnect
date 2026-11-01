@@ -36,6 +36,8 @@ import type { RejectLeaveRequestDto } from './dto/admin/reject-leave-request.dto
 import type { WorkScheduleQueryDto } from './dto/admin/work-schedule-query.dto';
 import type { LeaveRequestQueryDto } from './dto/admin/leave-request-query.dto';
 import type { CreateLeaveRequestDto } from './dto/staff/create-leave-request.dto';
+import type { LeaveImpactQueryDto } from './dto/staff/leave-impact-query.dto';
+import type { WorkScheduleMatrixQueryDto } from './dto/staff/work-schedule-matrix-query.dto';
 import type { ProposeScheduleExceptionDto } from './dto/admin/propose-schedule-exception.dto';
 import type { RespondScheduleExceptionDto } from './dto/patient/respond-schedule-exception.dto';
 import { SchedulesRepository } from './schedules.repository';
@@ -299,7 +301,10 @@ export class SchedulesService {
     });
   }
 
-  async getWorkScheduleMatrix(query: WorkScheduleQueryDto) {
+  async getWorkScheduleMatrix(
+    query: Pick<WorkScheduleQueryDto, 'from' | 'to' | 'staffType'>,
+    staffUserId?: string,
+  ) {
     const startDate = clinicDateStart(query.from.slice(0, 10));
     const lastDate = clinicDateStart(query.to.slice(0, 10));
     const until = new Date(lastDate.getTime() + 86400000);
@@ -309,12 +314,12 @@ export class SchedulesService {
     )
       throw new BadRequestException('Khoảng xem lịch phải từ 1 đến 31 ngày.');
 
-    const staff = await this.repository.findActiveClinicStaff();
+    const staff = await this.repository.findActiveClinicStaff(staffUserId);
     const users = staff.filter(
       (item) =>
         item.role && (!query.staffType || item.role.name === query.staffType),
     );
-    const leaves = await this.repository.findActiveLeaveRequests(
+    const leaves = await this.repository.findApprovedLeaveRequests(
       users.map((item) => item.id),
       users.flatMap((item) => (item.doctor ? [item.doctor.id] : [])),
       startDate,
@@ -348,7 +353,7 @@ export class SchedulesService {
               `${date}T${shift.startsAt}:00+07:00`,
             );
             const shiftEndsAt = new Date(`${date}T${shift.endsAt}:00+07:00`);
-            const overlappingLeaves = leaves.filter(
+            const hasApprovedLeave = leaves.some(
               (leaveRequest) =>
                 (leaveRequest.staffUserId === staffMember.id ||
                   (staffMember.doctor &&
@@ -357,25 +362,24 @@ export class SchedulesService {
                 leaveRequest.endsAt !== null &&
                 leaveRequest.endsAt > shiftStartsAt,
             );
-            const status = overlappingLeaves.some(
-              (leaveRequest) =>
-                leaveRequest.status === LeaveRequestStatus.APPROVED,
-            )
-              ? 'ABSENT'
-              : overlappingLeaves.length
-                ? 'RESOLVING'
-                : 'PUBLISHED';
             return {
               date,
               key: shift.key,
               startsAt: shiftStartsAt.toISOString(),
               endsAt: shiftEndsAt.toISOString(),
-              status,
+              status: hasApprovedLeave ? 'ABSENT' : 'PUBLISHED',
             };
           }),
         ),
       })),
     };
+  }
+
+  getOwnWorkScheduleMatrix(
+    query: WorkScheduleMatrixQueryDto,
+    user: CurrentUserDto,
+  ) {
+    return this.getWorkScheduleMatrix(query, user.id);
   }
 
   async getWorkSchedule(id: string) {
@@ -517,6 +521,45 @@ export class SchedulesService {
 
   async listOwnWorkSchedules(user: CurrentUserDto) {
     return this.repository.findWorkSchedules({ staffUserId: user.id });
+  }
+
+  async previewOwnLeaveImpact(
+    query: LeaveImpactQueryDto,
+    user: CurrentUserDto,
+  ) {
+    const startsAt = this.parseDate(query.startsAt, 'startsAt');
+    const endsAt = this.parseDate(query.endsAt, 'endsAt');
+    if (endsAt <= startsAt)
+      throw new BadRequestException('Invalid leave range');
+
+    const staff = await this.repository.findStaffUser(user.id);
+    if (
+      !staff ||
+      ![StaffType.DOCTOR, StaffType.RECEPTIONIST].includes(
+        staff.role?.name as StaffType,
+      )
+    )
+      throw new ForbiddenException(
+        'Only doctors and receptionists can preview leave impact',
+      );
+
+    if (!staff.doctor) return { affectedSessions: [] };
+
+    const affectedSessions = await this.repository.findAffectedCareSessions(
+      staff.doctor.id,
+      startsAt,
+      endsAt,
+    );
+    return {
+      affectedSessions: affectedSessions.map((session) => ({
+        id: session.id,
+        appointmentCode: session.appointment.appointmentCode,
+        startsAt: session.appointmentSlot.startsAt,
+        endsAt: session.appointmentSlot.endsAt,
+        status: session.status,
+        specialtyName: session.specialty.name,
+      })),
+    };
   }
 
   async createLeaveRequest(input: CreateLeaveRequestDto, user: CurrentUserDto) {
