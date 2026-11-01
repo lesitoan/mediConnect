@@ -21,6 +21,7 @@ export const APPROVAL_STATUS_OPTIONS: readonly {
   { value: "ALL", label: "Trạng thái (Tất cả)" },
   { value: "URGENT", label: "Khẩn cấp" },
   { value: "PENDING", label: "Chờ duyệt" },
+  { value: "RESOLVING", label: "Chờ bệnh nhân phản hồi" },
   { value: "APPROVED", label: "Đã duyệt" },
   { value: "REJECTED", label: "Từ chối" },
 ];

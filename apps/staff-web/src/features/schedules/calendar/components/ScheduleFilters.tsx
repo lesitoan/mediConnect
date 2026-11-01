@@ -56,7 +56,7 @@ export function ScheduleFilters({
           <Input
             type="text"
             {...register("search")}
-            placeholder="Tìm bác sĩ..."
+            placeholder="Tìm nhân viên..."
             className="h-9 pl-8.5 text-body bg-surface"
           />
         </div>

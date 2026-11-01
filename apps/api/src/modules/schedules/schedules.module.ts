@@ -13,6 +13,7 @@ import {
 import { SchedulesRepository } from './schedules.repository';
 import { SchedulesService } from './schedules.service';
 import { PublicSchedulesController } from './public-schedules.controller';
+import { PatientScheduleExceptionsController } from './patient-schedule-exceptions.controller';
 
 @Module({
   imports: [DatabaseModule, AuditLogsModule],
@@ -23,6 +24,7 @@ import { PublicSchedulesController } from './public-schedules.controller';
     AdminScheduleExceptionsController,
     StaffSchedulesController,
     StaffLeaveRequestsController,
+    PatientScheduleExceptionsController,
   ],
   providers: [SchedulesRepository, SchedulesService],
   exports: [SchedulesService],

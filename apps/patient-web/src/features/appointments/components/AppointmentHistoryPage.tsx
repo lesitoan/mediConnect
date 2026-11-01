@@ -20,7 +20,10 @@ import {
   ApiRequestError,
   cancelAppointment,
   getMyAppointments,
+  getMyScheduleProposals,
   rescheduleAppointment,
+  respondToScheduleProposal,
+  type ScheduleProposal,
 } from "../services/appointmentsService";
 import AppointmentCard from "./AppointmentCard";
 import {
@@ -57,6 +60,8 @@ export default function AppointmentHistoryPage() {
   }, []);
 
   const [items, setItems] = useState<Appointment[]>([]);
+  const [scheduleProposals, setScheduleProposals] = useState<ScheduleProposal[]>([]);
+  const [respondingProposalId, setRespondingProposalId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -68,9 +73,11 @@ export default function AppointmentHistoryPage() {
   useEffect(() => {
     if (!ready || !user) return;
     let isCurrent = true;
-    getMyAppointments()
-      .then((appointments) => {
-        if (isCurrent) setItems(appointments);
+    Promise.all([getMyAppointments(), getMyScheduleProposals()])
+      .then(([appointments, proposals]) => {
+        if (!isCurrent) return;
+        setItems(appointments);
+        setScheduleProposals(proposals);
       })
       .catch((error: unknown) => {
         if (!isCurrent) return;
@@ -186,6 +193,30 @@ export default function AppointmentHistoryPage() {
     flash(`Đã đổi lịch khám #${reschedule.code} thành công.`);
   };
 
+  const respondToProposal = async (
+    proposal: ScheduleProposal,
+    decision: "ACCEPT" | "REJECT",
+  ) => {
+    setRespondingProposalId(proposal.id);
+    try {
+      await respondToScheduleProposal(proposal.id, decision);
+      flash(
+        decision === "ACCEPT"
+          ? "Đã xác nhận phương án xử lý lịch hẹn."
+          : "Đã từ chối phương án; phòng khám sẽ gửi đề xuất khác.",
+      );
+      reloadAppointments();
+    } catch (error) {
+      flash(
+        error instanceof Error
+          ? error.message
+          : "Không thể phản hồi phương án lịch hẹn.",
+      );
+    } finally {
+      setRespondingProposalId(null);
+    }
+  };
+
   if (!ready) return <div className="min-h-[70vh]" aria-hidden="true" />;
 
   if (!user) {
@@ -279,6 +310,102 @@ export default function AppointmentHistoryPage() {
             <Check className="h-4 w-4" />
             {notice}
           </p>
+        )}
+
+        {scheduleProposals.length > 0 && (
+          <section
+            aria-labelledby="schedule-proposals-heading"
+            className="mt-6 space-y-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 sm:p-5"
+          >
+            <div>
+              <h2
+                id="schedule-proposals-heading"
+                className="text-base font-extrabold text-slate-900"
+              >
+                Phương án lịch hẹn cần xác nhận
+              </h2>
+              <p className="mt-1 text-xs text-slate-600">
+                Lịch nghỉ của bác sĩ chỉ được duyệt sau khi bạn phản hồi từng phương án.
+              </p>
+            </div>
+            {scheduleProposals.map((proposal) => {
+              const reassignment = proposal.reassignments[0];
+              const replacementSlot = reassignment?.toSlot;
+              const startsAt = replacementSlot?.startsAt;
+              const replacementDoctor =
+                replacementSlot?.doctorSchedule.doctor;
+              const originalSlot = proposal.careSession.appointmentSlot;
+              const dateTime = startsAt
+                ? new Intl.DateTimeFormat("vi-VN", {
+                    dateStyle: "full",
+                    timeStyle: "short",
+                    timeZone: "Asia/Ho_Chi_Minh",
+                  }).format(new Date(startsAt))
+                : null;
+              return (
+                <article
+                  key={proposal.id}
+                  className="rounded-xl border border-amber-200 bg-white p-4"
+                >
+                  <p className="text-sm font-bold text-slate-900">
+                    Lịch hẹn #{proposal.careSession.appointment.appointmentCode}
+                  </p>
+                  {proposal.resolution === "CANCELLED" ? (
+                    <p className="mt-1 text-sm text-slate-700">
+                      Phòng khám đề xuất hủy lịch này.
+                    </p>
+                  ) : (
+                    <div className="mt-1 text-sm text-slate-700">
+                      <p>
+                        Phòng khám đề xuất {dateTime ?? "đổi lịch"} với{" "}
+                        {replacementDoctor?.user.fullName ?? "bác sĩ thay thế"}.
+                      </p>
+                      {replacementDoctor?.specialty.name && (
+                        <p className="text-xs text-slate-500">
+                          {replacementDoctor.specialty.name}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  {originalSlot && (
+                    <p className="mt-1 text-xs text-slate-500">
+                      Lịch cũ:{" "}
+                      {new Intl.DateTimeFormat("vi-VN", {
+                        dateStyle: "short",
+                        timeStyle: "short",
+                        timeZone: "Asia/Ho_Chi_Minh",
+                      }).format(new Date(originalSlot.startsAt))}
+                    </p>
+                  )}
+                  {proposal.reason && (
+                    <p className="mt-2 text-xs text-slate-600">
+                      Ghi chú: {proposal.reason}
+                    </p>
+                  )}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void respondToProposal(proposal, "ACCEPT")}
+                      disabled={respondingProposalId === proposal.id}
+                      className="rounded-full bg-[#0A5A84] px-4 py-2 text-xs font-bold text-white disabled:opacity-60"
+                    >
+                      {proposal.resolution === "CANCELLED"
+                        ? "Xác nhận hủy lịch"
+                        : "Đồng ý phương án"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void respondToProposal(proposal, "REJECT")}
+                      disabled={respondingProposalId === proposal.id}
+                      className="rounded-full border border-slate-300 px-4 py-2 text-xs font-bold text-slate-700 disabled:opacity-60"
+                    >
+                      Từ chối phương án
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
+          </section>
         )}
 
         {/* Tab + bộ lọc */}

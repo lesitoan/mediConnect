@@ -67,6 +67,37 @@ type ApiResponse<T> = {
   data: T;
 };
 
+export type ScheduleProposal = {
+  id: string;
+  reason: string | null;
+  resolution: "REASSIGNED" | "RESCHEDULED" | "CANCELLED" | null;
+  careSession: {
+    appointment: { appointmentCode: string };
+    appointmentSlot: {
+      startsAt: string;
+      endsAt: string;
+      doctorSchedule: {
+        doctor: {
+          user: { fullName: string };
+          specialty: { name: string };
+        };
+      };
+    } | null;
+  };
+  reassignments: Array<{
+    toSlot: {
+      startsAt: string;
+      endsAt: string;
+      doctorSchedule: {
+        doctor: {
+          user: { fullName: string };
+          specialty: { name: string };
+        };
+      };
+    } | null;
+  }>;
+};
+
 export class ApiRequestError extends Error {
   constructor(
     message: string,
@@ -275,6 +306,20 @@ export async function getMyAppointments(): Promise<Appointment[]> {
   return appointments.map((appointment) =>
     mapPatientAppointment(appointment, now),
   );
+}
+
+export function getMyScheduleProposals() {
+  return request<ScheduleProposal[]>("/me/schedule-proposals");
+}
+
+export function respondToScheduleProposal(
+  proposalId: string,
+  decision: "ACCEPT" | "REJECT",
+) {
+  return request(`/me/schedule-proposals/${encodeURIComponent(proposalId)}/respond`, {
+    method: "POST",
+    body: JSON.stringify({ decision }),
+  });
 }
 
 export function cancelAppointment(appointmentId: string) {

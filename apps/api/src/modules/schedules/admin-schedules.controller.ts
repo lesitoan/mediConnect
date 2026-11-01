@@ -59,6 +59,13 @@ export class AdminSchedulesController {
     );
   }
 
+  @Get('matrix')
+  async matrix(@Query() query: WorkScheduleQueryDto) {
+    return new ApiResponseDto(
+      await this.schedulesService.getWorkScheduleMatrix(query),
+    );
+  }
+
   @Get(':id')
   async get(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
     return new ApiResponseDto(await this.schedulesService.getWorkSchedule(id));

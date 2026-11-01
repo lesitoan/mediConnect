@@ -1,22 +1,16 @@
 "use client";
 
-import { Download, Upload, Plus } from "lucide-react";
+import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface ScheduleCalendarHeaderProps {
-  draftCount?: number;
   isBusy?: boolean;
   onExport: () => void;
-  onOpenPublishModal: () => void;
-  onOpenCreateModal: () => void;
 }
 
 export function ScheduleCalendarHeader({
-  draftCount = 0,
   isBusy = false,
   onExport,
-  onOpenPublishModal,
-  onOpenCreateModal,
 }: ScheduleCalendarHeaderProps) {
   return (
     <div className="flex flex-col gap-4 pb-5 sm:flex-row sm:items-center sm:justify-between">
@@ -38,26 +32,6 @@ export function ScheduleCalendarHeader({
           <span>Xuất Excel / PDF</span>
         </Button>
 
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onOpenPublishModal}
-          disabled={isBusy || draftCount === 0}
-          className="h-9 gap-2 rounded-app-lg border-border-strong bg-surface px-4 text-body font-semibold text-foreground shadow-xs hover:bg-surface-hover"
-        >
-          <Upload className="size-3.5 text-muted" />
-          <span>Công bố lịch</span>
-        </Button>
-
-        <Button
-          type="button"
-          onClick={onOpenCreateModal}
-          disabled={isBusy}
-          className="h-9 gap-2 rounded-app-lg bg-primary px-5 text-body font-semibold text-primary-foreground shadow-xs hover:bg-primary-hover"
-        >
-          <Plus className="size-4" />
-          <span>+ Xếp lịch mới</span>
-        </Button>
       </div>
     </div>
   );

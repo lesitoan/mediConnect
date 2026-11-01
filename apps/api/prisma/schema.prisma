@@ -774,6 +774,7 @@ enum LeaveRequestSource {
 
 enum LeaveRequestStatus {
   PENDING
+  RESOLVING
   APPROVED
   REJECTED
   CANCELLED

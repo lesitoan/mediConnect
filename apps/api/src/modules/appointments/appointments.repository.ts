@@ -1,9 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { Prisma } from '../../generated/prisma/client';
-import {
-  CareSessionStatus,
-  DoctorScheduleStatus,
-} from '../../generated/prisma/enums';
+import { CareSessionStatus } from '../../generated/prisma/enums';
 import { PrismaService } from '../database/services/prisma.service';
 
 type DatabaseClient = PrismaService | Prisma.TransactionClient;
@@ -48,43 +45,6 @@ export class AppointmentsRepository {
 
   findPatientByUserId(userId: string) {
     return this.prisma.patient.findUnique({ where: { userId } });
-  }
-
-  findAvailableSlots(
-    dateStart: Date,
-    dateEnd: Date,
-    specialtyId?: string,
-    doctorId?: string,
-  ) {
-    return this.prisma.appointmentSlot.findMany({
-      where: {
-        startsAt: { gte: dateStart, lt: dateEnd },
-        isBlocked: false,
-        doctorSchedule: {
-          status: DoctorScheduleStatus.PUBLISHED,
-          doctor: {
-            isActive: true,
-            ...(doctorId ? { id: doctorId } : {}),
-            ...(specialtyId ? { specialtyId } : {}),
-            user: { status: 'ACTIVE', deletedAt: null },
-          },
-        },
-      },
-      include: {
-        careSessions: {
-          where: {
-            status: {
-              notIn: [CareSessionStatus.CANCELLED, CareSessionStatus.NO_SHOW],
-            },
-          },
-          select: { id: true },
-        },
-        doctorSchedule: {
-          include: { doctor: { include: { user: true, specialty: true } } },
-        },
-      },
-      orderBy: [{ startsAt: 'asc' }],
-    });
   }
 
   findSlotForBooking(slotId: string, client: DatabaseClient = this.prisma) {

@@ -1,23 +1,12 @@
 import type {
-  AdminDoctor,
   DoctorScheduleRow,
   ScheduleCalendarData,
   ScheduleDateRange,
   ScheduleShift,
   ScheduleTableFilterValues,
-  WorkSchedule,
+  WorkScheduleMatrixResponse,
 } from "../types/scheduleTypes";
-import { getScheduleDates, getScheduleDayOfWeek } from "../utils";
-
-const API_DAY_OF_WEEK: Record<string, number> = {
-  MON: 1,
-  TUE: 2,
-  WED: 3,
-  THU: 4,
-  FRI: 5,
-  SAT: 6,
-  SUN: 7,
-};
+import { getScheduleDayOfWeek } from "../utils";
 
 const TIME_FORMATTER = new Intl.DateTimeFormat("en-GB", {
   timeZone: "Asia/Ho_Chi_Minh",
@@ -45,87 +34,46 @@ function getInitials(name: string) {
     .toLocaleUpperCase("vi");
 }
 
-function isScheduleInDateRange(
-  schedule: WorkSchedule,
-  dates: string[],
-  dateRange: ScheduleDateRange,
-) {
-  if (schedule.status !== "DRAFT" && schedule.status !== "PUBLISHED") {
-    return false;
-  }
-  return dates.some((date) => {
-    const weekday = API_DAY_OF_WEEK[getScheduleDayOfWeek(date)];
-    return (
-      weekday === schedule.dayOfWeek &&
-      date >= schedule.effectiveFrom.slice(0, 10) &&
-      (!schedule.effectiveTo ||
-        date <= schedule.effectiveTo.slice(0, 10)) &&
-      date >= dateRange.startDate &&
-      date <= dateRange.endDate
-    );
-  });
-}
-
 export function getSchedulesInDateRange(
-  workSchedules: WorkSchedule[],
-  doctors: AdminDoctor[],
+  matrix: WorkScheduleMatrixResponse,
   dateRange: ScheduleDateRange,
 ): ScheduleCalendarData {
-  const dates = getScheduleDates(dateRange);
-  const doctorByUserId = new Map(
-    doctors.map((doctor) => [doctor.userId, doctor]),
-  );
-  const schedules = workSchedules.flatMap((schedule): DoctorScheduleRow[] => {
-    if (
-      (schedule.status !== "DRAFT" && schedule.status !== "PUBLISHED") ||
-      !isScheduleInDateRange(schedule, dates, dateRange)
-    ) {
-      return [];
-    }
+  const schedules = matrix.staff
+    .map((staffMember): DoctorScheduleRow => {
+      const shifts: DoctorScheduleRow["shifts"] = {};
+      for (const shift of staffMember.shifts) {
+        if (shift.date < dateRange.startDate || shift.date > dateRange.endDate) {
+          continue;
+        }
+        const dayOfWeek = getScheduleDayOfWeek(shift.date);
+        const scheduleShift: ScheduleShift = {
+          id: `${staffMember.userId}-${shift.date}-${shift.key}`,
+          doctorId: staffMember.userId,
+          dayOfWeek,
+          date: shift.date,
+          shiftName: shift.key === "MORNING" ? "Ca sáng" : "Ca chiều",
+          shiftStatus: shift.status,
+          timeRange: `${getTimeLabel(shift.startsAt)} – ${getTimeLabel(
+            shift.endsAt,
+          )}`,
+        };
+        shifts[dayOfWeek] = [...(shifts[dayOfWeek] ?? []), scheduleShift];
+      }
 
-    const doctor = doctorByUserId.get(schedule.staffUserId);
-    if (!doctor) return [];
-
-    const date = dates.find((candidate) => {
-      const weekday = API_DAY_OF_WEEK[getScheduleDayOfWeek(candidate)];
-      return (
-        weekday === schedule.dayOfWeek &&
-        candidate >= schedule.effectiveFrom.slice(0, 10) &&
-        (!schedule.effectiveTo ||
-          candidate <= schedule.effectiveTo.slice(0, 10))
-      );
-    });
-    if (!date) return [];
-
-    const dayOfWeek = getScheduleDayOfWeek(date);
-    const shift: ScheduleShift = {
-      id: schedule.id,
-      doctorId: doctor.id,
-      dayOfWeek,
-      date,
-      scheduleType: schedule.scheduleType,
-      shiftStatus: schedule.status,
-      timeRange: `${getTimeLabel(schedule.startsAt)} – ${getTimeLabel(
-        schedule.endsAt,
-      )}`,
-    };
-
-    return [
-      {
-        scheduleId: schedule.id,
-        doctorId: doctor.id,
-        doctorCode: doctor.doctorCode,
-        doctorName: doctor.user.fullName,
-        specialtyName: doctor.specialty.name,
-        initials: getInitials(doctor.user.fullName),
-        shifts: { [dayOfWeek]: shift },
-      },
-    ];
-  });
-  const shifts = schedules.flatMap((doctor) =>
-    Object.values(doctor.shifts).filter(
-      (shift): shift is ScheduleShift => Boolean(shift),
-    ),
+      return {
+        scheduleId: staffMember.userId,
+        doctorId: staffMember.userId,
+        staffType: staffMember.staffType,
+        doctorCode: staffMember.staffCode,
+        doctorName: staffMember.fullName,
+        specialtyName: staffMember.specialtyName,
+        initials: getInitials(staffMember.fullName),
+        shifts,
+      };
+    })
+    .sort((left, right) => left.doctorName.localeCompare(right.doctorName, "vi"));
+  const shifts = schedules.flatMap((schedule) =>
+    Object.values(schedule.shifts).flatMap((dayShifts) => dayShifts ?? []),
   );
 
   return {
@@ -135,8 +83,11 @@ export function getSchedulesInDateRange(
       publishedShifts: shifts.filter(
         (shift) => shift.shiftStatus === "PUBLISHED",
       ).length,
-      draftShifts: shifts.filter((shift) => shift.shiftStatus === "DRAFT")
+      absentShifts: shifts.filter((shift) => shift.shiftStatus === "ABSENT")
         .length,
+      resolvingShifts: shifts.filter(
+        (shift) => shift.shiftStatus === "RESOLVING",
+      ).length,
     },
   };
 }
@@ -153,9 +104,9 @@ export function filterSchedules(
     }
     if (
       filters.status !== "ALL" &&
-      !Object.values(schedule.shifts).some(
-        (shift) => shift?.shiftStatus === filters.status,
-      )
+      !Object.values(schedule.shifts)
+        .flatMap((dayShifts) => dayShifts ?? [])
+        .some((shift) => shift.shiftStatus === filters.status)
     ) {
       return false;
     }

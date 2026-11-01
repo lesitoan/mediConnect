@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -10,7 +9,6 @@ import {
   CareSessionStatus,
 } from '../../generated/prisma/enums';
 import type { CurrentUserDto } from '../users/dto/responses/current-user.dto';
-import type { AvailabilityQueryDto } from './dto/patient/availability-query.dto';
 import type { BookAppointmentDto } from './dto/patient/book-appointment.dto';
 import type { CancelAppointmentDto } from './dto/patient/cancel-appointment.dto';
 import type { RescheduleAppointmentDto } from './dto/patient/reschedule-appointment.dto';
@@ -19,9 +17,6 @@ import { AppointmentsRepository } from './appointments.repository';
 const MIN_BOOKING_NOTICE_HOURS = 2;
 const APPOINTMENT_CHANGE_CUTOFF_HOURS = 12;
 const MAX_RESCHEDULE_COUNT = 2;
-type AppointmentSlotForResponse = NonNullable<
-  Awaited<ReturnType<AppointmentsRepository['findSlotForBooking']>>
->;
 const ACTIVE_SLOT_SESSION_STATUSES = [
   CareSessionStatus.SCHEDULED,
   CareSessionStatus.CHECKED_IN,
@@ -37,31 +32,6 @@ const ACTIVE_SLOT_SESSION_STATUSES = [
 export class AppointmentsService {
   constructor(private readonly repository: AppointmentsRepository) {}
 
-  async getAvailability(query: AvailabilityQueryDto) {
-    const date = this.parseDate(query.date);
-    const dateStart = new Date(date);
-    dateStart.setHours(0, 0, 0, 0);
-    const dateEnd = new Date(dateStart);
-    dateEnd.setDate(dateEnd.getDate() + 1);
-
-    const slots = await this.repository.findAvailableSlots(
-      dateStart,
-      dateEnd,
-      query.specialtyId,
-      query.doctorId,
-    );
-    const minimumStart = new Date(
-      Date.now() + MIN_BOOKING_NOTICE_HOURS * 60 * 60 * 1000,
-    );
-
-    return slots
-      .filter(
-        (slot) =>
-          slot.startsAt >= minimumStart && slot.careSessions.length === 0,
-      )
-      .map((slot) => this.toSlotResponse(slot));
-  }
-
   async book(input: BookAppointmentDto, user: CurrentUserDto) {
     const patient = await this.requirePatient(user.id);
     const now = new Date();
@@ -75,6 +45,12 @@ export class AppointmentsService {
           );
           if (!slot) throw new NotFoundException('Appointment slot not found');
           this.assertBookableSlot(slot, now);
+          await this.assertSlotOutsideLeave(
+            client,
+            slot.doctorSchedule.doctorId,
+            slot.startsAt,
+            slot.endsAt,
+          );
 
           const overlapping = await client.careSession.count({
             where: {
@@ -165,6 +141,12 @@ export class AppointmentsService {
         if (!newSlot)
           throw new NotFoundException('New appointment slot not found');
         this.assertBookableSlot(newSlot, new Date());
+        await this.assertSlotOutsideLeave(
+          client,
+          newSlot.doctorSchedule.doctorId,
+          newSlot.startsAt,
+          newSlot.endsAt,
+        );
 
         const overlapping = await client.careSession.count({
           where: {
@@ -241,6 +223,26 @@ export class AppointmentsService {
     return patient;
   }
 
+  private async assertSlotOutsideLeave(
+    client: import('../../generated/prisma/client').Prisma.TransactionClient,
+    doctorId: string,
+    startsAt: Date,
+    endsAt: Date,
+  ) {
+    const conflictingLeave = await client.leaveRequest.count({
+      where: {
+        doctorId,
+        status: { in: ['RESOLVING', 'APPROVED'] },
+        startsAt: { lt: endsAt },
+        endsAt: { gt: startsAt },
+      },
+    });
+    if (conflictingLeave > 0)
+      throw new ConflictException(
+        'Appointment slot is blocked by a leave request',
+      );
+  }
+
   private assertBookableSlot(
     slot: Awaited<ReturnType<AppointmentsRepository['findSlotForBooking']>>,
     now: Date,
@@ -314,26 +316,6 @@ export class AppointmentsService {
       throw new ConflictException(
         'Appointment can only be cancelled at least 12 hours before examination',
       );
-  }
-
-  private toSlotResponse(slot: AppointmentSlotForResponse) {
-    return {
-      id: slot.id,
-      startsAt: slot.startsAt,
-      endsAt: slot.endsAt,
-      doctor: {
-        id: slot.doctorSchedule.doctor.id,
-        name: slot.doctorSchedule.doctor.user.fullName,
-        specialty: slot.doctorSchedule.doctor.specialty,
-      },
-    };
-  }
-
-  private parseDate(value: string) {
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime()))
-      throw new BadRequestException('Invalid date');
-    return date;
   }
 
   private createAppointmentCode() {

@@ -35,7 +35,7 @@ export function ScheduleWeeklyGrid({
           <div className="flex border-b border-border bg-secondary/40 text-caption font-semibold text-muted">
             <div className="flex w-[220px] shrink-0 items-center justify-between px-3.5 py-3">
               <span className="font-bold text-foreground">
-                Bác sĩ / Chuyên khoa
+                Nhân viên / Chuyên khoa
               </span>
               <span className="text-label font-normal text-muted">
                 {totalDoctors}
@@ -75,6 +75,10 @@ export function ScheduleWeeklyGrid({
                       {row.doctorName}
                     </span>
                     <div className="flex items-center gap-1.5 text-caption">
+                      <span className="text-muted">
+                        {row.staffType === "DOCTOR" ? "Bác sĩ" : "Lễ tân"}
+                      </span>
+                      <span className="text-muted">·</span>
                       <span className="font-mono font-medium text-primary">
                         {row.doctorCode}
                       </span>
@@ -86,10 +90,10 @@ export function ScheduleWeeklyGrid({
                   </div>
                 </div>
                 {dates.map((date) => {
-                  const shift =
-                    Object.values(row.shifts).find(
-                      (shift) => shift?.date === date,
-                    ) ?? null;
+                  const dayShifts =
+                    Object.values(row.shifts)
+                      .flatMap((shifts) => shifts ?? [])
+                      .filter((shift) => shift.date === date) ?? [];
                   return (
                     <div
                       key={date}
@@ -99,9 +103,9 @@ export function ScheduleWeeklyGrid({
                           "border-primary/20 bg-brand-secondary-light/20",
                       )}
                     >
-                      <ScheduleShiftCard
-                        shift={shift}
-                      />
+                      {dayShifts.map((shift) => (
+                        <ScheduleShiftCard key={shift.id} shift={shift} />
+                      ))}
                     </div>
                   );
                 })}
