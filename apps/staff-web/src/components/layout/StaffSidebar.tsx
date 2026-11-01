@@ -12,8 +12,6 @@ import {
   AlertTriangle,
   History,
   Settings,
-  Phone,
-  ArrowUpRight,
   ShieldCheck,
   X,
   ChevronDown,

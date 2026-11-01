@@ -1,28 +1,33 @@
-import type { User, UserRole, UserStatus } from "./types/userTypes";
-export { getApiErrorMessage as userErrorMessage } from "@/lib/api/apiErrorMessage";
+
+import type { UserRole, UserStatus } from "./types/userTypes";
+
 
 export function getUserRoleLabel(role: UserRole): string {
-  return (
-    {
-      ADMIN: "Quản trị viên",
-      DOCTOR: "Bác sĩ",
-      RECEPTIONIST: "Lễ tân",
-      PATIENT: "Bệnh nhân",
-    }[role] ?? role
-  );
+  switch (role) {
+    case "SUPER_ADMIN":
+      return "Super ad";
+    case "ADMIN":
+      return "Quản trị viên";
+    case "DOCTOR":
+      return "Bác sĩ";
+    case "RECEPTIONIST":
+      return "Lễ tân";
+    case "PATIENT":
+      return "Bệnh nhân";
+    default:
+      return role;
+  }
 }
+
 export function getUserStatusLabel(status: UserStatus): string {
-  return (
-    {
-      ACTIVE: "Hoạt động",
-      PENDING_VERIFICATION: "Chờ xác thực",
-      LOCKED: "Đã khóa",
-    }[status] ?? status
-  );
-}
-export function canManageUser(user: User): boolean {
-  return ["ADMIN", "RECEPTIONIST", "DOCTOR", "PATIENT"].includes(user.role);
-}
-export function canChangeUserStatus(user: User): boolean {
-  return canManageUser(user) && user.role !== "PATIENT" && !user.isCurrentUser;
+  switch (status) {
+    case "ACTIVE":
+      return "Hoạt động";
+    case "PENDING_OTP":
+      return "Chờ duyệt";
+    case "LOCKED":
+      return "Đã khóa";
+    default:
+      return status;
+  }
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { Bell, ChevronRight, LogOut, Menu } from "lucide-react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { toast } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,7 +16,6 @@ interface StaffHeaderProps {
 
 export function StaffHeader({ onToggleSidebar }: StaffHeaderProps) {
   const pathname = usePathname();
-  const router = useRouter();
   const { data: currentUser } = useGetCurrentUserQuery();
   const [logout, { isLoading: isLoggingOut }] = useLogoutMutation();
 
