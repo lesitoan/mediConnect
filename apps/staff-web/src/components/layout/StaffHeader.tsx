@@ -1,9 +1,18 @@
 "use client";
 
-import { Bell, ChevronRight, Menu } from "lucide-react";
+import { Bell, ChevronRight, LogOut, Menu } from "lucide-react";
 import { usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { toast } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
-
+import {
+  formatAuthError,
+  useGetAuthUserQuery,
+  useLogoutMutation,
+} from "@/features/auth/services/authApi";
+import { getInitials } from "@/lib/utils";
+import { useAppDispatch } from "@/lib/redux/hooks";
+import { baseApi } from "@/lib/redux/baseApi";
 
 interface StaffHeaderProps {
   onToggleSidebar?: () => void;
@@ -11,9 +20,14 @@ interface StaffHeaderProps {
 
 export function StaffHeader({ onToggleSidebar }: StaffHeaderProps) {
   const pathname = usePathname();
+  const { data: currentUser } = useGetAuthUserQuery();
+  const router = useRouter();
+  const dispatch = useAppDispatch();
+  const [logout, { isLoading: isLoggingOut }] = useLogoutMutation();
 
   const getBreadcrumbLabel = () => {
-    if (pathname.startsWith("/examinations/queue")) return "Hàng chờ khám bác sĩ";
+    if (pathname.startsWith("/examinations/queue"))
+      return "Hàng chờ khám bác sĩ";
     if (pathname.startsWith("/examinations")) return "Quản lý khám bệnh";
     if (pathname.startsWith("/reception")) return "Tiếp nhận bệnh nhân";
     if (pathname.startsWith("/doctors")) return "Bác sĩ & Chuyên khoa";
@@ -24,10 +38,43 @@ export function StaffHeader({ onToggleSidebar }: StaffHeaderProps) {
     if (pathname.startsWith("/exceptions")) return "Xử lý ngoại lệ";
     if (pathname.startsWith("/audit-logs")) return "Nhật ký hệ thống";
     if (pathname.startsWith("/settings")) return "Cài đặt hệ thống";
-    if (pathname.startsWith("/exceptions")) return "Xử lý ngoại lệ";
 
     return "Quản lý lâm sàng";
   };
+
+  const getRoleLabel = (role?: string) => {
+    switch (role) {
+      case "DOCTOR":
+        return "Bác sĩ lâm sàng";
+      case "RECEPTIONIST":
+        return "Lễ tân tiếp đón";
+      case "ADMIN":
+        return "Quản trị viên";
+      default:
+        return "Nhân viên y tế";
+    }
+  };
+
+  const handleLogout = async () => {
+    if (isLoggingOut) return;
+    try {
+      await logout().unwrap();
+    } catch (error) {
+      if ((error as { status?: number })?.status !== 401) {
+        toast.error(
+          formatAuthError(error, "Chưa thể đăng xuất. Vui lòng thử lại."),
+        );
+        return;
+      }
+      dispatch(baseApi.util.resetApiState());
+    }
+    toast.dismiss();
+    router.replace("/login");
+  };
+
+  const displayName = currentUser?.name || "Nhân viên y tế";
+  const roleLabel = getRoleLabel(currentUser?.role);
+  const initials = getInitials(displayName);
 
   return (
     <header className="sticky top-0 z-30 flex h-14 w-full items-center justify-between border-b border-border-strong bg-surface px-4 sm:px-6 shadow-[0_1px_3px_0_rgb(0_0_0/0.03)]">
@@ -43,7 +90,10 @@ export function StaffHeader({ onToggleSidebar }: StaffHeaderProps) {
           <Menu className="size-5" />
         </Button>
 
-        <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-caption">
+        <nav
+          aria-label="Breadcrumb"
+          className="flex items-center gap-2 text-caption"
+        >
           <span className="font-medium text-muted">Tổng quan</span>
           <ChevronRight className="size-3 text-muted" />
           <span className="rounded-app-md bg-primary-light px-2.5 py-1 text-caption font-bold text-primary">
@@ -68,16 +118,29 @@ export function StaffHeader({ onToggleSidebar }: StaffHeaderProps) {
 
         <div className="flex items-center gap-2.5 rounded-app-lg border border-border bg-background/60 px-2.5 py-1">
           <div className="flex size-7.5 items-center justify-center rounded-full bg-primary text-label font-bold text-primary-foreground shadow-xs">
-            KT
+            {initials}
           </div>
           <div className="hidden flex-col text-left sm:flex">
             <span className="text-caption font-bold text-foreground leading-tight">
-              BS. Nguyễn Tuấn Kiệt
+              {displayName}
             </span>
             <span className="text-label font-medium text-primary leading-tight">
-              Quản trị viên
+              {roleLabel}
             </span>
           </div>
+
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            onClick={handleLogout}
+            disabled={isLoggingOut}
+            title="Đăng xuất"
+            aria-label="Đăng xuất"
+            className="ml-1 text-muted hover:text-destructive hover:bg-destructive/10"
+          >
+            <LogOut className="size-3.5" />
+          </Button>
         </div>
       </div>
     </header>
