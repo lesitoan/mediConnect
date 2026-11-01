@@ -58,6 +58,7 @@ const NAV_ITEMS: NavItem[] = [
     href: "/queues",
     icon: Clock,
   },
+  { label: "Quản lý khám bệnh", href: "/examinations", icon: Stethoscope },
   {
     label: "Khám bệnh",
     href: "/consultations",
