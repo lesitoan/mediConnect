@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { List } from "lucide-react";
-import { Button } from "@/components/ui/button";
 
 export function ConsultationHeader() {
   return (
@@ -15,18 +14,14 @@ export function ConsultationHeader() {
           Quản lý các phiên khám trong ca làm việc
         </p>
       </div>
-      <Button
-        asChild
-        type="button"
-        variant="outline"
-        size="sm"
-        className="h-9 gap-1.5 self-start px-3.5 text-caption font-semibold md:self-auto"
+      <Link
+        href="/queues"
+        aria-label="Mở hàng chờ khám"
+        className="inline-flex h-9 items-center gap-1.5 self-start rounded-lg border border-border bg-surface px-3.5 text-caption font-semibold text-foreground shadow-2xs transition-colors hover:bg-item-hover md:self-auto"
       >
-        <Link href="/queues" aria-label="Mở hàng chờ khám">
-          <List className="size-4" />
-          Hàng chờ khám
-        </Link>
-      </Button>
+        <List className="size-4" />
+        Hàng chờ khám
+      </Link>
     </div>
   );
 }

@@ -31,10 +31,6 @@ export function ConsultationTabs({
   const todayLabel = getVietnameseTodayLabel();
 
   useEffect(() => {
-    setLocalSearch(search);
-  }, [search]);
-
-  useEffect(() => {
     const timer = window.setTimeout(() => {
       if (localSearch !== search) onSearchChange(localSearch);
     }, 300);
