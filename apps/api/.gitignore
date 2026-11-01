@@ -8,6 +8,7 @@ docs
 !src/modules/providers/**/*.spec.ts
 !src/modules/audit-logs/**/*.spec.ts
 !src/modules/specialties/**/*.spec.ts
+!src/modules/schedules/**/*.spec.ts
 !src/modules/invoices/**/*.spec.ts
 !src/modules/payments/**/*.spec.ts
 !src/modules/users/services/users-staff-account.service.spec.ts

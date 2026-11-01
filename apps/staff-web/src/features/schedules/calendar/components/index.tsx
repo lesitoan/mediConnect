@@ -6,31 +6,23 @@ import { Button } from "@/components/ui/button";
 import { Empty } from "@/components/ui/Empty";
 import { Loading } from "@/components/shared/Loading";
 import { Pagination } from "@/components/shared/Pagination";
-import { useModal } from "@/hooks/useModal";
 import { useTableFilters } from "@/hooks/useTableFilters";
 import { DEFAULT_FILTERS } from "../constants";
-import {
-  useGetAdminDoctorsQuery,
-  useGetSchedulesQuery,
-} from "../services/schedulesApi";
+import { useGetSchedulesQuery } from "../services/schedulesApi";
 import {
   filterSchedules,
   getSchedulesInDateRange,
 } from "../services/schedulesService";
 import { getScheduleDates, normalizeScheduleDateRange } from "../utils";
 import type {
-  AdminDoctor,
   ScheduleTableFilterValues,
-  WorkSchedule,
+  WorkScheduleMatrixResponse,
 } from "../types/scheduleTypes";
 import { ScheduleCalendarHeader } from "./ScheduleCalendarHeader";
 import { ScheduleFilters } from "./ScheduleFilters";
 import { ScheduleWeeklyGrid } from "./ScheduleWeeklyGrid";
-import { CreateScheduleModal } from "./modals/CreateScheduleModal";
-import { PublishScheduleModal } from "./modals/PublishScheduleModal";
 
-const EMPTY_DOCTORS: AdminDoctor[] = [];
-const EMPTY_WORK_SCHEDULES: WorkSchedule[] = [];
+const EMPTY_MATRIX: WorkScheduleMatrixResponse = { dates: [], staff: [] };
 
 export function ScheduleCalendarView() {
   const { filters, setFilter, setFilters, resetFilters } =
@@ -45,42 +37,27 @@ export function ScheduleCalendarView() {
   );
   const dates = useMemo(() => getScheduleDates(dateRange), [dateRange]);
   const {
-    currentData: workSchedules,
+    currentData: matrix,
     isLoading: isLoadingSchedules,
     isFetching: isFetchingSchedules,
     isError: isSchedulesError,
     refetch: refetchSchedules,
   } = useGetSchedulesQuery(dateRange);
-  const {
-    currentData: doctors,
-    isLoading: isLoadingDoctors,
-    isFetching: isFetchingDoctors,
-    isError: isDoctorsError,
-    refetch: refetchDoctors,
-  } = useGetAdminDoctorsQuery();
-  const isLoading = isLoadingSchedules || isLoadingDoctors;
-  const isFetching = isFetchingSchedules || isFetchingDoctors;
-  const isError = isSchedulesError || isDoctorsError;
+  const isLoading = isLoadingSchedules;
+  const isFetching = isFetchingSchedules;
+  const isError = isSchedulesError;
   const data = useMemo(
-    () =>
-      getSchedulesInDateRange(
-        workSchedules ?? EMPTY_WORK_SCHEDULES,
-        doctors ?? EMPTY_DOCTORS,
-        dateRange,
-      ),
-    [dateRange, doctors, workSchedules],
+    () => getSchedulesInDateRange(matrix ?? EMPTY_MATRIX, dateRange),
+    [dateRange, matrix],
   );
   const schedules = data.schedules;
   const statistics = data.statistics;
-  const createModal = useModal();
-  const publishModal = useModal();
-
   const specialties = useMemo(
     () =>
       Array.from(
-        new Set((doctors ?? []).map((doctor) => doctor.specialty.name)),
+        new Set((matrix?.staff ?? []).map((staff) => staff.specialtyName)),
       ),
-    [doctors],
+    [matrix],
   );
   const filteredSchedules = useMemo(
     () => filterSchedules(schedules, filters),
@@ -103,17 +80,6 @@ export function ScheduleCalendarView() {
     return filteredSchedules.slice(start, start + pageSize);
   }, [filteredSchedules, currentPage, pageSize]);
 
-  const draftScheduleIds = useMemo(
-    () =>
-      schedules
-        .filter((schedule) =>
-          Object.values(schedule.shifts).some(
-            (shift) => shift?.shiftStatus === "DRAFT",
-          ),
-        )
-        .map((schedule) => schedule.scheduleId),
-    [schedules],
-  );
   const totalDoctors = new Set(
     filteredSchedules.map((schedule) => schedule.doctorId),
   ).size;
@@ -121,13 +87,10 @@ export function ScheduleCalendarView() {
   return (
     <div className="mx-auto w-full max-w-7xl">
       <ScheduleCalendarHeader
-        draftCount={draftScheduleIds.length}
         isBusy={isFetching}
         onExport={() =>
           toast.error("Tính năng xuất lịch đang được phát triển.")
         }
-        onOpenCreateModal={() => createModal.open()}
-        onOpenPublishModal={() => publishModal.open()}
       />
       <ScheduleFilters
         filters={filters}
@@ -140,7 +103,7 @@ export function ScheduleCalendarView() {
         className="mt-4 overflow-hidden rounded-app-xl border border-border bg-surface shadow-2xs"
         aria-busy={isFetching}
       >
-        {isLoading || (isFetching && (!workSchedules || !doctors)) ? (
+        {isLoading || (isFetching && !matrix) ? (
           <Loading label="Đang tải lịch làm việc..." className="min-h-[50vh]" />
         ) : isError ? (
           <Empty
@@ -151,7 +114,6 @@ export function ScheduleCalendarView() {
               <Button
                 onClick={() => {
                   void refetchSchedules();
-                  void refetchDoctors();
                 }}
                 disabled={isFetching}
               >
@@ -161,7 +123,7 @@ export function ScheduleCalendarView() {
           />
         ) : filteredSchedules.length === 0 ? (
           <Empty
-            title="Không tìm thấy lịch bác sĩ phù hợp"
+            title="Không tìm thấy nhân viên phù hợp"
             description="Thử thay đổi từ khóa hoặc điều chỉnh bộ lọc."
             action={<Button onClick={resetFilters}>Xóa tất cả bộ lọc</Button>}
           />
@@ -178,24 +140,13 @@ export function ScheduleCalendarView() {
               totalPages={totalPages}
               totalItems={filteredSchedules.length}
               pageSize={pageSize}
-              itemName="quy tắc lịch"
+              itemName="nhân viên"
               onPageChange={(page) => setFilter("page", page)}
               onPageSizeChange={(size) => setFilter("pageSize", size)}
             />
           </>
         )}
       </div>
-      <CreateScheduleModal
-        dates={dates}
-        isOpen={createModal.isOpen}
-        onClose={createModal.close}
-        doctors={doctors ?? EMPTY_DOCTORS}
-      />
-      <PublishScheduleModal
-        isOpen={publishModal.isOpen}
-        onClose={publishModal.close}
-        scheduleIds={draftScheduleIds}
-      />
     </div>
   );
 }

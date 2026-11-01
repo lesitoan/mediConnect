@@ -16,7 +16,7 @@ import { RoleEnum } from '../users/constants/roles.constant';
 import type { CurrentUserDto } from '../users/dto/responses/current-user.dto';
 import { SchedulesService } from './schedules.service';
 import { ConfirmReassignmentDto } from './dto/admin/confirm-reassignment.dto';
-import { ResolveScheduleExceptionDto } from './dto/admin/resolve-schedule-exception.dto';
+import { ProposeScheduleExceptionDto } from './dto/admin/propose-schedule-exception.dto';
 
 @ApiTags('Admin schedule exceptions')
 @Controller('admin/schedule-exceptions')
@@ -50,25 +50,14 @@ export class AdminScheduleExceptionsController {
     );
   }
 
-  @Post(':id/reschedule')
-  async reschedule(
+  @Post(':id/propose')
+  async propose(
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
-    @Body() input: ResolveScheduleExceptionDto,
+    @Body() input: ProposeScheduleExceptionDto,
     @CurrentUser() user: CurrentUserDto,
   ) {
     return new ApiResponseDto(
-      await this.schedulesService.markExceptionForReschedule(id, input, user),
-    );
-  }
-
-  @Post(':id/cancel')
-  async cancel(
-    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
-    @Body() input: ResolveScheduleExceptionDto,
-    @CurrentUser() user: CurrentUserDto,
-  ) {
-    return new ApiResponseDto(
-      await this.schedulesService.cancelScheduleException(id, input, user),
+      await this.schedulesService.proposeScheduleException(id, input, user),
     );
   }
 }

@@ -13,8 +13,12 @@ export function getApprovalStatusLabel(
       return "Đã duyệt";
     case "PENDING":
       return "Chờ duyệt";
+    case "RESOLVING":
+      return "Chờ bệnh nhân phản hồi";
     case "REJECTED":
       return "Từ chối";
+    case "CANCELLED":
+      return "Đã hủy";
     default:
       return status;
   }
@@ -29,8 +33,10 @@ export function getApprovalStatusBadgeVariant(
     case "APPROVED":
       return "success";
     case "PENDING":
+    case "RESOLVING":
       return "warning";
     case "REJECTED":
+    case "CANCELLED":
       return "neutral";
     default:
       return "neutral";

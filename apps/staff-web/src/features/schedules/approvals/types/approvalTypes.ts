@@ -2,7 +2,12 @@ export type ApprovalRequestType =
   "EMERGENCY_LEAVE" | "SWAP_SHIFT" | "PLANNED_LEAVE" | "CROSS_SWAP";
 
 export type ApprovalRequestStatus =
-  "URGENT" | "PENDING" | "APPROVED" | "REJECTED";
+  | "URGENT"
+  | "PENDING"
+  | "RESOLVING"
+  | "APPROVED"
+  | "REJECTED"
+  | "CANCELLED";
 
 export interface ApprovalRequest {
   id: string;
@@ -22,11 +27,50 @@ export interface ApprovalRequest {
   targetDoctorName?: string;
   notes?: string;
   createdAt: string;
+  exceptions?: ApprovalRequestDetails["exceptions"];
+}
+
+export interface ApprovalRequestDetails extends ApprovalRequest {
+  exceptions: Array<{
+    id: string;
+    status: string;
+    resolution: "REASSIGNED" | "RESCHEDULED" | "CANCELLED" | null;
+    careSession: {
+      id: string;
+      status: string;
+      appointment: { id: string; appointmentCode: string };
+      appointmentSlot: {
+        startsAt: string;
+        endsAt: string;
+      } | null;
+    };
+    reassignments: Array<{
+      id: string;
+      status: string;
+      toDoctorId: string | null;
+      toSlotId: string | null;
+    }>;
+  }>;
+}
+
+export interface LeaveImpact {
+  affectedSessions: Array<{
+    id: string;
+    appointmentId: string;
+    appointmentSlot: { startsAt: string; endsAt: string } | null;
+  }>;
+  replacementDoctors: Array<{
+    id: string;
+    doctorCode: string;
+    user: { fullName: string };
+    specialty: { name: string };
+  }>;
 }
 
 export interface ApprovalDecisionInput {
   id: string;
   notes?: string;
+  replacementDoctorId?: string;
 }
 
 export interface ApprovalTableFilterValues {

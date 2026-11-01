@@ -1,8 +1,8 @@
 import { baseApi } from "@/lib/redux/baseApi";
 import type {
-  AdminDoctor,
   CreateScheduleInput,
   ScheduleDateRange,
+  WorkScheduleMatrixResponse,
   WorkSchedule,
 } from "../types/scheduleTypes";
 
@@ -16,66 +16,17 @@ export const schedulesApi = baseApi
   .enhanceEndpoints({ addTagTypes: ["SCHEDULES"] })
   .injectEndpoints({
     endpoints: (build) => ({
-      getSchedules: build.query<WorkSchedule[], ScheduleDateRange>({
+      getSchedules: build.query<WorkScheduleMatrixResponse, ScheduleDateRange>({
         query: (range) => ({
-          url: "/admin/work-schedules",
+          url: "/admin/work-schedules/matrix",
           params: {
             from: range.startDate,
             to: range.endDate,
-            staffType: "DOCTOR",
           },
         }),
-        transformResponse: (response: ApiResponse<WorkSchedule[]>) =>
+        transformResponse: (response: ApiResponse<WorkScheduleMatrixResponse>) =>
           response.data,
         providesTags: [{ type: "SCHEDULES", id: "LIST" }],
-      }),
-      getAdminDoctors: build.query<AdminDoctor[], void>({
-        async queryFn(_arg, _queryApi, _extraOptions, baseQuery) {
-          const doctors: AdminDoctor[] = [];
-          let page = 1;
-
-          while (true) {
-            const result = await baseQuery({
-              url: "/admin/doctors",
-              params: { page, limit: 100 },
-            });
-            if (result.error) return { error: result.error };
-
-            const response = result.data;
-            if (
-              typeof response !== "object" ||
-              response === null ||
-              !("success" in response) ||
-              response.success !== true ||
-              !("data" in response) ||
-              !Array.isArray(response.data) ||
-              !("pagination" in response) ||
-              typeof response.pagination !== "object" ||
-              response.pagination === null ||
-              !("totalPages" in response.pagination) ||
-              typeof response.pagination.totalPages !== "number" ||
-              !Number.isInteger(response.pagination.totalPages) ||
-              response.pagination.totalPages < 0
-            ) {
-              return {
-                error: {
-                  status: "FETCH_ERROR",
-                  message: "Invalid doctor list response",
-                  data: result.data,
-                },
-              };
-            }
-            const pageDoctors = response.data as AdminDoctor[];
-            doctors.push(...pageDoctors);
-
-            const totalPages = response.pagination.totalPages;
-            if (page >= totalPages) {
-              return { data: doctors };
-            }
-            page += 1;
-          }
-        },
-        providesTags: [{ type: "SCHEDULES", id: "DOCTORS" }],
       }),
       createSchedule: build.mutation<WorkSchedule, CreateScheduleInput>({
         query: (data) => ({
@@ -106,7 +57,6 @@ export const schedulesApi = baseApi
 
 export const {
   useGetSchedulesQuery,
-  useGetAdminDoctorsQuery,
   useCreateScheduleMutation,
   usePublishSchedulesMutation,
 } = schedulesApi;

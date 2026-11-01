@@ -3,6 +3,7 @@ import { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../database/services/prisma.service';
 import {
   CareSessionStatus,
+  LeaveRequestStatus,
   StaffWorkScheduleStatus,
 } from '../../generated/prisma/enums';
 import { sqlTable } from '../database/utils/sql-table';
@@ -16,9 +17,31 @@ const LEAVE_REQUEST_INCLUDE = {
   scheduleLinks: { include: { staffWorkSchedule: true } },
   exceptions: {
     include: {
-      careSession: { include: { appointment: true, appointmentSlot: true } },
+      careSession: {
+        include: {
+          appointment: { include: { patient: true } },
+          appointmentSlot: {
+            include: {
+              doctorSchedule: {
+                include: { doctor: { include: { user: true } } },
+              },
+            },
+          },
+        },
+      },
       originalDoctor: { include: { specialty: true, user: true } },
-      reassignments: true,
+      reassignments: {
+        include: {
+          toDoctor: { include: { user: true, specialty: true } },
+          toSlot: {
+            include: {
+              doctorSchedule: {
+                include: { doctor: { include: { user: true } } },
+              },
+            },
+          },
+        },
+      },
     },
   },
 } as const;
@@ -31,6 +54,30 @@ export class SchedulesRepository {
     return this.prisma.user.findUnique({
       where: { id: userId },
       include: { role: true, doctor: { include: { specialty: true } } },
+    });
+  }
+
+  findActiveClinicStaff() {
+    return this.prisma.user.findMany({
+      where: {
+        status: 'ACTIVE',
+        deletedAt: null,
+        role: { name: { in: ['DOCTOR', 'RECEPTIONIST'] } },
+      },
+      include: { role: true, doctor: { include: { specialty: true } } },
+      orderBy: { fullName: 'asc' },
+    });
+  }
+
+  findActiveDoctors() {
+    return this.prisma.doctor.findMany({
+      where: {
+        isActive: true,
+        user: { status: 'ACTIVE', deletedAt: null },
+        specialty: { isActive: true },
+      },
+      include: { user: true },
+      orderBy: { doctorCode: 'asc' },
     });
   }
 
@@ -67,6 +114,32 @@ export class SchedulesRepository {
     return client.doctorSchedule.findFirst({
       where: { doctorId, startsAt, endsAt },
     });
+  }
+
+  findDoctorSlotStarts(
+    client: DatabaseClient,
+    doctorId: string,
+    startsAt: Date,
+    endsAt: Date,
+  ) {
+    return client.appointmentSlot.findMany({
+      where: {
+        startsAt: { gte: startsAt, lt: endsAt },
+        doctorSchedule: { doctorId },
+      },
+      select: { startsAt: true },
+    });
+  }
+
+  lockDoctorScheduleMaterialization(
+    client: Prisma.TransactionClient,
+    doctorId: string,
+    date: Date,
+  ) {
+    const lockKey = `${doctorId}:${date.toISOString().slice(0, 10)}`;
+    return client.$queryRaw(
+      Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${lockKey}))::text`,
+    );
   }
 
   createDoctorSchedule(
@@ -154,6 +227,35 @@ export class SchedulesRepository {
     });
   }
 
+  findActiveLeaveRequests(
+    staffUserIds: string[],
+    doctorIds: string[],
+    startsAt: Date,
+    endsAt: Date,
+  ) {
+    return this.prisma.leaveRequest.findMany({
+      where: {
+        OR: [
+          { staffUserId: { in: staffUserIds } },
+          { doctorId: { in: doctorIds } },
+        ],
+        status: {
+          in: [LeaveRequestStatus.RESOLVING, LeaveRequestStatus.APPROVED],
+        },
+        startsAt: { lt: endsAt },
+        endsAt: { gt: startsAt },
+      },
+      select: {
+        id: true,
+        staffUserId: true,
+        doctorId: true,
+        startsAt: true,
+        endsAt: true,
+        status: true,
+      },
+    });
+  }
+
   findAffectedCareSessions(
     doctorId: string,
     startsAt: Date,
@@ -208,25 +310,13 @@ export class SchedulesRepository {
     });
   }
 
-  findReplacementDoctors(
-    doctorId: string,
-    specialtyId: string,
-    startsAt: Date,
-    endsAt: Date,
-  ) {
+  findReplacementDoctors(doctorId: string, specialtyId: string) {
     return this.prisma.doctor.findMany({
       where: {
         isActive: true,
         specialtyId,
         id: { not: doctorId },
         user: { status: 'ACTIVE', deletedAt: null },
-        schedules: {
-          some: {
-            status: 'PUBLISHED',
-            startsAt: { lt: endsAt },
-            endsAt: { gt: startsAt },
-          },
-        },
       },
       include: { user: true, specialty: true },
       orderBy: { doctorCode: 'asc' },
@@ -288,6 +378,162 @@ export class SchedulesRepository {
     });
   }
 
+  findPatientScheduleExceptions(patientUserId: string) {
+    return this.prisma.scheduleException.findMany({
+      where: {
+        status: 'PROPOSED',
+        careSession: {
+          appointment: { patient: { userId: patientUserId } },
+        },
+      },
+      include: {
+        careSession: {
+          include: {
+            appointment: { select: { id: true, appointmentCode: true } },
+            appointmentSlot: {
+              include: {
+                doctorSchedule: {
+                  include: {
+                    doctor: { include: { user: true, specialty: true } },
+                  },
+                },
+              },
+            },
+          },
+        },
+        reassignments: {
+          where: { status: 'PROPOSED' },
+          include: {
+            toDoctor: { include: { user: true, specialty: true } },
+            toSlot: {
+              include: {
+                doctorSchedule: {
+                  include: {
+                    doctor: { include: { user: true, specialty: true } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  findPatientScheduleException(
+    exceptionId: string,
+    patientUserId: string,
+    client: DatabaseClient = this.prisma,
+  ) {
+    return client.scheduleException.findFirst({
+      where: {
+        id: exceptionId,
+        careSession: {
+          appointment: { patient: { userId: patientUserId } },
+        },
+      },
+      include: {
+        leaveRequest: true,
+        careSession: { include: { appointment: true, appointmentSlot: true } },
+        reassignments: true,
+      },
+    });
+  }
+
+  findProposedReassignment(
+    exceptionId: string,
+    client: DatabaseClient = this.prisma,
+  ) {
+    return client.scheduleReassignment.findFirst({
+      where: {
+        exceptionId,
+        status: 'PROPOSED',
+      },
+      include: {
+        exception: true,
+        fromSlot: true,
+        toSlot: true,
+        toDoctor: true,
+      },
+    });
+  }
+
+  findAppointmentSlot(slotId: string, client: DatabaseClient = this.prisma) {
+    return client.appointmentSlot.findUnique({
+      where: { id: slotId },
+      include: {
+        doctorSchedule: {
+          include: { doctor: { include: { user: true, specialty: true } } },
+        },
+      },
+    });
+  }
+
+  findAvailableReplacementSlotById(
+    slotId: string,
+    doctorId: string,
+    client: DatabaseClient = this.prisma,
+  ) {
+    return client.appointmentSlot.findFirst({
+      where: {
+        id: slotId,
+        isBlocked: false,
+        doctorSchedule: {
+          doctorId,
+          status: 'PUBLISHED',
+          doctor: {
+            isActive: true,
+            user: { status: 'ACTIVE', deletedAt: null },
+            specialty: { isActive: true },
+          },
+        },
+        careSessions: {
+          none: {
+            status: {
+              notIn: [CareSessionStatus.CANCELLED, CareSessionStatus.NO_SHOW],
+            },
+          },
+        },
+      },
+      include: {
+        doctorSchedule: {
+          include: { doctor: { include: { specialty: true } } },
+        },
+      },
+    });
+  }
+
+  countUnresolvedAppointmentExceptions(
+    appointmentId: string,
+    client: DatabaseClient,
+  ) {
+    return client.scheduleException.count({
+      where: {
+        careSession: { appointmentId },
+        status: { not: 'RESOLVED' },
+      },
+    });
+  }
+
+  isSlotBlockedByLeave(
+    doctorId: string,
+    startsAt: Date,
+    endsAt: Date,
+    client: DatabaseClient = this.prisma,
+  ) {
+    return client.leaveRequest.count({
+      where: {
+        doctorId,
+        status: {
+          in: [LeaveRequestStatus.RESOLVING, LeaveRequestStatus.APPROVED],
+        },
+        startsAt: { lt: endsAt },
+        endsAt: { gt: startsAt },
+      },
+    });
+  }
+
   updateScheduleException(
     client: DatabaseClient,
     id: string,
@@ -322,7 +568,47 @@ export class SchedulesRepository {
         id: slotId,
         startsAt,
         endsAt,
-        doctorSchedule: { doctorId, status: 'PUBLISHED' },
+        isBlocked: false,
+        doctorSchedule: {
+          doctorId,
+          status: 'PUBLISHED',
+          doctor: {
+            isActive: true,
+            user: { status: 'ACTIVE', deletedAt: null },
+            specialty: { isActive: true },
+          },
+        },
+        careSessions: {
+          none: {
+            status: {
+              notIn: [CareSessionStatus.CANCELLED, CareSessionStatus.NO_SHOW],
+            },
+          },
+        },
+      },
+    });
+  }
+
+  findAvailableReplacementSlotAt(
+    doctorId: string,
+    startsAt: Date,
+    endsAt: Date,
+    client: DatabaseClient = this.prisma,
+  ) {
+    return client.appointmentSlot.findFirst({
+      where: {
+        startsAt,
+        endsAt,
+        isBlocked: false,
+        doctorSchedule: {
+          doctorId,
+          status: 'PUBLISHED',
+          doctor: {
+            isActive: true,
+            user: { status: 'ACTIVE', deletedAt: null },
+            specialty: { isActive: true },
+          },
+        },
         careSessions: {
           none: {
             status: {
@@ -365,6 +651,23 @@ export class SchedulesRepository {
     return client.appointment.updateMany({
       where: { id: { in: appointmentIds } },
       data: { status: 'PENDING_RESOLUTION' },
+    });
+  }
+
+  findDoctorSchedulesInRange(
+    doctorId: string,
+    startsAt: Date,
+    endsAt: Date,
+    client: DatabaseClient = this.prisma,
+  ) {
+    return client.doctorSchedule.findMany({
+      where: {
+        doctorId,
+        startsAt: { lt: endsAt },
+        endsAt: { gt: startsAt },
+        status: { in: ['DRAFT', 'PUBLISHED'] },
+      },
+      select: { id: true },
     });
   }
 
@@ -425,8 +728,14 @@ export class SchedulesRepository {
           ${input.query.doctorId ? Prisma.sql`AND d.id = ${input.query.doctorId}::uuid` : Prisma.empty}
           AND EXTRACT(HOUR FROM s.starts_at AT TIME ZONE 'Asia/Ho_Chi_Minh') >= ${input.startHour}
           AND EXTRACT(HOUR FROM s.starts_at AT TIME ZONE 'Asia/Ho_Chi_Minh') < ${input.endHour}
+          AND NOT (
+            EXTRACT(HOUR FROM s.starts_at AT TIME ZONE 'Asia/Ho_Chi_Minh') * 60
+              + EXTRACT(MINUTE FROM s.starts_at AT TIME ZONE 'Asia/Ho_Chi_Minh') < 780
+            AND EXTRACT(HOUR FROM s.ends_at AT TIME ZONE 'Asia/Ho_Chi_Minh') * 60
+              + EXTRACT(MINUTE FROM s.ends_at AT TIME ZONE 'Asia/Ho_Chi_Minh') > 720
+          )
           AND NOT EXISTS (SELECT 1 FROM ${sqlTable(this.prisma.schemaName, 'leave_requests')} l WHERE l.doctor_id = d.id
-            AND l.status = 'APPROVED' AND l.starts_at < s.ends_at AND l.ends_at > s.starts_at)
+            AND l.status IN ('RESOLVING', 'APPROVED') AND l.starts_at < s.ends_at AND l.ends_at > s.starts_at)
           AND NOT EXISTS (SELECT 1 FROM ${sqlTable(this.prisma.schemaName, 'care_sessions')} cs
             JOIN ${sqlTable(this.prisma.schemaName, 'appointments')} a ON a.id = cs.appointment_id
             WHERE cs.appointment_slot_id = s.id AND cs.status NOT IN ('CANCELLED', 'NO_SHOW') AND a.status <> 'CANCELLED')
@@ -441,6 +750,8 @@ export class SchedulesRepository {
   }
 
   transaction<T>(callback: (client: Prisma.TransactionClient) => Promise<T>) {
-    return this.prisma.$transaction(callback);
+    return this.prisma.$transaction(callback, {
+      isolationLevel: 'Serializable',
+    });
   }
 }

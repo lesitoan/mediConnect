@@ -14,6 +14,7 @@ import { CurrentUser } from '../authentication/decorators/current-user.decorator
 import { Public } from '../authentication/decorators/public.decorator';
 import { RoleEnum } from '../users/constants/roles.constant';
 import type { CurrentUserDto } from '../users/dto/responses/current-user.dto';
+import { SchedulesService } from '../schedules/schedules.service';
 import { AppointmentsService } from './appointments.service';
 import { AvailabilityQueryDto } from './dto/patient/availability-query.dto';
 import { BookAppointmentDto } from './dto/patient/book-appointment.dto';
@@ -24,13 +25,29 @@ import { RescheduleAppointmentDto } from './dto/patient/reschedule-appointment.d
 @Controller()
 @AuthRole(RoleEnum.PATIENT)
 export class PatientAppointmentsController {
-  constructor(private readonly appointmentsService: AppointmentsService) {}
+  constructor(
+    private readonly appointmentsService: AppointmentsService,
+    private readonly schedulesService: SchedulesService,
+  ) {}
 
   @Get('appointments/availability')
   @Public()
   async availability(@Query() query: AvailabilityQueryDto) {
+    const date = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Ho_Chi_Minh',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date(query.date));
     return new ApiResponseDto(
-      await this.appointmentsService.getAvailability(query),
+      await this.schedulesService.availability({
+        dateFrom: date,
+        dateTo: date,
+        page: 1,
+        limit: 50,
+        ...(query.doctorId ? { doctorId: query.doctorId } : {}),
+        ...(query.specialtyId ? { specialtyId: query.specialtyId } : {}),
+      }),
     );
   }
 

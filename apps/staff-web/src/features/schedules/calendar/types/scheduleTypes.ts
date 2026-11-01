@@ -1,15 +1,15 @@
-export type ShiftStatus = "PUBLISHED" | "DRAFT";
+export type ShiftStatus = "PUBLISHED" | "RESOLVING" | "ABSENT" | "DRAFT";
+export type ScheduleType = "REGULAR" | "SHIFT";
 
 export type DayOfWeek = "MON" | "TUE" | "WED" | "THU" | "FRI" | "SAT" | "SUN";
-
-export type ScheduleType = "REGULAR" | "SHIFT";
 
 export interface ScheduleShift {
   id: string;
   doctorId: string;
   dayOfWeek: DayOfWeek;
   date: string;
-  scheduleType: ScheduleType;
+  shiftName: string;
+  scheduleType?: ScheduleType;
   shiftStatus: ShiftStatus;
   timeRange: string;
 }
@@ -26,11 +26,47 @@ export interface ScheduleShiftCardOption {
 export interface DoctorScheduleRow {
   scheduleId: string;
   doctorId: string;
+  staffType: "DOCTOR" | "RECEPTIONIST";
   doctorCode: string;
   doctorName: string;
   specialtyName: string;
   initials: string;
-  shifts: Partial<Record<DayOfWeek, ScheduleShift | null>>;
+  shifts: Partial<Record<DayOfWeek, ScheduleShift[]>>;
+}
+
+export interface WorkScheduleMatrixResponse {
+  dates: string[];
+  staff: Array<{
+    userId: string;
+    staffType: "DOCTOR" | "RECEPTIONIST";
+    fullName: string;
+    staffCode: string;
+    specialtyName: string;
+    shifts: Array<{
+      date: string;
+      key: "MORNING" | "AFTERNOON";
+      startsAt: string;
+      endsAt: string;
+      status: ShiftStatus;
+    }>;
+  }>;
+}
+
+export interface ScheduleStatistics {
+  totalShifts: number;
+  publishedShifts: number;
+  absentShifts: number;
+  resolvingShifts: number;
+}
+
+export interface ScheduleCalendarData {
+  schedules: DoctorScheduleRow[];
+  statistics: ScheduleStatistics;
+}
+
+export interface ScheduleDateRange {
+  startDate: string;
+  endDate: string;
 }
 
 export interface AdminDoctor {
@@ -53,7 +89,7 @@ export interface WorkSchedule {
   effectiveTo: string | null;
   scheduleType: ScheduleType;
   slotDurationMinutes: number | null;
-  status: "DRAFT" | "PUBLISHED" | "ABSENT" | "CANCELLED";
+  status: ShiftStatus | "CANCELLED";
 }
 
 export interface CreateScheduleInput {
@@ -66,22 +102,6 @@ export interface CreateScheduleInput {
   effectiveTo?: string;
   scheduleType: ScheduleType;
   slotDurationMinutes: number;
-}
-
-export interface ScheduleStatistics {
-  totalShifts: number;
-  publishedShifts: number;
-  draftShifts: number;
-}
-
-export interface ScheduleCalendarData {
-  schedules: DoctorScheduleRow[];
-  statistics: ScheduleStatistics;
-}
-
-export interface ScheduleDateRange {
-  startDate: string;
-  endDate: string;
 }
 
 export interface ScheduleTableFilterValues {
