@@ -165,7 +165,7 @@ export default function AuthedHeader({ user }: { user: SessionUser }) {
                 MEDICONNECT
               </span>
               <span className="mt-0.5 block text-[10px] font-bold uppercase tracking-wider text-[#0A5A84]">
-                Hospital Portal
+                Clinic Portal
               </span>
             </span>
           </Link>

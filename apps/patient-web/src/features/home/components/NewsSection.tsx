@@ -10,7 +10,7 @@ import {
     User,
 } from "@/components/layout/icons";
 
-type Group = "hospital" | "medical" | "digital";
+type Group = "clinic" | "medical" | "digital";
 
 type Article = {
     slug: string;
@@ -24,16 +24,16 @@ type Article = {
 };
 
 const TABS: { key: Group; label: string }[] = [
-    { key: "hospital", label: "Tin Bệnh Viện" },
+    { key: "clinic", label: "Tin Phòng Khám" },
     { key: "medical", label: "Y Học Thường Thức" },
     { key: "digital", label: "Chuyển Đổi Số Y Tế" },
 ];
 
 const ARTICLES: Article[] = [
-    // Tin bệnh viện
+    // Tin phòng khám
     {
         slug: "hoi-thao-ung-dung-tri-tue-nhan-tao",
-        group: "hospital",
+        group: "clinic",
         tag: "Sự kiện nổi bật",
         title: "Hội thảo khoa học quốc tế về ứng dụng trí tuệ nhân tạo trong chẩn đoán hình ảnh can thiệp sớm",
         excerpt:
@@ -44,7 +44,7 @@ const ARTICLES: Article[] = [
     },
     {
         slug: "tang-huyet-ap-lang-lam-viec",
-        group: "hospital",
+        group: "clinic",
         tag: "Tim mạch",
         title: "Dấu hiệu tăng huyết áp thầm lặng người làm việc văn phòng không được bỏ qua",
         excerpt: "",
@@ -54,7 +54,7 @@ const ARTICLES: Article[] = [
     },
     {
         slug: "bmi-che-do-an-dia-trung-hai",
-        group: "hospital",
+        group: "clinic",
         tag: "Dinh dưỡng",
         title: "Cách kiểm soát chỉ số BMI và chế độ ăn Địa Trung Hải cho người tiểu đường",
         excerpt: "",
@@ -64,9 +64,9 @@ const ARTICLES: Article[] = [
     },
     {
         slug: "benh-an-dien-tu-emr",
-        group: "hospital",
+        group: "clinic",
         tag: "Công nghệ",
-        title: "Triển khai thành công hệ thống bệnh án điện tử EMR không giấy tờ trên toàn viện",
+        title: "Triển khai thành công hệ thống bệnh án điện tử EMR không giấy tờ trên toàn hệ thống",
         excerpt: "",
         date: "10/10/2024",
         author: "",
@@ -119,7 +119,7 @@ const ARTICLES: Article[] = [
 ];
 
 export default function NewsSection() {
-    const [tab, setTab] = useState<Group>("hospital");
+    const [tab, setTab] = useState<Group>("clinic");
 
     const list = ARTICLES.filter((a) => a.group === tab);
     const [featured, ...others] = list;

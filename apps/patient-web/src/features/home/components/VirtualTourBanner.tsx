@@ -7,7 +7,7 @@ export default function VirtualTourBanner() {
         <div className="relative overflow-hidden rounded-3xl bg-[#174A8F] shadow-lg">
             <Image
                 src="/images/tour/virtual-tour.png"
-                alt="Tham quan bệnh viện trực tuyến 360°"
+                alt="Tham quan phòng khám trực tuyến 360°"
                 fill
                 sizes="(min-width:1280px) 1216px, 100vw"
                 className="object-cover object-right"
@@ -21,11 +21,11 @@ export default function VirtualTourBanner() {
                 </span>
 
                 <h2 className="mt-4 text-2xl font-extrabold text-white md:text-3xl">
-                    Tham Quan Bệnh Viện Trực Tuyến 360°
+                    Tham Quan Phòng Khám Trực Tuyến 360°
                 </h2>
                 <p className="mt-3 max-w-md text-sm leading-relaxed text-white/90">
-                    Trải nghiệm không gian sảnh đón tiếp hiện đại, phòng phẫu thuật vô
-                    khuẩn áp lực dương và hệ thống phòng nội trú 5 sao ngay tại nhà.
+                    Khám phá không gian tiếp đón, các phòng khám chuyên khoa và hệ
+                    thống trang thiết bị y tế hiện đại ngay tại nhà.
                 </p>
 
                 <Link

@@ -33,6 +33,8 @@
     "test:redis": "node scripts/require-redis-test.cjs",
     "prisma:seed": "prisma db seed",
     "prisma:seed:clinic": "tsx prisma/seed-clinic.ts",
+    "prisma:seed:local-schedules": "tsx prisma/seed-local-schedules.ts",
+    "prisma:seed:patient": "tsx prisma/seed-patient.ts",
     "prisma:seed:staff": "tsx prisma/seed-staff.ts",
     "prisma:migrate": "prisma migrate deploy"
   },

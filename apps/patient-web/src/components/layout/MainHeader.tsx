@@ -62,7 +62,7 @@ export default function MainHeader() {
         <Link href="/" className="flex shrink-0 items-center gap-3">
           <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-[#2B6CB0] to-[#174A8F] shadow">
             <span className="flex h-6 w-6 items-center justify-center rounded-full border-2 border-white text-xs font-bold text-white">
-              H
+              C
             </span>
           </span>
           <span className="leading-tight">
@@ -71,7 +71,7 @@ export default function MainHeader() {
                 MEDICONNECT
               </span>
               <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-emerald-700">
-                Hospital
+                Clinic
               </span>
             </span>
             <span className="hidden text-[11px] font-medium text-slate-500 sm:block">

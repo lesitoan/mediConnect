@@ -23,7 +23,7 @@ type Slide = {
 
 const SLIDES: Slide[] = [
     {
-        badge: "Bệnh viện đa khoa tiêu chuẩn quốc tế",
+        badge: "Phòng khám đa chuyên khoa",
         title: "MediConnect - Khẳng Định Uy Tín Y Khoa Hàng Đầu",
         description:
             "Đồng hành cùng đội ngũ bác sĩ tài năng, trang thiết bị đồng bộ hiện đại và hệ sinh thái khám chữa bệnh chuẩn mực quốc tế.",

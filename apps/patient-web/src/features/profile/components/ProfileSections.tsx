@@ -1,31 +1,28 @@
 "use client";
 
-import Link from "next/link";
-import { useState } from "react";
 import {
   Activity,
   AlertTriangle,
-  Check,
   FileText,
   IdCard,
-  Link2,
   Lock,
   Mail,
-  MapPin,
-  Plus,
   PhoneCall,
-  RefreshCw,
   ShieldCheck,
-  Smartphone,
   Users,
-  Pill,
 } from "@/components/layout/icons";
-import { bmiLabel, bmiOf, PROFILE, type IdentityForm } from "../data";
+import { formatProfileDate, type IdentityForm } from "../data";
+import type {
+  PatientMedicalRecord,
+  PatientProfile,
+} from "../services/patientProfileService";
 
-const card = "scroll-mt-32 rounded-2xl bg-white p-6 shadow-[0_6px_24px_rgba(10,90,132,0.08)]";
+const card =
+  "scroll-mt-32 rounded-2xl bg-white p-6 shadow-[0_6px_24px_rgba(10,90,132,0.08)]";
 const input =
   "w-full rounded-xl border border-slate-200 bg-blue-50/50 px-4 py-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-[#2B6CB0] focus:bg-white focus:ring-2 focus:ring-[#2B6CB0]/20";
-const locked = "w-full rounded-xl border border-slate-200 bg-slate-100 px-4 py-3 text-sm font-bold text-slate-700";
+const locked =
+  "w-full rounded-xl border border-slate-200 bg-slate-100 px-4 py-3 text-sm font-bold text-slate-700";
 
 function SectionHead({
   icon,
@@ -54,9 +51,13 @@ function SectionHead({
   );
 }
 
-const pill = "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold transition";
-
-function Label({ children, right }: { children: React.ReactNode; right?: React.ReactNode }) {
+function Label({
+  children,
+  right,
+}: {
+  children: React.ReactNode;
+  right?: React.ReactNode;
+}) {
   return (
     <div className="mb-1.5 flex items-center justify-between gap-2 text-xs">
       <span className="font-bold text-slate-700">{children}</span>
@@ -68,9 +69,11 @@ function Label({ children, right }: { children: React.ReactNode; right?: React.R
 /* ---------- 1. Định danh & liên hệ ---------- */
 
 export function IdentitySection({
+  profile,
   form,
   onChange,
 }: {
+  profile: PatientProfile;
   form: IdentityForm;
   onChange: <K extends keyof IdentityForm>(k: K, v: IdentityForm[K]) => void;
 }) {
@@ -79,29 +82,14 @@ export function IdentitySection({
       <SectionHead
         icon={<IdCard className="h-4 w-4" />}
         title="1. Thông Tin Định Danh & Liên Hệ"
-        sub="Dữ liệu liên thông Cơ sở Dữ liệu Quốc gia về Dân cư (Đề án 06)"
-        right={
-          <span className={`${pill} border border-slate-200 text-[#0A5A84]`}>
-            <RefreshCw className="h-3 w-3" />
-            Đồng bộ
-          </span>
-        }
+        sub="Thông tin cá nhân được lưu trong hồ sơ MediConnect"
       />
 
       <div className="mt-5 space-y-4">
         <div>
-          <Label
-            right={
-              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-[#2B6CB0]">
-                <Check className="h-3 w-3" />
-                Đã xác thực CCCD
-              </span>
-            }
-          >
-            Họ tên (có dấu theo CCCD)
-          </Label>
+          <Label>Họ tên</Label>
           <div className={`${locked} flex items-center justify-between`}>
-            {PROFILE.fullName}
+            {profile.fullName}
             <Lock className="h-4 w-4 text-slate-400" />
           </div>
         </div>
@@ -110,8 +98,8 @@ export function IdentitySection({
           <div>
             <Label>Số CCCD / Định danh cá nhân</Label>
             <div className={`${locked} flex items-center justify-between`}>
-              {PROFILE.idNumber}
-              <Check className="h-4 w-4 text-[#2B6CB0]" />
+              {profile.nationalId ?? "Chưa cập nhật"}
+              <Lock className="h-4 w-4 text-slate-400" />
             </div>
           </div>
           <div>
@@ -119,73 +107,60 @@ export function IdentitySection({
             <input
               type="date"
               className={input}
-              value={form.dob}
+              value={form.dateOfBirth}
               max={new Date().toISOString().split("T")[0]}
-              onChange={(e) => onChange("dob", e.target.value)}
+              onChange={(e) => onChange("dateOfBirth", e.target.value)}
             />
           </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-[1fr_1fr_1.6fr]">
+        <div className="grid gap-4 md:grid-cols-2">
           <div>
             <Label>Giới tính</Label>
-            <select className={input} value={form.gender} onChange={(e) => onChange("gender", e.target.value)}>
-              <option>Nam</option>
-              <option>Nữ</option>
-              <option>Khác</option>
+            <select
+              className={input}
+              value={form.gender}
+              onChange={(e) => {
+                const gender = e.target.value;
+                onChange(
+                  "gender",
+                  gender === "MALE" || gender === "FEMALE" || gender === "OTHER"
+                    ? gender
+                    : "",
+                );
+              }}
+            >
+              <option value="">Chưa cập nhật</option>
+              <option value="MALE">Nam</option>
+              <option value="FEMALE">Nữ</option>
+              <option value="OTHER">Khác</option>
             </select>
           </div>
           <div>
-            <Label>Dân tộc</Label>
-            <input className={input} value={form.ethnicity} onChange={(e) => onChange("ethnicity", e.target.value)} />
-          </div>
-          <div>
-            <Label
-              right={
-                <Link href="/ho-so-suc-khoe#security" className="text-[11px] font-bold text-[#2B6CB0]">
-                  Đã kích hoạt OTP SMS
-                </Link>
-              }
-            >
-              Số điện thoại di động
-            </Label>
+            <Label>Số điện thoại di động</Label>
             <div className={`${locked} flex items-center justify-between`}>
-              {PROFILE.phone}
-              {/* TODO: đổi SĐT phải xác thực OTP số mới rồi mới lưu (SRS UC01) */}
-              <button type="button" className="text-[11px] font-bold text-[#2B6CB0] hover:underline">
-                Thay đổi
-              </button>
+              {profile.phone ?? "Chưa cập nhật"}
+              <Lock className="h-4 w-4 text-slate-400" />
             </div>
           </div>
         </div>
 
         <div>
-          <Label>Email cá nhân (Nhận kết quả xét nghiệm, đơn thuốc &amp; hóa đơn điện tử)</Label>
-          <div className="relative">
-            <input
-              type="email"
-              className={`${input} pr-11`}
-              value={form.email}
-              onChange={(e) => onChange("email", e.target.value)}
-            />
-            <Mail className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Label>Email cá nhân (chỉ đọc)</Label>
+          <div className={`${locked} flex items-center justify-between`}>
+            {profile.email ?? "Chưa cập nhật"}
+            <Mail className="h-4 w-4 text-slate-400" />
           </div>
         </div>
 
         <div>
-          <Label>Địa chỉ thường trú (theo hộ khẩu/CCCD)</Label>
-          <input className={input} value={form.address} onChange={(e) => onChange("address", e.target.value)} />
-        </div>
-
-        <label className="flex cursor-pointer items-center gap-2.5 rounded-xl bg-blue-50 px-4 py-3 text-xs text-slate-700">
+          <Label>Địa chỉ</Label>
           <input
-            type="checkbox"
-            checked={form.sameAddress}
-            onChange={(e) => onChange("sameAddress", e.target.checked)}
-            className="h-4 w-4 accent-[#0A5A84]"
+            className={input}
+            value={form.address}
+            onChange={(e) => onChange("address", e.target.value)}
           />
-          Địa chỉ cư trú &amp; liên hệ hiện tại trùng khớp với địa chỉ thường trú
-        </label>
+        </div>
       </div>
     </section>
   );
@@ -193,117 +168,138 @@ export function IdentitySection({
 
 /* ---------- 2. Chỉ số & tiền sử ---------- */
 
-export function MedicalSection() {
-  const m = PROFILE.medical;
-  const bmi = bmiOf(m.weight, m.height);
-  const stats = [
-    { label: "Nhóm máu", value: m.blood, unit: m.rh, note: "Có kháng thể tự nhiên" },
-    { label: "Chiều cao", value: String(m.height), unit: "cm", note: `Đo ngày: ${m.heightDate}` },
-    { label: "Cân nặng", value: String(m.weight), unit: "kg", note: "Lý tưởng theo thể trạng" },
-    { label: "Chỉ số BMI", value: String(bmi), unit: bmiLabel(bmi), note: "Ngưỡng chuẩn (18.5 - 22.9)" },
-  ];
+function confirmationLabel(status: PatientMedicalRecord["status"]) {
+  return status === "CONFIRMED" ? "Đã xác nhận" : "Chờ bác sĩ xác nhận";
+}
+
+function severityLabel(severity: PatientMedicalRecord["severity"]) {
+  if (severity === "SEVERE") return "Nặng";
+  if (severity === "MODERATE") return "Trung bình";
+  if (severity === "MILD") return "Nhẹ";
+  return null;
+}
+
+export function MedicalSection({
+  records,
+}: {
+  records: PatientMedicalRecord[];
+}) {
+  const allergies = records.filter((record) => record.recordType === "ALLERGY");
+  const history = records.filter(
+    (record) => record.recordType === "MEDICAL_HISTORY",
+  );
 
   return (
     <section id="medical" className={card}>
       <SectionHead
         icon={<Activity className="h-4 w-4" />}
-        title="2. Thông Tin Y Tế Cơ Bản & Tiền Sử Bệnh"
-        sub="Dữ liệu tối thiểu từ hồ sơ bệnh án (EMR) hỗ trợ tra cứu lâm sàng"
-        right={
-          <button
-            type="button"
-            // TODO: bệnh nhân tự khai báo -> trạng thái "Chờ xác nhận" cho tới khi bác sĩ xác nhận khi khám (SRS)
-            className={`${pill} bg-blue-100 text-[#0A5A84] hover:bg-blue-200`}
-          >
-            Cập nhật chỉ số
-          </button>
-        }
+        title="2. Tiền Sử Bệnh & Dị Ứng"
+        sub="Tiền sử và dị ứng được tải từ hồ sơ bệnh nhân trong hệ thống"
       />
 
-      <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {stats.map((s) => (
-          <div key={s.label} className="rounded-xl border border-blue-100 bg-blue-50/70 p-4">
-            <p className="text-[10px] font-bold uppercase text-slate-500">{s.label}</p>
-            <p className="mt-1.5 text-2xl font-extrabold text-[#0A5A84]">
-              {s.value} <span className="text-xs font-bold text-[#2B6CB0]">{s.unit}</span>
-            </p>
-            <p className="mt-1 text-[10px] text-slate-500">{s.note}</p>
-          </div>
-        ))}
-      </div>
-
-      <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4">
-        <p className="flex items-center gap-2 text-xs font-extrabold uppercase text-red-600">
-          <AlertTriangle className="h-4 w-4" />
-          Cảnh báo dị ứng thuốc &amp; chất kích ứng
-        </p>
-        <ul className="mt-3 flex flex-wrap gap-2">
-          {m.allergies.map((a, i) => (
-            <li
-              key={a}
-              className={`rounded-lg px-3 py-2 text-[11px] font-bold ${
-                i === 0 ? "border border-red-200 bg-white text-red-600" : "border border-slate-200 bg-white text-slate-600"
-              }`}
-            >
-              {a}
-            </li>
-          ))}
-        </ul>
-      </div>
-
       <div className="mt-4 grid gap-4 md:grid-cols-2">
-        <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-4">
-          <p className="flex items-center gap-2 text-xs font-extrabold text-[#0A5A84]">
-            <FileText className="h-4 w-4" />
-            Tiền sử bệnh lý mạn tính
-          </p>
-          <ul className="mt-2.5 space-y-2 text-[11px] leading-relaxed text-slate-600">
-            {m.chronic.map((c) => (
-              <li key={c}>{c}</li>
-            ))}
-          </ul>
-        </div>
-        <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-4">
-          <p className="flex items-center gap-2 text-xs font-extrabold text-[#0A5A84]">
-            <Pill className="h-4 w-4" />
-            Thuốc mãn tính đang sử dụng
-          </p>
-          <ul className="mt-2.5 space-y-2 text-[11px] leading-relaxed text-slate-600">
-            {m.medications.map((c) => (
-              <li key={c}>{c}</li>
-            ))}
-          </ul>
-        </div>
+        <RecordGroup
+          title="Dị ứng"
+          records={allergies}
+          isAllergy
+          emptyText="Chưa có thông tin dị ứng trong hồ sơ."
+        />
+        <RecordGroup
+          title="Tiền sử bệnh"
+          records={history}
+          emptyText="Chưa có tiền sử bệnh trong hồ sơ."
+        />
       </div>
 
       <p className="mt-3 text-[11px] text-slate-400">
-        Thông tin đã được bác sĩ xác nhận khi khám không thể tự chỉnh sửa. Nội dung bạn tự khai báo sẽ ở
-        trạng thái &ldquo;Chờ xác nhận&rdquo; cho đến buổi khám kế tiếp.
+        Bản ghi đang chờ xác nhận là thông tin tự khai báo, chưa được xem là
+        chẩn đoán của bác sĩ.
       </p>
     </section>
   );
 }
 
+function RecordGroup({
+  title,
+  records,
+  emptyText,
+  isAllergy = false,
+}: {
+  title: string;
+  records: PatientMedicalRecord[];
+  emptyText: string;
+  isAllergy?: boolean;
+}) {
+  return (
+    <div
+      className={`rounded-xl border p-4 ${
+        isAllergy ? "border-red-200 bg-red-50" : "border-blue-100 bg-blue-50/60"
+      }`}
+    >
+      <p
+        className={`flex items-center gap-2 text-xs font-extrabold ${
+          isAllergy ? "text-red-600" : "text-[#0A5A84]"
+        }`}
+      >
+        {isAllergy ? (
+          <AlertTriangle className="h-4 w-4" />
+        ) : (
+          <FileText className="h-4 w-4" />
+        )}
+        {title}
+      </p>
+      {records.length === 0 ? (
+        <p className="mt-3 text-[11px] text-slate-600">{emptyText}</p>
+      ) : (
+        <ul className="mt-3 space-y-2">
+          {records.map((record) => (
+            <li
+              key={record.id}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2.5"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-[11px] font-bold text-slate-800">
+                  {record.name}
+                  {severityLabel(record.severity) && (
+                    <span className="ml-2 font-semibold text-slate-500">
+                      Mức độ: {severityLabel(record.severity)}
+                    </span>
+                  )}
+                </p>
+                <span className="text-[10px] font-semibold text-[#0A5A84]">
+                  {confirmationLabel(record.status)}
+                </span>
+              </div>
+              {(record.reaction || record.description) && (
+                <p className="mt-1 text-[11px] leading-relaxed text-slate-600">
+                  {record.reaction ?? record.description}
+                </p>
+              )}
+              {record.reaction && record.description && (
+                <p className="mt-1 text-[11px] leading-relaxed text-slate-600">
+                  {record.description}
+                </p>
+              )}
+              <p className="mt-1 text-[10px] text-slate-400">
+                Cập nhật: {formatProfileDate(record.updatedAt)}
+              </p>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 /* ---------- 3. Liên hệ khẩn cấp & người thân ---------- */
 
-export function ContactsSection() {
-  const e = PROFILE.emergency;
+export function ContactsSection({ profile }: { profile: PatientProfile }) {
   return (
     <section id="contacts" className={card}>
       <SectionHead
         icon={<Users className="h-4 w-4" />}
-        title="3. Người Liên Hệ Khẩn Cấp & Hồ Sơ Người Thân"
-        sub="Liên lạc khi có tình huống y khoa đột xuất & Quản trị hồ sơ khỏe gia đình"
-        right={
-          <button
-            type="button"
-            // TODO: thêm hồ sơ người thân (ngoài phạm vi SRS hiện tại)
-            className={`${pill} bg-blue-100 text-[#0A5A84] hover:bg-blue-200`}
-          >
-            <Plus className="h-3 w-3" />
-            Thêm người thân
-          </button>
-        }
+        title="3. Người Liên Hệ Khẩn Cấp"
+        sub="Thông tin liên hệ được lưu trong hồ sơ bệnh nhân"
       />
 
       <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-blue-100 bg-blue-50/70 p-4">
@@ -312,55 +308,15 @@ export function ContactsSection() {
             <IdCard className="h-5 w-5" />
           </span>
           <div className="leading-tight">
-            <p className="flex flex-wrap items-center gap-2 text-sm font-extrabold text-slate-900">
-              {e.name}
-              <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-[#0A5A84]">
-                {e.relation}
-              </span>
+            <p className="text-sm font-extrabold text-slate-900">
+              {profile.emergencyContactName ?? "Chưa cập nhật"}
             </p>
-            <p className="mt-1.5 flex flex-wrap items-center gap-3 text-[11px] text-slate-500">
-              <span className="inline-flex items-center gap-1 font-bold text-slate-800">
-                <PhoneCall className="h-3 w-3" />
-                {e.phone}
-              </span>
-              <span className="inline-flex items-center gap-1">
-                <MapPin className="h-3 w-3" />
-                {e.note}
-              </span>
+            <p className="mt-1.5 flex items-center gap-1 text-[11px] font-bold text-slate-600">
+              <PhoneCall className="h-3 w-3" />
+              {profile.emergencyContactPhone ?? "Chưa cập nhật"}
             </p>
           </div>
         </div>
-        <button type="button" className={`${pill} border border-slate-200 bg-white text-[#0A5A84] hover:bg-blue-50`}>
-          Chỉnh sửa liên hệ
-        </button>
-      </div>
-
-      <p className="mt-5 text-[10px] font-bold uppercase text-slate-500">
-        Hồ sơ người thân đã liên kết ({String(PROFILE.relatives.length).padStart(2, "0")})
-      </p>
-      <div className="mt-3 grid gap-3 md:grid-cols-2">
-        {PROFILE.relatives.map((r) => (
-          <div
-            key={r.pid}
-            className="flex items-center justify-between gap-3 rounded-xl border border-blue-100 bg-blue-50/70 p-3"
-          >
-            <div className="flex items-center gap-3">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-xs font-extrabold text-[#0A5A84] ring-1 ring-blue-100">
-                {r.initials}
-              </span>
-              <span className="leading-tight">
-                <span className="block text-xs font-extrabold text-slate-900">{r.name}</span>
-                <span className="mt-0.5 block text-[10px] text-slate-500">{r.desc}</span>
-              </span>
-            </div>
-            <Link
-              href={`/ho-so-suc-khoe?patient=${r.pid}`}
-              className={`${pill} border border-slate-200 bg-white text-[#0A5A84] hover:bg-blue-50`}
-            >
-              Xem hồ sơ
-            </Link>
-          </div>
-        ))}
       </div>
     </section>
   );
@@ -368,97 +324,23 @@ export function ContactsSection() {
 
 /* ---------- 4. Tài khoản & bảo mật ---------- */
 
-function SecRow({
-  icon,
-  title,
-  desc,
-  action,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  desc: string;
-  action: React.ReactNode;
-}) {
-  return (
-    <li className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-blue-100 bg-blue-50/70 px-4 py-3">
-      <div className="flex items-center gap-3">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-[#0A5A84] ring-1 ring-blue-100">
-          {icon}
-        </span>
-        <span className="leading-tight">
-          <span className="block text-xs font-extrabold text-slate-900">{title}</span>
-          <span className="mt-0.5 block text-[11px] text-slate-500">{desc}</span>
-        </span>
-      </div>
-      {action}
-    </li>
-  );
-}
-
 export function SecuritySection() {
-  const [google, setGoogle] = useState(true);
-
   return (
     <section id="security" className={card}>
       <SectionHead
         icon={<ShieldCheck className="h-4 w-4" />}
-        title="4. Tài Khoản, Bảo Mật & Phân Quyền EMR"
-        sub="Quản lý xác thực sinh trắc học, liên kết cổng quốc gia và quyền truy cập y tế"
+        title="4. Quyền Riêng Tư Hồ Sơ"
+        sub="Quyền truy cập được kiểm tra bởi hệ thống"
         right={<Lock className="h-5 w-5 text-[#0A5A84]" />}
       />
 
-      <ul className="mt-5 space-y-3">
-        <SecRow
-          icon={<ShieldCheck className="h-4 w-4 text-red-600" />}
-          title="Đồng bộ Định danh Y tế VNeID (Bộ Công An)"
-          desc="Cho phép tích hợp Sổ sức khỏe điện tử trên ứng dụng VNeID cấp độ 2"
-          action={<span className={`${pill} bg-sky-100 text-[#0A5A84]`}>Đang kích hoạt</span>}
-        />
-        <SecRow
-          icon={<Link2 className="h-4 w-4" />}
-          title="Tài khoản Google liên kết"
-          desc={google ? "an.nguyen94@gmail.com" : "Chưa liên kết tài khoản Google"}
-          action={
-            <button
-              type="button"
-              // TODO: gọi API liên kết/hủy liên kết tài khoản Google
-              onClick={() => setGoogle((v) => !v)}
-              className={`${pill} border border-slate-200 bg-white text-[#0A5A84] hover:bg-blue-50`}
-            >
-              {google ? "Hủy liên kết" : "Liên kết"}
-            </button>
-          }
-        />
-        <SecRow
-          icon={<Smartphone className="h-4 w-4" />}
-          title="Xác thực 2 yếu tố (2FA)"
-          desc="Bảo vệ đăng nhập qua mã SMS & Ứng dụng Google Authenticator"
-          action={<span className={`${pill} bg-sky-100 text-[#0A5A84]`}>Đang bật</span>}
-        />
-        <SecRow
-          icon={<Lock className="h-4 w-4" />}
-          title="Mật khẩu tài khoản"
-          desc="Đã đổi cách đây 2 tháng (Chu kỳ khuyến nghị 6 tháng/lần)"
-          action={
-            <button
-              type="button"
-              // TODO: đổi mật khẩu -> hủy các phiên đăng nhập khác (SRS)
-              className={`${pill} border border-slate-200 bg-white text-[#0A5A84] hover:bg-blue-50`}
-            >
-              Đổi mật khẩu
-            </button>
-          }
-        />
-      </ul>
-
-      <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50/60 p-4">
-        <p className="flex items-center justify-between text-xs font-extrabold text-[#0A5A84]">
-          Chính sách Quyền Riêng Tư &amp; Chia Sẻ Dữ Liệu Bệnh Án
-          <ShieldCheck className="h-4 w-4" />
+      <div className="mt-5 rounded-xl border border-blue-100 bg-blue-50/60 p-4">
+        <p className="text-sm font-bold text-[#0A5A84]">
+          Hồ sơ được tải theo tài khoản đang đăng nhập.
         </p>
         <p className="mt-2 text-[11px] leading-relaxed text-slate-600">
-          Chỉ cho phép Bác sĩ điều trị phụ trách xem toàn bộ lịch sử xét nghiệm và chẩn đoán hình ảnh
-          trong thời gian khám có hiệu lực. Dữ liệu được bảo vệ chuẩn HIPAA và ISO 27001.
+          API chỉ trả thông tin hồ sơ của bệnh nhân hiện tại và kiểm tra quyền
+          truy cập ở backend.
         </p>
       </div>
     </section>
