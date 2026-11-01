@@ -24,6 +24,7 @@ build/
 # Tests and coverage
 coverage/
 .nyc_output/
+/apps/api/test/
 
 # Logs
 logs/

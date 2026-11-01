@@ -7,6 +7,17 @@ import { RoleEnum } from '../src/modules/users/constants/roles.constant';
 import { seedRbac } from './seed-rbac';
 
 // Fictional coursework accounts with a shared demo password; never seed these in production.
+const DOCTOR_PROFILE = {
+  email: 'doctor01@example.invalid',
+  code: 'STAFF-DEMO-01',
+  licenseNumber: 'DEMO-STAFF-01',
+  specialty: {
+    code: 'SPEC-STAFF-DEMO',
+    name: 'Chuyên khoa demo',
+    roomCode: 'D001',
+  },
+} as const;
+
 export const STAFF_ACCOUNTS = [
   {
     email: 'admin01@example.invalid',
@@ -28,6 +39,11 @@ export const STAFF_ACCOUNTS = [
     fullName: 'Lễ tân demo 02',
     role: RoleEnum.RECEPTIONIST,
   },
+  {
+    email: DOCTOR_PROFILE.email,
+    fullName: 'Bác sĩ demo 01',
+    role: RoleEnum.DOCTOR,
+  },
 ] as const;
 
 export async function seedStaff(prisma: PrismaClient): Promise<void> {
@@ -36,8 +52,8 @@ export async function seedStaff(prisma: PrismaClient): Promise<void> {
     'production',
     'Tài khoản demo chỉ dùng cho đồ án/dev/test.',
   );
-  assert.equal(STAFF_ACCOUNTS.length, 4);
-  assert.equal(new Set(STAFF_ACCOUNTS.map(({ email }) => email)).size, 4);
+  assert.equal(STAFF_ACCOUNTS.length, 5);
+  assert.equal(new Set(STAFF_ACCOUNTS.map(({ email }) => email)).size, 5);
   const passwordHash = await hash('123456', 12);
   const now = new Date();
   await prisma.$transaction(
@@ -88,6 +104,40 @@ export async function seedStaff(prisma: PrismaClient): Promise<void> {
           },
         });
       }
+
+      const doctorUser = await transaction.user.findUniqueOrThrow({
+        where: { email: DOCTOR_PROFILE.email },
+      });
+      const specialty = await transaction.specialty.upsert({
+        where: { code: DOCTOR_PROFILE.specialty.code },
+        create: {
+          ...DOCTOR_PROFILE.specialty,
+          description: 'Chuyên khoa dùng cho tài khoản bác sĩ demo.',
+        },
+        update: {},
+      });
+      assert.equal(
+        specialty.name,
+        DOCTOR_PROFILE.specialty.name,
+        'Mã chuyên khoa demo đã được dùng cho chuyên khoa khác.',
+      );
+      assert.equal(
+        specialty.roomCode,
+        DOCTOR_PROFILE.specialty.roomCode,
+        'Chuyên khoa demo đã được gán phòng khác.',
+      );
+      await transaction.doctor.upsert({
+        where: { userId: doctorUser.id },
+        create: {
+          userId: doctorUser.id,
+          specialtyId: specialty.id,
+          doctorCode: DOCTOR_PROFILE.code,
+          licenseNumber: DOCTOR_PROFILE.licenseNumber,
+          qualification: 'Bác sĩ demo',
+          isActive: true,
+        },
+        update: {},
+      });
     },
     { timeout: 30000 },
   );
@@ -107,7 +157,12 @@ async function main(): Promise<void> {
   try {
     await seedStaff(prisma);
     console.log(
-      'Đã seed 2 admin và 2 lễ tân giả lập. Tài khoản mới ACTIVE, đã xác minh email, mật khẩu demo: 123456. Mật khẩu đã đổi được giữ nguyên.',
+      'Đã seed tài khoản demo (ACTIVE, email đã xác minh). Mật khẩu tài khoản mới: 123456. Mật khẩu đã đổi được giữ nguyên.',
+    );
+    console.log('Admin: admin01@example.invalid, admin02@example.invalid');
+    console.log('Bác sĩ: doctor01@example.invalid');
+    console.log(
+      'Lễ tân: receptionist01@example.invalid, receptionist02@example.invalid',
     );
   } finally {
     await prisma.$disconnect();
