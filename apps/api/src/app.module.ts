@@ -23,6 +23,8 @@ import { AdminUsersModule } from './modules/users/admin-users.module';
 import { MedicalRecordsModule } from './modules/medical-records/medical-records.module';
 import { ReceptionModule } from './modules/reception/reception.module';
 import { QueuesModule } from './modules/queues/queues.module';
+import { InvoicesModule } from './modules/invoices/invoices.module';
+import { PaymentsModule } from './modules/payments/payments.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -57,6 +59,8 @@ import { QueuesModule } from './modules/queues/queues.module';
     MedicalRecordsModule,
     ReceptionModule,
     QueuesModule,
+    InvoicesModule,
+    PaymentsModule,
   ],
 })
 export class AppModule {}

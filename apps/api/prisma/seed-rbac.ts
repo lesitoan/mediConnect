@@ -235,6 +235,16 @@ export const RBAC_PERMISSIONS: Record<
       'Xem hóa đơn và tình trạng thanh toán của chính bệnh nhân đang đăng nhập.',
     roles: [RoleEnum.PATIENT],
   },
+  [PermissionEnum.BILLING_CANDIDATES_READ]: {
+    description:
+      'Tra cứu các phiên khám đã hoàn tất và đủ điều kiện để lập hóa đơn tại quầy.',
+    roles: [RoleEnum.RECEPTIONIST],
+  },
+  [PermissionEnum.INVOICES_CREATE]: {
+    description:
+      'Lập hóa đơn tại quầy từ phiên khám đã hoàn tất; phí do hệ thống lấy từ chuyên khoa.',
+    roles: [RoleEnum.RECEPTIONIST],
+  },
   [PermissionEnum.INVOICES_READ]: {
     description:
       'Tra cứu hóa đơn phục vụ thu tiền tại quầy hoặc xử lý hoàn tiền trong phạm vi được giao.',
@@ -248,6 +258,10 @@ export const RBAC_PERMISSIONS: Record<
   [PermissionEnum.PAYMENTS_CONFIRM]: {
     description:
       'Xác nhận khoản tiền thực tế đã thu tại quầy, lưu người thu và thời điểm.',
+    roles: [RoleEnum.RECEPTIONIST],
+  },
+  [PermissionEnum.PAYMENTS_PREPARE]: {
+    description: 'Tạo QR SePay cho hóa đơn còn thiếu tiền tại quầy.',
     roles: [RoleEnum.RECEPTIONIST],
   },
   [PermissionEnum.REFUNDS_REQUEST]: {
