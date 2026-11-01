@@ -9,5 +9,6 @@ import { InvoiceQueriesService } from './invoice-queries.service';
   imports: [AuditLogsModule, DatabaseModule],
   controllers: [StaffInvoicesController],
   providers: [InvoicesService, InvoiceQueriesService],
+  exports: [InvoiceQueriesService],
 })
 export class InvoicesModule {}

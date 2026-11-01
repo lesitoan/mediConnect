@@ -169,6 +169,10 @@ jobs:
           REDIS_URL: ${{ secrets.REDIS_URL }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           OTP_HMAC_SECRET: ${{ secrets.OTP_HMAC_SECRET }}
+          SEPAY_WEBHOOK_SECRET: ${{ secrets.SEPAY_WEBHOOK_SECRET }}
+          BANK_CODE: ${{ vars.BANK_CODE }}
+          BANK_ACCOUNT_NUMBER: ${{ secrets.BANK_ACCOUNT_NUMBER }}
+          BANK_ACCOUNT_NAME: ${{ vars.BANK_ACCOUNT_NAME }}
           JWT_ACCESS_TTL_SECONDS: ${{ vars.JWT_ACCESS_TTL_SECONDS }}
           JWT_REFRESH_TTL_SECONDS: ${{ vars.JWT_REFRESH_TTL_SECONDS }}
           CORS_ORIGINS: ${{ vars.CORS_ORIGINS }}
@@ -202,7 +206,8 @@ jobs:
             JWT_ACCESS_TTL_SECONDS JWT_REFRESH_TTL_SECONDS CORS_ORIGINS LOG_LEVEL \
             AUTH_COOKIE_SAME_SITE RESEND_API_KEY RESEND_FROM_EMAIL \
             ZALO_ACCESS_TOKEN ZALO_OTP_TEMPLATE_ID ZALO_OTP_CODE_PARAM \
-            AI_SERVICE_URL AI_INTERNAL_TOKEN; do
+            AI_SERVICE_URL AI_INTERNAL_TOKEN \
+            SEPAY_WEBHOOK_SECRET BANK_CODE BANK_ACCOUNT_NUMBER BANK_ACCOUNT_NAME; do
             value=${!name}
             if [[ -n $value ]]; then
               [[ $value != *$'\n'* && $value != *$'\r'* ]]

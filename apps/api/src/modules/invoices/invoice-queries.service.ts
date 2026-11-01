@@ -180,4 +180,12 @@ export class InvoiceQueriesService {
       { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
     );
   }
+
+  async summary(tx: Prisma.TransactionClient, id: string) {
+    const [invoice] = await tx.$queryRaw<InvoiceSummary[]>(Prisma.sql`
+      ${this.billingSql()} ${this.selectSql()} WHERE id = ${id}::uuid
+    `);
+    if (!invoice) throw new NotFoundException('Invoice not found');
+    return invoice;
+  }
 }
