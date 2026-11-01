@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -20,7 +20,12 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { useGetCurrentUserQuery } from "@/features/auth/services/authApi";
+import { useGetAuthUserQuery } from "@/features/auth/services/authApi";
+import {
+  canAccessStaffPath,
+  getPostLoginDestination,
+  isStaffRole,
+} from "@/features/auth/authRoutes";
 import type { UserRole } from "@/features/auth/types/authTypes";
 
 interface StaffSidebarProps {
@@ -41,7 +46,6 @@ export interface NavItem {
   icon: LucideIcon;
   activeMatch?: boolean;
   children?: NavChildItem[];
-  roles?: UserRole[];
 }
 
 export const NAV_ITEMS: NavItem[] = [
@@ -49,37 +53,31 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Tổng quan",
     href: "/overview",
     icon: LayoutDashboard,
-    roles: ["ADMIN"],
   },
   {
     label: "Tiếp nhận bệnh nhân",
     href: "/reception",
     icon: UserCheck,
-    roles: ["RECEPTIONIST"],
   },
   {
     label: "Hàng chờ khám",
     href: "/queues",
     icon: Clock,
-    roles: ["RECEPTIONIST"],
   },
   {
     label: "Quản lý khám bệnh",
     href: "/examinations",
     icon: Stethoscope,
-    roles: ["DOCTOR"],
   },
   {
     label: "Hàng chờ bác sĩ",
     href: "/examinations/queue",
     icon: Clock,
-    roles: ["DOCTOR"],
   },
   {
     label: "Lịch làm việc & Duyệt",
     href: "/schedules",
     icon: CalendarCheck,
-    roles: ["ADMIN"],
     children: [
       {
         label: "Lịch làm việc",
@@ -95,46 +93,37 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Lịch làm việc của tôi",
     href: "/schedules/calendar",
     icon: CalendarCheck,
-    roles: ["DOCTOR","RECEPTIONIST"],
   },
   {
     label: "Bác sĩ & Chuyên khoa",
     href: "/doctors",
     icon: Stethoscope,
     activeMatch: true,
-    roles: ["ADMIN"],
   },
   {
     label: "Tài khoản người dùng",
     href: "/users",
     icon: Users,
-    roles: ["ADMIN"],
   },
   {
     label: "Xử lý ngoại lệ",
     href: "/exceptions",
     icon: AlertTriangle,
-    roles: ["ADMIN", "RECEPTIONIST"],
   },
   {
     label: "Nhật ký hệ thống",
     href: "/audit-logs",
     icon: History,
-    roles: ["ADMIN"],
   },
   {
     label: "Cài đặt hệ thống",
     href: "/settings",
     icon: Settings,
-    roles: ["ADMIN"],
   },
 ];
 
-export function getNavItemsByRole(role: UserRole): NavItem[] {
-  return NAV_ITEMS.filter((item) => {
-    if (!item.roles || item.roles.length === 0) return true;
-    return item.roles.includes(role);
-  });
+export function getNavItemsByRole(role?: string): NavItem[] {
+  return NAV_ITEMS.filter((item) => canAccessStaffPath(role, item.href));
 }
 
 export function StaffSidebar({
@@ -143,60 +132,16 @@ export function StaffSidebar({
   role,
 }: StaffSidebarProps) {
   const pathname = usePathname();
-  const { data: currentUser } = useGetCurrentUserQuery();
+  const { data: currentUser } = useGetAuthUserQuery();
 
-  const currentRole: UserRole =
-    role || (currentUser?.role as UserRole) || "ADMIN";
-
-  const visibleNavItems = useMemo(
-    () => getNavItemsByRole(currentRole),
-    [currentRole]
-  );
-
+  const currentRole = role ?? currentUser?.role;
+  const visibleNavItems = getNavItemsByRole(currentRole);
   const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>(
-    () => {
-      const initial: Record<string, boolean> = {};
-      visibleNavItems.forEach((item) => {
-        if (item.children) {
-          const hasActiveChild = item.children.some((child) =>
-            pathname.startsWith(child.href)
-          );
-          if (hasActiveChild || pathname.startsWith(item.href)) {
-            initial[item.href] = true;
-          }
-        }
-      });
-      return initial;
-    }
+    {},
   );
 
-  useEffect(() => {
-    setExpandedItems((prev) => {
-      let changed = false;
-      const next = { ...prev };
-      visibleNavItems.forEach((item) => {
-        if (item.children) {
-          const hasActiveChild = item.children.some((child) =>
-            pathname.startsWith(child.href)
-          );
-          if (
-            (hasActiveChild || pathname.startsWith(item.href)) &&
-            !next[item.href]
-          ) {
-            next[item.href] = true;
-            changed = true;
-          }
-        }
-      });
-      return changed ? next : prev;
-    });
-  }, [pathname, visibleNavItems]);
-
-  const handleToggleExpand = (href: string) => {
-    setExpandedItems((prev) => ({
-      ...prev,
-      [href]: !prev[href],
-    }));
+  const handleToggleExpand = (href: string, isExpanded: boolean) => {
+    setExpandedItems((previous) => ({ ...previous, [href]: !isExpanded }));
   };
 
   const isCurrentActive = (item: NavItem) => {
@@ -222,12 +167,9 @@ export function StaffSidebar({
     );
   };
 
-  const logoHref =
-    currentRole === "DOCTOR"
-      ? "/examinations"
-      : currentRole === "RECEPTIONIST"
-      ? "/reception"
-      : "/doctors";
+  const logoHref = isStaffRole(currentRole)
+    ? getPostLoginDestination(currentRole)
+    : "/login";
 
   return (
     <>
@@ -249,7 +191,7 @@ export function StaffSidebar({
       <aside
         className={cn(
           "fixed top-0 bottom-0 left-0 z-50 flex w-[256px] flex-col border-r border-sidebar-border bg-sidebar transition-transform duration-300 ease-in-out lg:translate-x-0",
-          isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+          isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
         )}
       >
         <div className="flex h-14 items-center justify-between border-b border-sidebar-border px-4">
@@ -284,9 +226,10 @@ export function StaffSidebar({
           {visibleNavItems.map((item) => {
             const Icon = item.icon;
             const hasChildren = Boolean(
-              item.children && item.children.length > 0
+              item.children && item.children.length > 0,
             );
-            const isExpanded = Boolean(expandedItems[item.href]);
+            const isExpanded =
+              expandedItems[item.href] ?? isCurrentActive(item);
             const isActive = isCurrentActive(item);
 
             if (hasChildren) {
@@ -295,27 +238,29 @@ export function StaffSidebar({
                   <button
                     type="button"
                     aria-expanded={isExpanded}
-                    onClick={() => handleToggleExpand(item.href)}
+                    onClick={() => handleToggleExpand(item.href, isExpanded)}
                     className={cn(
                       "flex w-full items-center gap-2.5 rounded-app-md px-3 py-2 text-base transition-all",
                       isActive
                         ? isExpanded
                           ? "bg-surface/50 font-bold text-primary"
                           : "bg-surface font-bold text-primary shadow-xs border-r-3 border-primary"
-                        : "font-medium text-muted hover:bg-surface/70 hover:text-foreground"
+                        : "font-medium text-muted hover:bg-surface/70 hover:text-foreground",
                     )}
                   >
                     <Icon
                       className={cn(
                         "size-4 shrink-0",
-                        isActive ? "text-primary" : "text-muted"
+                        isActive ? "text-primary" : "text-muted",
                       )}
                     />
                     <span className="truncate text-left">{item.label}</span>
                     <ChevronDown
                       className={cn(
                         "ml-auto size-4 shrink-0 transition-transform duration-200",
-                        isExpanded ? "rotate-180 text-foreground" : "text-muted"
+                        isExpanded
+                          ? "rotate-180 text-foreground"
+                          : "text-muted",
                       )}
                     />
                   </button>
@@ -333,21 +278,21 @@ export function StaffSidebar({
                               "flex items-center gap-2 rounded-app-md px-2.5 py-1.5 text-body transition-all",
                               isChildActive
                                 ? "bg-surface font-bold text-primary shadow-xs border-r-3 border-primary"
-                                : "font-medium text-muted hover:bg-surface/70 hover:text-foreground"
+                                : "font-medium text-muted hover:bg-surface/70 hover:text-foreground",
                             )}
                           >
                             {child.icon ? (
                               <child.icon
                                 className={cn(
                                   "size-3.5 shrink-0",
-                                  isChildActive ? "text-primary" : "text-muted"
+                                  isChildActive ? "text-primary" : "text-muted",
                                 )}
                               />
                             ) : (
                               <span
                                 className={cn(
                                   "size-1.5 shrink-0 rounded-full",
-                                  isChildActive ? "bg-primary" : "bg-muted/40"
+                                  isChildActive ? "bg-primary" : "bg-muted/40",
                                 )}
                               />
                             )}
@@ -370,13 +315,13 @@ export function StaffSidebar({
                   "flex items-center gap-2.5 rounded-app-md px-3 py-2 text-base transition-all",
                   isActive
                     ? "bg-surface font-bold text-primary shadow-xs border-r-3 border-primary"
-                    : "font-medium text-muted hover:bg-surface/70 hover:text-foreground"
+                    : "font-medium text-muted hover:bg-surface/70 hover:text-foreground",
                 )}
               >
                 <Icon
                   className={cn(
                     "size-4 shrink-0",
-                    isActive ? "text-primary" : "text-muted"
+                    isActive ? "text-primary" : "text-muted",
                   )}
                 />
                 <span className="truncate">{item.label}</span>

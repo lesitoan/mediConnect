@@ -1,7 +1,6 @@
 export interface LoginInput {
   identifier: string;
   password: string;
-  rememberMe?: boolean;
 }
 
 export interface ApiLoginPayload {
@@ -49,11 +48,7 @@ export interface ResetPasswordInput {
   password: string;
 }
 
-export type UserRole =
-  | "ADMIN"
-  | "DOCTOR"
-  | "RECEPTIONIST"
-  | "PATIENT";
+export type UserRole = "ADMIN" | "DOCTOR" | "RECEPTIONIST" | "PATIENT";
 
 export interface CurrentUser {
   id: string;
@@ -66,4 +61,3 @@ export interface CurrentUser {
   status?: string;
   permissions: string[];
 }
-

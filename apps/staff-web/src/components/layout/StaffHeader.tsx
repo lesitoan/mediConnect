@@ -2,13 +2,17 @@
 
 import { Bell, ChevronRight, LogOut, Menu } from "lucide-react";
 import { usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import {
-  useGetCurrentUserQuery,
+  formatAuthError,
+  useGetAuthUserQuery,
   useLogoutMutation,
 } from "@/features/auth/services/authApi";
 import { getInitials } from "@/lib/utils";
+import { useAppDispatch } from "@/lib/redux/hooks";
+import { baseApi } from "@/lib/redux/baseApi";
 
 interface StaffHeaderProps {
   onToggleSidebar?: () => void;
@@ -16,7 +20,9 @@ interface StaffHeaderProps {
 
 export function StaffHeader({ onToggleSidebar }: StaffHeaderProps) {
   const pathname = usePathname();
-  const { data: currentUser } = useGetCurrentUserQuery();
+  const { data: currentUser } = useGetAuthUserQuery();
+  const router = useRouter();
+  const dispatch = useAppDispatch();
   const [logout, { isLoading: isLoggingOut }] = useLogoutMutation();
 
   const getBreadcrumbLabel = () => {
@@ -50,17 +56,23 @@ export function StaffHeader({ onToggleSidebar }: StaffHeaderProps) {
   };
 
   const handleLogout = async () => {
+    if (isLoggingOut) return;
     try {
       await logout().unwrap();
-    } catch {
-      // Even if network fails, proceed to login page
-    } finally {
-      toast.dismiss();
-      window.location.replace("/login");
+    } catch (error) {
+      if ((error as { status?: number })?.status !== 401) {
+        toast.error(
+          formatAuthError(error, "Chưa thể đăng xuất. Vui lòng thử lại."),
+        );
+        return;
+      }
+      dispatch(baseApi.util.resetApiState());
     }
+    toast.dismiss();
+    router.replace("/login");
   };
 
-  const displayName = currentUser?.name || "BS. Nguyễn Tuấn Kiệt";
+  const displayName = currentUser?.name || "Nhân viên y tế";
   const roleLabel = getRoleLabel(currentUser?.role);
   const initials = getInitials(displayName);
 

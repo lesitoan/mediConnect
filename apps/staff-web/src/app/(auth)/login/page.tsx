@@ -10,8 +10,8 @@ export const metadata: Metadata = {
 
 export default function LoginPage() {
   return (
-    <main className="flex h-screen max-h-screen w-screen overflow-hidden items-center justify-center bg-background p-3 sm:p-4">
-      <div className="mx-auto w-full max-w-4xl max-h-[95vh] overflow-hidden rounded-app-2xl border border-border bg-surface shadow-modal">
+    <main className="flex min-h-dvh w-full items-center justify-center bg-background p-3 sm:p-4">
+      <div className="mx-auto w-full max-w-4xl overflow-hidden rounded-app-2xl border border-border bg-surface shadow-modal">
         <div className="grid lg:grid-cols-2">
           <AuthHeroPanel />
           <Suspense

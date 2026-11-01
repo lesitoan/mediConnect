@@ -14,7 +14,7 @@ import type {
 
 export function formatAuthError(
   error: unknown,
-  fallback = "Có lỗi xảy ra, vui lòng thử lại"
+  fallback = "Có lỗi xảy ra, vui lòng thử lại",
 ): string {
   if (!error) return fallback;
   if (typeof error === "string") return error;
@@ -27,10 +27,13 @@ export function formatAuthError(
     };
 
     const serverMsg = Array.isArray(err.data?.message)
-      ? err.data.message.join("; ")
-      : err.data?.message;
+      ? err.data.message.filter((value) => typeof value === "string").join("; ")
+      : typeof err.data?.message === "string"
+        ? err.data.message
+        : "";
 
-    const message = serverMsg || err.message || "";
+    const message =
+      serverMsg || (typeof err.message === "string" ? err.message : "");
 
     if (
       message.includes("Invalid credentials") ||
@@ -47,10 +50,16 @@ export function formatAuthError(
     if (message.includes("Invalid OTP") || message.includes("Incorrect OTP")) {
       return "Mã xác thực OTP không chính xác. Vui lòng kiểm tra lại.";
     }
-    if (message.includes("Expired OTP") || message.includes("expired")) {
+    if (/OTP/i.test(message) && /expired/i.test(message)) {
       return "Mã xác thực OTP đã hết hạn. Vui lòng gửi lại mã mới.";
     }
-    if (message.includes("Too many attempts") || message.includes("Rate limit")) {
+    if (err.status === 401 && /refresh|session|token/i.test(message)) {
+      return "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.";
+    }
+    if (
+      message.includes("Too many attempts") ||
+      message.includes("Rate limit")
+    ) {
       return "Bạn đã thử sai quá số lần quy định. Vui lòng thử lại sau ít phút.";
     }
     if (err.status === "FETCH_ERROR" || message.includes("Network")) {
@@ -80,10 +89,6 @@ export const authApi = baseApi.injectEndpoints({
       },
       transformResponse: (response: ApiResponse<LoginResponseData>) =>
         response.data,
-      invalidatesTags: [
-        { type: "USERS", id: "ME" },
-        { type: "USERS", id: "LIST" },
-      ],
     }),
 
     logout: build.mutation<{ message: string }, void>({
@@ -93,10 +98,14 @@ export const authApi = baseApi.injectEndpoints({
       }),
       transformResponse: (response: ApiResponse<{ message: string }>) =>
         response.data || { message: "Đăng xuất thành công" },
-      invalidatesTags: [
-        { type: "USERS", id: "ME" },
-        { type: "USERS", id: "LIST" },
-      ],
+      async onQueryStarted(_input, { dispatch, queryFulfilled }) {
+        try {
+          await queryFulfilled;
+          dispatch(baseApi.util.resetApiState());
+        } catch {
+          // Keep the current session visible when logout fails.
+        }
+      },
     }),
 
     forgotPassword: build.mutation<OtpChallengeData, ForgotPasswordInput>({
@@ -152,10 +161,9 @@ export const authApi = baseApi.injectEndpoints({
         response.data || { message: "Đổi mật khẩu thành công" },
     }),
 
-    getCurrentUser: build.query<CurrentUser, void>({
+    getAuthUser: build.query<CurrentUser, void>({
       query: () => ({ url: "/me" }),
       transformResponse: (response: ApiResponse<CurrentUser>) => response.data,
-      providesTags: [{ type: "USERS", id: "ME" }],
     }),
   }),
 });
@@ -167,6 +175,6 @@ export const {
   useResendOtpMutation,
   useVerifyOtpMutation,
   useResetPasswordMutation,
-  useGetCurrentUserQuery,
+  useGetAuthUserQuery,
+  useLazyGetAuthUserQuery,
 } = authApi;
-

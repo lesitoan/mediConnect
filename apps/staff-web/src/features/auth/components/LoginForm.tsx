@@ -2,46 +2,20 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import {
-  Eye,
-  EyeOff,
-  Lock,
-  RotateCw,
-  ShieldCheck,
-  Stethoscope,
-  User,
-  UserCheck,
-} from "lucide-react";
+import { Eye, EyeOff, Lock, RotateCw, User } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/Input";
 import {
   formatAuthError,
-  useGetCurrentUserQuery,
+  useGetAuthUserQuery,
+  useLazyGetAuthUserQuery,
+  useLogoutMutation,
   useLoginMutation,
 } from "../services/authApi";
+import { useModal } from "@/hooks/useModal";
+import { getPostLoginDestination, isStaffRole } from "../authRoutes";
 import { ForgotPasswordModal } from "./ForgotPasswordModal";
-
-const DEMO_PRESETS = [
-  {
-    role: "Bác sĩ",
-    email: "seed-gen-01@example.invalid",
-    icon: Stethoscope,
-    badge: "BS. Minh An",
-  },
-  {
-    role: "Lễ tân",
-    email: "receptionist01@example.invalid",
-    icon: UserCheck,
-    badge: "Lễ tân 01",
-  },
-  {
-    role: "Quản trị viên",
-    email: "admin01@example.invalid",
-    icon: ShieldCheck,
-    badge: "Admin 01",
-  },
-];
 
 export function LoginForm() {
   const router = useRouter();
@@ -51,88 +25,76 @@ export function LoginForm() {
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [isForgotModalOpen, setIsForgotModalOpen] = useState(false);
-
-  const [login, { isLoading: isLoggingIn }] = useLoginMutation();
-  const { data: currentUser, refetch: refetchCurrentUser } =
-    useGetCurrentUserQuery();
-
-  const getPostLoginDestination = (role: string) => {
-    if (redirectParam && redirectParam.startsWith("/")) {
-      return redirectParam;
-    }
-    switch (role) {
-      case "DOCTOR":
-        return "/examinations";
-      case "RECEPTIONIST":
-        return "/reception";
-      case "ADMIN":
-      default:
-        return "/doctors";
-    }
-  };
+  const forgotModal = useModal();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [login] = useLoginMutation();
+  const [logout] = useLogoutMutation();
+  const [loadAuthUser] = useLazyGetAuthUserQuery();
+  const {
+    data: currentUser,
+    isFetching: isCheckingSession,
+    error: sessionError,
+  } = useGetAuthUserQuery(undefined, {
+    skip: isSubmitting,
+    refetchOnMountOrArgChange: true,
+  });
+  const isLoggingIn = isSubmitting || isCheckingSession;
 
   useEffect(() => {
-    if (currentUser && currentUser.role !== "PATIENT") {
-      router.replace(getPostLoginDestination(currentUser.role));
+    if (
+      !isSubmitting &&
+      !isCheckingSession &&
+      !sessionError &&
+      isStaffRole(currentUser?.role)
+    ) {
+      router.replace(getPostLoginDestination(currentUser.role, redirectParam));
     }
-  }, [currentUser, router]);
+  }, [
+    currentUser,
+    isSubmitting,
+    isCheckingSession,
+    sessionError,
+    redirectParam,
+    router,
+  ]);
 
-  const handleDemoFill = (email: string) => {
-    setIdentifier(email);
-    setPassword("123456");
-    setErrorMessage("");
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (isLoggingIn) return;
     if (!identifier.trim() || !password) {
       setErrorMessage("Vui lòng điền đầy đủ tài khoản và mật khẩu.");
       return;
     }
-
+    setIsSubmitting(true);
     setErrorMessage("");
-
     try {
-      await login({
-        identifier: identifier.trim(),
-        password,
-        rememberMe,
-      }).unwrap();
-
-      // Fetch the authenticated user's profile to inspect role
-      const userRes = await refetchCurrentUser();
-      const user = userRes.data;
-
-      if (user?.role === "PATIENT") {
+      await login({ identifier: identifier.trim(), password }).unwrap();
+      const user = await loadAuthUser(undefined, false).unwrap();
+      if (!isStaffRole(user.role)) {
+        await logout().unwrap();
         setErrorMessage(
-          "Tài khoản người bệnh không có quyền truy cập hệ thống nhân sự y tế."
+          "Tài khoản này không có quyền truy cập cổng nhân sự y tế.",
         );
         return;
       }
-
-      toast.success(
-        `Đăng nhập thành công! Chào mừng ${user?.name || "bạn"}.`
-      );
-
-      const targetPath = getPostLoginDestination(user?.role || "ADMIN");
-      router.replace(targetPath);
-    } catch (err) {
+      toast.success(`Đăng nhập thành công! Chào mừng ${user.name || "bạn"}.`);
+      router.replace(getPostLoginDestination(user.role, redirectParam));
+    } catch (error) {
       setErrorMessage(
         formatAuthError(
-          err,
-          "Tài khoản hoặc mật khẩu không chính xác. Vui lòng thử lại."
-        )
+          error,
+          "Không thể xác thực phiên đăng nhập. Vui lòng thử lại.",
+        ),
       );
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
     <div className="flex w-full flex-col justify-center p-5 sm:p-7 lg:p-8">
       <div className="mx-auto w-full max-w-sm sm:max-w-md">
-        {/* Header */}
         <div className="space-y-1.5">
           <div className="inline-flex items-center gap-2 rounded-app-md bg-primary-light px-2 py-0.5 text-label font-bold text-primary">
             <span className="size-2 rounded-full bg-primary animate-pulse" />
@@ -147,35 +109,6 @@ export function LoginForm() {
           </p>
         </div>
 
-        {/* Demo Fast-Fill Selector (seeded staff accounts) */}
-        <div className="mt-4 rounded-app-lg border border-border bg-background/60 p-2.5">
-          <span className="text-label font-bold uppercase tracking-wider text-muted">
-            Tài khoản mẫu đã seed:
-          </span>
-          <div className="mt-1.5 grid grid-cols-3 gap-2">
-            {DEMO_PRESETS.map((demo) => {
-              const Icon = demo.icon;
-              return (
-                <button
-                  key={demo.role}
-                  type="button"
-                  onClick={() => handleDemoFill(demo.email)}
-                  className="flex flex-col items-center justify-center gap-0.5 rounded-app-md border border-border bg-surface p-1.5 text-center transition hover:border-primary hover:bg-item-hover"
-                >
-                  <Icon className="size-3.5 text-primary" />
-                  <span className="text-caption font-bold text-foreground leading-tight">
-                    {demo.role}
-                  </span>
-                  <span className="text-[10px] text-muted leading-tight">
-                    {demo.badge}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Error Alert */}
         {errorMessage && (
           <div
             role="alert"
@@ -185,7 +118,6 @@ export function LoginForm() {
           </div>
         )}
 
-        {/* Form */}
         <form onSubmit={handleSubmit} className="mt-4 space-y-3">
           <div className="space-y-1">
             <label
@@ -199,7 +131,7 @@ export function LoginForm() {
                 id="identifier"
                 type="text"
                 autoComplete="username"
-                placeholder="admin01@example.invalid"
+                placeholder="Nhập email hoặc số điện thoại"
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
                 disabled={isLoggingIn}
@@ -219,7 +151,8 @@ export function LoginForm() {
               </label>
               <button
                 type="button"
-                onClick={() => setIsForgotModalOpen(true)}
+                onClick={() => forgotModal.open()}
+                disabled={isLoggingIn}
                 className="text-caption font-semibold text-primary hover:underline"
               >
                 Quên mật khẩu?
@@ -252,18 +185,6 @@ export function LoginForm() {
             </div>
           </div>
 
-          <div className="flex items-center justify-between pt-0.5">
-            <label className="flex cursor-pointer items-center gap-2 text-caption text-muted select-none">
-              <input
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-                className="size-3.5 rounded border-border-strong text-primary accent-primary"
-              />
-              <span>Ghi nhớ đăng nhập</span>
-            </label>
-          </div>
-
           <Button
             type="submit"
             disabled={isLoggingIn || !identifier.trim() || !password}
@@ -281,11 +202,13 @@ export function LoginForm() {
         </form>
       </div>
 
-      <ForgotPasswordModal
-        isOpen={isForgotModalOpen}
-        onClose={() => setIsForgotModalOpen(false)}
-        initialIdentifier={identifier}
-      />
+      {forgotModal.isOpen && (
+        <ForgotPasswordModal
+          isOpen
+          onClose={forgotModal.close}
+          initialIdentifier={identifier}
+        />
+      )}
     </div>
   );
 }

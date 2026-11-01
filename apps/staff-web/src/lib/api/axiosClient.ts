@@ -29,20 +29,35 @@ axiosClient.interceptors.response.use(
     if (!axios.isAxiosError(error)) throw error;
     const config = error.config as SessionRequestConfig | undefined;
     if (
-      error.response?.status !== 401 || !config || config.hasRetriedSession ||
-      config.signal?.aborted || config.headers.has("Authorization") ||
-      /^\/authentication\/(login|logout|refresh|register|send_otp|forgot_password|verify|reset_password)$/.test(config.url ?? "")
-    ) throw error;
+      error.response?.status !== 401 ||
+      !config ||
+      config.hasRetriedSession ||
+      config.signal?.aborted ||
+      config.headers.has("Authorization") ||
+      /^\/authentication\/(login|refresh|register|send_otp|forgot_password|verify|reset_password)$/.test(
+        config.url ?? "",
+      )
+    )
+      throw error;
 
     config.hasRetriedSession = true;
     // A late 401 from an older request can reuse cookies that were already refreshed.
     if (config.sessionVersion === sessionVersion) {
       if (!refreshRequest) {
-        const refresh = async () => { await axiosClient.post("/authentication/refresh", {}); };
-        const task = typeof navigator !== "undefined" && navigator.locks
-          ? navigator.locks.request("mediconnect-session-refresh", refresh)
-          : refresh();
-        refreshRequest = task.then(() => { sessionVersion++; }).finally(() => { refreshRequest = null; });
+        const refresh = async () => {
+          await axiosClient.post("/authentication/refresh", {});
+        };
+        const task =
+          typeof navigator !== "undefined" && navigator.locks
+            ? navigator.locks.request("mediconnect-session-refresh", refresh)
+            : refresh();
+        refreshRequest = task
+          .then(() => {
+            sessionVersion++;
+          })
+          .finally(() => {
+            refreshRequest = null;
+          });
       }
       await refreshRequest;
     }
