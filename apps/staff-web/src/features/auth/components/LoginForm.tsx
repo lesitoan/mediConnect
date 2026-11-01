@@ -15,9 +15,9 @@ import {
 import { toast } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/Input";
-import { useGetCurrentUserQuery } from "@/features/users/services/usersApi";
 import {
   formatAuthError,
+  useGetCurrentUserQuery,
   useLoginMutation,
 } from "../services/authApi";
 import { ForgotPasswordModal } from "./ForgotPasswordModal";

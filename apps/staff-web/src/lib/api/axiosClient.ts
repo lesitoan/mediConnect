@@ -31,7 +31,7 @@ axiosClient.interceptors.response.use(
     if (
       error.response?.status !== 401 || !config || config.hasRetriedSession ||
       config.signal?.aborted || config.headers.has("Authorization") ||
-      /^\/authentication\/(login|refresh|register|send_otp|forgot_password|verify|reset_password)$/.test(config.url ?? "")
+      /^\/authentication\/(login|logout|refresh|register|send_otp|forgot_password|verify|reset_password)$/.test(config.url ?? "")
     ) throw error;
 
     config.hasRetriedSession = true;

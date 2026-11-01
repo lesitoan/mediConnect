@@ -4,8 +4,10 @@ import { Bell, ChevronRight, LogOut, Menu } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { toast } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
-import { useLogoutMutation } from "@/features/auth/services/authApi";
-import { useGetCurrentUserQuery } from "@/features/users/services/usersApi";
+import {
+  useGetCurrentUserQuery,
+  useLogoutMutation,
+} from "@/features/auth/services/authApi";
 import { getInitials } from "@/lib/utils";
 
 interface StaffHeaderProps {
@@ -51,11 +53,11 @@ export function StaffHeader({ onToggleSidebar }: StaffHeaderProps) {
   const handleLogout = async () => {
     try {
       await logout().unwrap();
-      toast.success("Đã đăng xuất phiên làm việc.");
     } catch {
       // Even if network fails, proceed to login page
     } finally {
-      router.replace("/login");
+      toast.dismiss();
+      window.location.replace("/login");
     }
   };
 

@@ -49,3 +49,21 @@ export interface ResetPasswordInput {
   password: string;
 }
 
+export type UserRole =
+  | "ADMIN"
+  | "DOCTOR"
+  | "RECEPTIONIST"
+  | "PATIENT";
+
+export interface CurrentUser {
+  id: string;
+  name?: string;
+  email?: string | null;
+  phone?: string | null;
+  avatar?: string | null;
+  roleId?: string;
+  role: string;
+  status?: string;
+  permissions: string[];
+}
+

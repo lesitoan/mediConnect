@@ -1,7 +1,7 @@
-import type { SpecialtyRecord } from "@/features/specialties/types/specialtyTypes";
-import type { DoctorWriteInput } from "@/features/doctors/types/doctorTypes";
+import type { CurrentUser, UserRole } from "@/features/auth/types/authTypes";
 
-export type UserRole = "ADMIN" | "DOCTOR" | "RECEPTIONIST" | "PATIENT";
+export type { CurrentUser, UserRole };
+
 export type UserStatus = "ACTIVE" | "PENDING_VERIFICATION" | "LOCKED";
 export type UserRoleFilter = "ALL" | UserRole;
 export type UserStatusFilter = "ALL" | UserStatus;
@@ -31,6 +31,7 @@ export interface User {
   lastLogin: string;
   patientProfile?: PatientProfileFields;
 }
+
 export interface ApiUser {
   id: string;
   fullName: string;
@@ -49,31 +50,45 @@ export interface ApiUser {
   patient: { patientCode: string } | null;
   patientProfile?: PatientProfileFields;
 }
+
 export interface UserPage {
   items: User[];
   totalItems: number;
   totalPages: number;
 }
+
+export interface SpecialtyRecord {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  roomCode: string;
+  isActive: boolean;
+}
+
 export interface UserOptions {
   specialties: SpecialtyRecord[];
 }
-export interface CurrentUser {
-  id: string;
-  name?: string;
-  email?: string | null;
-  phone?: string | null;
-  avatar?: string | null;
-  roleId?: string;
-  role: string;
-  status?: UserStatus;
-  permissions: string[];
+
+export interface DoctorWriteInput {
+  specialtyId: string;
+  experienceYears?: number;
+  room?: string;
+  patientLimitPerSession?: number;
+  [key: string]: unknown;
 }
+
 export interface CreateUserInput {
+  name?: string;
   fullName: string;
+  email?: string;
   phone: string;
   role: Exclude<UserRole, "PATIENT">;
+  department?: string;
+  sendOtp?: boolean;
   doctor?: DoctorWriteInput;
 }
+
 export interface UpdateUserInput extends Partial<PatientProfileFields> {
   id: string;
   fullName?: string;
@@ -81,6 +96,7 @@ export interface UpdateUserInput extends Partial<PatientProfileFields> {
   role?: UserRole;
   specialtyId?: string;
 }
+
 export interface ToggleUserStatusInput {
   userId: string;
   targetStatus: "ACTIVE" | "LOCKED";

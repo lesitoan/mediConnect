@@ -83,6 +83,8 @@ export function QueueManagementView() {
       } catch (error) {
         if (signal?.aborted) return;
         setIsError(true);
+        const status = (error as { status?: number })?.status;
+        if (status === 401 || status === 403) return;
         toast.error(
           error instanceof Error
             ? error.message
@@ -131,12 +133,15 @@ export function QueueManagementView() {
         setDoctors(getQueueDoctorOptions(nextDoctors));
       })
       .catch((error: unknown) => {
-        if (!controller.signal.aborted)
+        if (!controller.signal.aborted) {
+          const status = (error as { status?: number })?.status;
+          if (status === 401 || status === 403) return;
           toast.error(
             error instanceof Error
               ? error.message
               : QUEUE_ERROR_MESSAGES.LOAD_FAILED,
           );
+        }
       });
     return () => controller.abort();
   }, [filters.specialtyId]);

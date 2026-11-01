@@ -22,8 +22,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { useGetCurrentUserQuery } from "@/features/users/services/usersApi";
-import type { UserRole } from "@/features/users/types/userTypes";
+import { useGetCurrentUserQuery } from "@/features/auth/services/authApi";
+import type { UserRole } from "@/features/auth/types/authTypes";
 
 interface StaffSidebarProps {
   isOpen?: boolean;

@@ -2,6 +2,7 @@ import { baseApi } from "@/lib/redux/baseApi";
 import type { ApiResponse } from "@/types/apiTypes";
 import type {
   ApiLoginPayload,
+  CurrentUser,
   ForgotPasswordInput,
   LoginInput,
   LoginResponseData,
@@ -150,6 +151,12 @@ export const authApi = baseApi.injectEndpoints({
       transformResponse: (response: ApiResponse<{ message: string }>) =>
         response.data || { message: "Đổi mật khẩu thành công" },
     }),
+
+    getCurrentUser: build.query<CurrentUser, void>({
+      query: () => ({ url: "/me" }),
+      transformResponse: (response: ApiResponse<CurrentUser>) => response.data,
+      providesTags: [{ type: "USERS", id: "ME" }],
+    }),
   }),
 });
 
@@ -160,5 +167,6 @@ export const {
   useResendOtpMutation,
   useVerifyOtpMutation,
   useResetPasswordMutation,
+  useGetCurrentUserQuery,
 } = authApi;
 
