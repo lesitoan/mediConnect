@@ -21,6 +21,8 @@ import { AppointmentsModule } from './modules/appointments/appointments.module';
 import { ReviewsModule } from './modules/reviews/reviews.module';
 import { AdminUsersModule } from './modules/users/admin-users.module';
 import { MedicalRecordsModule } from './modules/medical-records/medical-records.module';
+import { ReceptionModule } from './modules/reception/reception.module';
+import { QueuesModule } from './modules/queues/queues.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -53,6 +55,8 @@ import { MedicalRecordsModule } from './modules/medical-records/medical-records.
     ReviewsModule,
     AdminUsersModule,
     MedicalRecordsModule,
+    ReceptionModule,
+    QueuesModule,
   ],
 })
 export class AppModule {}

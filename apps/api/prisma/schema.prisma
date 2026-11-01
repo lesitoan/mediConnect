@@ -102,6 +102,7 @@ model User {
   resolvedScheduleExceptions ScheduleException[]    @relation("ScheduleExceptionResolvedBy")
   proposedReassignments      ScheduleReassignment[] @relation("ScheduleReassignmentProposedBy")
   confirmedReassignments     ScheduleReassignment[] @relation("ScheduleReassignmentConfirmedBy")
+  checkedInCareSessions      CareSession[]          @relation("CareSessionCheckedInBy")
   role                       role?                  @relation(fields: [roleId], references: [id])
   roleId                     String
 
@@ -265,7 +266,7 @@ model LeaveRequest {
   staffUserId       String?              @map("staff_user_id") @db.Uuid
   requestType       LeaveRequestType     @default(ABSENT) @map("request_type")
   priority          LeaveRequestPriority @default(NORMAL)
-  source            LeaveRequestSource @default(DOCTOR_REQUEST)
+  source            LeaveRequestSource   @default(DOCTOR_REQUEST)
   startsAt          DateTime             @map("starts_at") @db.Timestamptz(6)
   endsAt            DateTime?            @map("ends_at") @db.Timestamptz(6)
   reason            String               @db.Text
@@ -331,6 +332,7 @@ model Appointment {
   status             AppointmentStatus        @default(CONFIRMED)
   rescheduleCount    Int                      @default(0) @map("reschedule_count") @db.SmallInt
   createdBy          String                   @map("created_by") @db.Uuid
+  reason             String?                  @db.Text
   cancellationReason String?                  @map("cancellation_reason") @db.Text
   cancelledBy        String?                  @map("cancelled_by") @db.Uuid
   cancelledAt        DateTime?                @map("cancelled_at") @db.Timestamptz(6)
@@ -358,10 +360,14 @@ model CareSession {
   incomingReferralId String?                  @unique @map("incoming_referral_id") @db.Uuid
   status             CareSessionStatus        @default(SCHEDULED)
   checkedInAt        DateTime?                @map("checked_in_at") @db.Timestamptz(6)
+  checkedInBy        String?                  @map("checked_in_by") @db.Uuid
   queueDate          DateTime?                @map("queue_date") @db.Date
   queueNumber        Int?                     @map("queue_number")
   queuePosition      Int?                     @map("queue_position")
   priorityType       CareSessionPriorityType? @map("priority_type")
+  skipCount          Int                      @default(0) @map("skip_count")
+  calledAt           DateTime?                @map("called_at") @db.Timestamptz(6)
+  skippedAt          DateTime?                @map("skipped_at") @db.Timestamptz(6)
   createdAt          DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime                 @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -369,13 +375,17 @@ model CareSession {
   appointmentSlot    AppointmentSlot     @relation("CareSessionAppointmentSlotId", fields: [appointmentSlotId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   specialty          Specialty           @relation("CareSessionSpecialtyId", fields: [specialtyId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   incomingReferral   InternalReferral?   @relation("CareSessionIncomingReferralId", fields: [incomingReferralId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  checkedInByUser    User?               @relation("CareSessionCheckedInBy", fields: [checkedInBy], references: [id], onDelete: Restrict, onUpdate: Cascade)
   consultation       Consultation?       @relation("ConsultationCareSessionId")
   scheduleExceptions ScheduleException[]
 
   @@index([appointmentId])
   @@index([status, queueDate, queuePosition])
+  @@index([queueDate, status, specialtyId])
+  @@index([queueDate, status, skippedAt])
   @@index([appointmentSlotId])
   @@index([specialtyId])
+  @@index([checkedInBy])
   @@map("care_sessions")
 }
 

@@ -34,12 +34,6 @@ export function ReceptionStatsRow({
       valueColor: "text-foreground",
     },
     {
-      key: "UPCOMING",
-      label: "Sắp đến",
-      value: stats.upcoming,
-      valueColor: "text-primary",
-    },
-    {
       key: "LATE",
       label: "Trễ hẹn",
       value: stats.late,
