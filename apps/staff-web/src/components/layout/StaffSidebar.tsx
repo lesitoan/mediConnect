@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -22,10 +22,13 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useGetCurrentUserQuery } from "@/features/users/services/usersApi";
+import type { UserRole } from "@/features/users/types/userTypes";
 
 interface StaffSidebarProps {
   isOpen?: boolean;
   onClose?: () => void;
+  role?: UserRole;
 }
 
 export interface NavChildItem {
@@ -40,34 +43,45 @@ export interface NavItem {
   icon: LucideIcon;
   activeMatch?: boolean;
   children?: NavChildItem[];
+  roles?: UserRole[];
 }
 
-const NAV_ITEMS: NavItem[] = [
+export const NAV_ITEMS: NavItem[] = [
   {
     label: "Tổng quan",
     href: "/overview",
     icon: LayoutDashboard,
+    roles: ["ADMIN"],
   },
   {
     label: "Tiếp nhận bệnh nhân",
     href: "/reception",
     icon: UserCheck,
+    roles: ["RECEPTIONIST"],
   },
   {
     label: "Hàng chờ khám",
     href: "/queues",
     icon: Clock,
+    roles: ["RECEPTIONIST"],
   },
-  { label: "Quản lý khám bệnh", href: "/examinations", icon: Stethoscope },
   {
-    label: "Khám bệnh",
-    href: "/consultations",
+    label: "Quản lý khám bệnh",
+    href: "/examinations",
     icon: Stethoscope,
+    roles: ["DOCTOR"],
+  },
+  {
+    label: "Hàng chờ bác sĩ",
+    href: "/examinations/queue",
+    icon: Clock,
+    roles: ["DOCTOR"],
   },
   {
     label: "Lịch làm việc & Duyệt",
     href: "/schedules",
     icon: CalendarCheck,
+    roles: ["ADMIN"],
     children: [
       {
         label: "Lịch làm việc",
@@ -80,66 +94,105 @@ const NAV_ITEMS: NavItem[] = [
     ],
   },
   {
+    label: "Lịch làm việc của tôi",
+    href: "/schedules/calendar",
+    icon: CalendarCheck,
+    roles: ["DOCTOR","RECEPTIONIST"],
+  },
+  {
     label: "Bác sĩ & Chuyên khoa",
     href: "/doctors",
     icon: Stethoscope,
     activeMatch: true,
+    roles: ["ADMIN"],
   },
   {
     label: "Tài khoản người dùng",
     href: "/users",
     icon: Users,
+    roles: ["ADMIN"],
   },
   {
     label: "Xử lý ngoại lệ",
     href: "/exceptions",
     icon: AlertTriangle,
+    roles: ["ADMIN", "RECEPTIONIST"],
   },
   {
     label: "Nhật ký hệ thống",
     href: "/audit-logs",
     icon: History,
+    roles: ["ADMIN"],
   },
   {
     label: "Cài đặt hệ thống",
     href: "/settings",
     icon: Settings,
+    roles: ["ADMIN"],
   },
 ];
 
-export function StaffSidebar({ isOpen = false, onClose }: StaffSidebarProps) {
-  const pathname = usePathname();
-
-  const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>(() => {
-    const initial: Record<string, boolean> = {};
-    NAV_ITEMS.forEach((item) => {
-      if (item.children) {
-        const hasActiveChild = item.children.some((child) =>
-          pathname.startsWith(child.href)
-        );
-        if (hasActiveChild || pathname.startsWith(item.href)) {
-          initial[item.href] = true;
-        }
-      }
-    });
-    return initial;
+export function getNavItemsByRole(role: UserRole): NavItem[] {
+  return NAV_ITEMS.filter((item) => {
+    if (!item.roles || item.roles.length === 0) return true;
+    return item.roles.includes(role);
   });
+}
+
+export function StaffSidebar({
+  isOpen = false,
+  onClose,
+  role,
+}: StaffSidebarProps) {
+  const pathname = usePathname();
+  const { data: currentUser } = useGetCurrentUserQuery();
+
+  const currentRole: UserRole =
+    role || (currentUser?.role as UserRole) || "ADMIN";
+
+  const visibleNavItems = useMemo(
+    () => getNavItemsByRole(currentRole),
+    [currentRole]
+  );
+
+  const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>(
+    () => {
+      const initial: Record<string, boolean> = {};
+      visibleNavItems.forEach((item) => {
+        if (item.children) {
+          const hasActiveChild = item.children.some((child) =>
+            pathname.startsWith(child.href)
+          );
+          if (hasActiveChild || pathname.startsWith(item.href)) {
+            initial[item.href] = true;
+          }
+        }
+      });
+      return initial;
+    }
+  );
 
   useEffect(() => {
-    NAV_ITEMS.forEach((item) => {
-      if (item.children) {
-        const hasActiveChild = item.children.some((child) =>
-          pathname.startsWith(child.href)
-        );
-        if (hasActiveChild || pathname.startsWith(item.href)) {
-          setExpandedItems((prev) => ({
-            ...prev,
-            [item.href]: true,
-          }));
+    setExpandedItems((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      visibleNavItems.forEach((item) => {
+        if (item.children) {
+          const hasActiveChild = item.children.some((child) =>
+            pathname.startsWith(child.href)
+          );
+          if (
+            (hasActiveChild || pathname.startsWith(item.href)) &&
+            !next[item.href]
+          ) {
+            next[item.href] = true;
+            changed = true;
+          }
         }
-      }
+      });
+      return changed ? next : prev;
     });
-  }, [pathname]);
+  }, [pathname, visibleNavItems]);
 
   const handleToggleExpand = (href: string) => {
     setExpandedItems((prev) => ({
@@ -149,6 +202,13 @@ export function StaffSidebar({ isOpen = false, onClose }: StaffSidebarProps) {
   };
 
   const isCurrentActive = (item: NavItem) => {
+    if (item.href === "/examinations") {
+      return (
+        pathname === "/examinations" ||
+        (pathname.startsWith("/examinations") &&
+          !pathname.startsWith("/examinations/queue"))
+      );
+    }
     if (item.activeMatch) {
       return pathname.startsWith("/doctors") || pathname === "/";
     }
@@ -158,8 +218,18 @@ export function StaffSidebar({ isOpen = false, onClose }: StaffSidebarProps) {
         item.children.some((child) => pathname.startsWith(child.href))
       );
     }
-    return pathname.startsWith(item.href);
+    return (
+      pathname === item.href ||
+      (item.href !== "/" && pathname.startsWith(item.href))
+    );
   };
+
+  const logoHref =
+    currentRole === "DOCTOR"
+      ? "/examinations"
+      : currentRole === "RECEPTIONIST"
+      ? "/reception"
+      : "/doctors";
 
   return (
     <>
@@ -185,7 +255,7 @@ export function StaffSidebar({ isOpen = false, onClose }: StaffSidebarProps) {
         )}
       >
         <div className="flex h-14 items-center justify-between border-b border-sidebar-border px-4">
-          <Link href="/doctors" className="flex items-center gap-2.5">
+          <Link href={logoHref} className="flex items-center gap-2.5">
             <div className="flex size-8.5 items-center justify-center rounded-app-lg bg-primary text-primary-foreground shadow-xs">
               <ShieldCheck className="size-4.5" />
             </div>
@@ -213,9 +283,11 @@ export function StaffSidebar({ isOpen = false, onClose }: StaffSidebarProps) {
         </div>
 
         <nav className="flex-1 space-y-1 overflow-y-auto px-2.5 py-3">
-          {NAV_ITEMS.map((item) => {
+          {visibleNavItems.map((item) => {
             const Icon = item.icon;
-            const hasChildren = Boolean(item.children && item.children.length > 0);
+            const hasChildren = Boolean(
+              item.children && item.children.length > 0
+            );
             const isExpanded = Boolean(expandedItems[item.href]);
             const isActive = isCurrentActive(item);
 
@@ -314,34 +386,6 @@ export function StaffSidebar({ isOpen = false, onClose }: StaffSidebarProps) {
             );
           })}
         </nav>
-
-        <div className="p-2.5">
-          <div className="rounded-app-lg border border-sidebar-border bg-surface p-3 shadow-xs">
-            <div className="flex items-center gap-2">
-              <div className="flex size-6.5 items-center justify-center rounded-app-md bg-brand-secondary-light text-primary">
-                <Phone className="size-3" />
-              </div>
-              <span className="text-caption font-bold text-foreground">
-                Hỗ trợ kỹ thuật
-              </span>
-            </div>
-            <p className="mt-1.5 text-label text-muted">
-              Tổng đài sự cố y tế 24/7
-            </p>
-            <div className="mt-1.5 flex items-center justify-between">
-              <span className="text-body font-bold text-primary tabular-nums">
-                1900 6868
-              </span>
-              <a
-                href="tel:19006868"
-                className="flex items-center gap-1 text-label font-semibold text-primary hover:underline"
-              >
-                <span>Gọi ngay</span>
-                <ArrowUpRight className="size-3" />
-              </a>
-            </div>
-          </div>
-        </div>
       </aside>
     </>
   );

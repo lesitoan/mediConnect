@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useGetCurrentUserQuery } from "@/features/users/services/usersApi";
 import { StaffSidebar } from "./StaffSidebar";
 import { StaffHeader } from "./StaffHeader";
 
@@ -10,6 +12,18 @@ interface StaffLayoutShellProps {
 
 export function StaffLayoutShell({ children }: StaffLayoutShellProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const pathname = usePathname();
+  const router = useRouter();
+  const { data: currentUser, isLoading, error } = useGetCurrentUserQuery();
+
+  useEffect(() => {
+    if (!isLoading) {
+      const status = (error as { status?: number | string })?.status;
+      if (status === 401 || (currentUser && currentUser.role === "PATIENT")) {
+        router.replace(`/login?redirect=${encodeURIComponent(pathname)}`);
+      }
+    }
+  }, [isLoading, error, currentUser, pathname, router]);
 
   return (
     <div className="min-h-[100dvh] bg-background">

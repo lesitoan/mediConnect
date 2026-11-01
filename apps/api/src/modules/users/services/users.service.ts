@@ -78,7 +78,7 @@ export class UsersService {
     }
     const name = staffEmailName(input.fullName);
     // Same-name creations across API instances must choose different suffixes.
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext('STAFF_EMAIL'), hashtext(${name}))`;
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext('STAFF_EMAIL'), hashtext(${name}))::text`;
     const email = await this.availableStaffEmail(tx, name);
     const passwordHash = await hash('123456', 12);
     return tx.user.create({
