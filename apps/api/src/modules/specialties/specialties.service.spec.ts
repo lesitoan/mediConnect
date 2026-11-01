@@ -2,6 +2,7 @@ import { ConflictException, NotFoundException } from '@nestjs/common';
 import type { PrismaService } from '../database/services/prisma.service';
 import type { AuditLogsService } from '../audit-logs/audit-logs.service';
 import type { CurrentUserDto } from '../users/dto/responses/current-user.dto';
+import { Prisma } from '../../generated/prisma/client';
 import { SpecialtiesService } from './specialties.service';
 import { SpecialtyQueryDto } from './dto/specialty-query.dto';
 
@@ -17,6 +18,7 @@ describe('Specialty catalog', () => {
     name: 'Cardiology',
     roomCode: 'P01',
     description: null,
+    consultationFee: new Prisma.Decimal(200000),
     isActive: true,
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -139,7 +141,12 @@ describe('Specialty catalog', () => {
 
   it('records creation and only changed fields; it propagates audit failures', async () => {
     await service.create(
-      { code: 'CARD', name: 'Cardiology', roomCode: 'P01' },
+      {
+        code: 'CARD',
+        name: 'Cardiology',
+        roomCode: 'P01',
+        consultationFee: '200000',
+      },
       actor,
     );
     expect(audit.record).toHaveBeenCalledWith(

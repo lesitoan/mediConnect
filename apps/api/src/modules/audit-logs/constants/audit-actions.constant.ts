@@ -19,6 +19,7 @@ export const AUDIT_ACTION_LABELS: Readonly<Record<string, string>> = {
   SPECIALTY_UPDATE: 'Cập nhật chuyên khoa',
   SPECIALTY_DEACTIVATE: 'Tạm dừng chuyên khoa',
   SPECIALTY_ACTIVATE: 'Kích hoạt chuyên khoa',
+  INVOICE_CREATE: 'Lập hóa đơn khám',
   EXPORT_AUDIT_LOG: 'Xuất nhật ký hệ thống',
   ACCOUNT_ACTIVATE: 'Kích hoạt tài khoản',
   ACCOUNT_REGISTER: 'Đăng ký tài khoản',
