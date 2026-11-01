@@ -6,7 +6,10 @@ import { configureApp } from './configs/configure-app';
 import { setupSwagger } from './swagger/setup-swagger';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  const app = await NestFactory.create(AppModule, {
+    bufferLogs: true,
+    rawBody: true,
+  });
   const logger = app.get(Logger);
   const config = app.get(ConfigService);
   app.useLogger(logger);

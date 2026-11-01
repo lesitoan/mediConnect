@@ -163,14 +163,15 @@ model PatientMedicalRecord {
 }
 
 model Specialty {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  code        String   @unique @db.VarChar(20)
-  name        String   @unique @db.VarChar(255)
-  roomCode    String   @map("room_code") @db.VarChar(20)
-  description String?  @db.Text
-  isActive    Boolean  @default(true) @map("is_active")
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code            String   @unique @db.VarChar(20)
+  name            String   @unique @db.VarChar(255)
+  roomCode        String   @map("room_code") @db.VarChar(20)
+  description     String?  @db.Text
+  consultationFee Decimal? @map("consultation_fee") @db.Decimal(14, 2)
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   doctors           Doctor[]           @relation("DoctorSpecialtyId")
   careSessions      CareSession[]      @relation("CareSessionSpecialtyId")
@@ -265,7 +266,7 @@ model LeaveRequest {
   staffUserId       String?              @map("staff_user_id") @db.Uuid
   requestType       LeaveRequestType     @default(ABSENT) @map("request_type")
   priority          LeaveRequestPriority @default(NORMAL)
-  source            LeaveRequestSource @default(DOCTOR_REQUEST)
+  source            LeaveRequestSource   @default(DOCTOR_REQUEST)
   startsAt          DateTime             @map("starts_at") @db.Timestamptz(6)
   endsAt            DateTime?            @map("ends_at") @db.Timestamptz(6)
   reason            String               @db.Text
@@ -456,6 +457,7 @@ model Consultation {
   diagnoses               Diagnosis[]            @relation("DiagnosisConsultationId")
   outgoingReferrals       InternalReferral[]     @relation("InternalReferralSourceConsultationId")
   review                  Review?                @relation("ReviewConsultationId")
+  invoice                 Invoice?               @relation("InvoiceConsultationId")
 
   @@map("consultations")
 }
@@ -504,6 +506,7 @@ model Invoice {
   id                    String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   invoiceCode           String        @unique @map("invoice_code") @db.VarChar(30)
   appointmentId         String        @map("appointment_id") @db.Uuid
+  consultationId        String?       @unique @map("consultation_id") @db.Uuid
   currency              String        @default("VND") @db.Char(3)
   chargeDetails         Json          @default("[]") @map("charge_details") @db.JsonB
   totalAmount           Decimal       @map("total_amount") @db.Decimal(14, 2)
@@ -512,10 +515,14 @@ model Invoice {
   refundRequestedAmount Decimal?      @map("refund_requested_amount") @db.Decimal(14, 2)
   refundRequestedAt     DateTime?     @map("refund_requested_at") @db.Timestamptz(6)
   refundReason          String?       @map("refund_reason") @db.Text
+  paymentBankCode       String?       @map("payment_bank_code") @db.VarChar(30)
+  paymentAccountNumber  String?       @map("payment_account_number") @db.VarChar(60)
+  paymentAccountName    String?       @map("payment_account_name") @db.VarChar(160)
   createdAt             DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt             DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   appointment  Appointment          @relation("InvoiceAppointmentId", fields: [appointmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  consultation Consultation?        @relation("InvoiceConsultationId", fields: [consultationId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   transactions PaymentTransaction[] @relation("PaymentTransactionInvoiceId")
 
   @@index([appointmentId, createdAt])
