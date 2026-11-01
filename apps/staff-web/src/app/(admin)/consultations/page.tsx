@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { ConsultationListView } from "@/features/consultations/components";
+import { ExaminationManagementView } from "@/features/examinations/components/ExaminationManagementView";
 
 export const metadata: Metadata = {
   title: "Khám bệnh ngoại trú | MediConnect Staff",
@@ -7,5 +7,5 @@ export const metadata: Metadata = {
 };
 
 export default function ConsultationsPage() {
-  return <ConsultationListView />;
+  return <ExaminationManagementView />;
 }

@@ -25,12 +25,15 @@ import { EXAMINATION_FILTERS, EXAMINATION_STATUS } from "../constants";
 import { filterExaminations } from "../examinationUtils";
 import { ExaminationSession } from "./ExaminationSession";
 export function ExaminationManagementView() {
-  const { items, update } = useExaminations();
   const { filters, setFilter, resetFilters } = useTableFilters(
     EXAMINATION_FILTERS,
     "replace",
   );
-  const setSelectedId = (id: string | null) => setFilter("visit", id ?? "");
+  const { items, open, update } = useExaminations(Boolean(filters.visit));
+  const setSelectedId = (id: string | null) => {
+    if (id) open(id);
+    setFilter("visit", id ?? "");
+  };
   const selected = items.find((item) => item.id === filters.visit);
   const listedItems = items.filter((item) => !item.isQueueOnly);
   const filtered = filterExaminations(listedItems, filters);

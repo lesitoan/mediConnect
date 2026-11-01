@@ -79,7 +79,7 @@ export async function getQueueBoard(
 
 async function postQueueAction(
   careSessionId: string,
-  action: "call" | "skip" | "restore",
+  action: "call" | "start" | "complete" | "skip" | "restore",
 ): Promise<QueueActionResponse> {
   try {
     const response = await axiosClient.post<ApiSuccess<QueueActionResponse>>(
@@ -101,6 +101,18 @@ export function skipQueueSession(
   careSessionId: string,
 ): Promise<QueueActionResponse> {
   return postQueueAction(careSessionId, "skip");
+}
+
+export function startQueueSession(
+  careSessionId: string,
+): Promise<QueueActionResponse> {
+  return postQueueAction(careSessionId, "start");
+}
+
+export function completeQueueSession(
+  careSessionId: string,
+): Promise<QueueActionResponse> {
+  return postQueueAction(careSessionId, "complete");
 }
 
 export function restoreQueueSession(

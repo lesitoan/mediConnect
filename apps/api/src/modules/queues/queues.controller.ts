@@ -38,6 +38,7 @@ export class QueuesController {
   }
 
   @Post(':careSessionId/call')
+  @AuthRole(RoleEnum.ADMIN, RoleEnum.DOCTOR)
   @ApiOperation({ summary: 'Gọi bệnh nhân đứng đầu hàng chờ của bác sĩ' })
   @ApiParam({ name: 'careSessionId', format: 'uuid' })
   @ApiResponse({ status: 409, description: 'Lượt không thể được gọi' })
@@ -52,6 +53,7 @@ export class QueuesController {
   }
 
   @Post(':careSessionId/skip')
+  @AuthRole(RoleEnum.ADMIN, RoleEnum.DOCTOR)
   @ApiOperation({ summary: 'Bỏ qua lượt khám đã được gọi ít nhất ba phút' })
   @ApiParam({ name: 'careSessionId', format: 'uuid' })
   @ApiResponse({
@@ -69,6 +71,7 @@ export class QueuesController {
   }
 
   @Post(':careSessionId/restore')
+  @AuthRole(RoleEnum.ADMIN, RoleEnum.DOCTOR)
   @ApiOperation({ summary: 'Đưa lượt bị bỏ qua trở lại hàng chờ thường' })
   @ApiParam({ name: 'careSessionId', format: 'uuid' })
   @ApiResponse({ status: 409, description: 'Lượt không thể đưa trở lại' })
@@ -79,6 +82,36 @@ export class QueuesController {
   ) {
     return new HttpResponseBodySuccessDto(
       await this.queues.restore(careSessionId, user),
+    );
+  }
+
+  @Post(':careSessionId/start')
+  @AuthRole(RoleEnum.ADMIN, RoleEnum.DOCTOR)
+  @ApiOperation({ summary: 'Bắt đầu phiên khám đã được gọi' })
+  @ApiParam({ name: 'careSessionId', format: 'uuid' })
+  @ApiResponse({ status: 409, description: 'Lượt không thể bắt đầu' })
+  async start(
+    @Param('careSessionId', new ParseUUIDPipe({ version: '4' }))
+    careSessionId: string,
+    @CurrentUser() user: CurrentUserDto,
+  ) {
+    return new HttpResponseBodySuccessDto(
+      await this.queues.start(careSessionId, user),
+    );
+  }
+
+  @Post(':careSessionId/complete')
+  @AuthRole(RoleEnum.ADMIN, RoleEnum.DOCTOR)
+  @ApiOperation({ summary: 'Hoàn thành phiên khám đang thực hiện' })
+  @ApiParam({ name: 'careSessionId', format: 'uuid' })
+  @ApiResponse({ status: 409, description: 'Lượt không thể hoàn thành' })
+  async complete(
+    @Param('careSessionId', new ParseUUIDPipe({ version: '4' }))
+    careSessionId: string,
+    @CurrentUser() user: CurrentUserDto,
+  ) {
+    return new HttpResponseBodySuccessDto(
+      await this.queues.complete(careSessionId, user),
     );
   }
 

@@ -1,58 +1,103 @@
 "use client";
-import { useState } from "react";
-import { createDemoExaminations } from "../constants";
-import { applyExaminationChanges } from "../examinationUtils";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import toast from "react-hot-toast";
+import {
+  listExaminations,
+  openExamination,
+  updateExamination,
+} from "../services/examinationsService";
 import type { Examination } from "../types/examinationTypes";
-export function useExaminations() {
-  const [items, setItems] = useState(() => {
-    const records = createDemoExaminations("2026-03-16");
-    return [
-      ...records,
-      ...[
-        {
-          id: "QUEUE-CURRENT",
-          patientName: "Vũ Hải Đăng",
-          patientCode: "BN-12601",
-          demographics: "Nam · 40 tuổi",
-          queueNumber: "STT A-021",
-        },
-        {
-          id: "QUEUE-CALLING",
-          patientName: "Hoàng Mai Linh",
-          patientCode: "BN-11480",
-          demographics: "Nữ · 28 tuổi",
-          queueNumber: "STT A-022",
-        },
-        {
-          id: "QUEUE-RESULTS",
-          patientName: "Nguyễn Bích Ngọc",
-          patientCode: "BN-12562",
-          demographics: "Nữ · 35 tuổi",
-          queueNumber: "STT A-020",
-          status: "WAITING_RESULTS" as const,
-        },
-        {
-          id: "QUEUE-WAITING",
-          patientName: "Phạm Văn Tuấn",
-          patientCode: "BN-10923",
-          demographics: "Nam · 30 tuổi",
-          queueNumber: "STT A-027",
-        },
-        {
-          id: "QUEUE-SKIPPED",
-          patientName: "Dương Quốc Bảo",
-          patientCode: "BN-10683",
-          demographics: "Nam · 45 tuổi",
-          queueNumber: "STT A-016",
-        },
-      ].map((item) => ({ ...records[0], ...item, isQueueOnly: true })),
-    ];
-  });
-  const update = (id: string, changes: Partial<Examination>) =>
-    setItems((previous) =>
-      previous.map((item) => {
-        return item.id === id ? applyExaminationChanges(item, changes) : item;
-      }),
-    );
-  return { items, update };
+
+export function useExaminations(isPaused = false) {
+  const [items, setItems] = useState<Examination[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const listRequestId = useRef(0);
+  const mutationRequestId = useRef(0);
+  const activeMutations = useRef(0);
+
+  const refetch = useCallback((force = false) => {
+    if ((!force && isPaused) || activeMutations.current > 0) return;
+    const currentRequest = ++listRequestId.current;
+    setIsLoading(true);
+    void listExaminations()
+      .then((value) => {
+        if (currentRequest === listRequestId.current) setItems(value);
+      })
+      .catch((error: unknown) => {
+        if (currentRequest === listRequestId.current)
+          toast.error(
+            error instanceof Error ? error.message : "Không thể tải phiên khám",
+          );
+      })
+      .finally(() => {
+        if (currentRequest === listRequestId.current) setIsLoading(false);
+      });
+  }, [isPaused]);
+
+  useEffect(() => {
+    refetch(true);
+    const interval = window.setInterval(() => {
+      if (!document.hidden && !isPaused) refetch();
+    }, 10_000);
+    const handleFocus = () => refetch();
+    window.addEventListener("focus", handleFocus);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [isPaused, refetch]);
+
+  const open = (id: string) => {
+    const item = items.find((value) => value.id === id);
+    if (!item || item.status !== "CALLED") return;
+    const currentRequest = ++mutationRequestId.current;
+    activeMutations.current++;
+    void openExamination(item.careSessionId ?? id)
+      .then((value) => {
+        if (currentRequest === mutationRequestId.current)
+          setItems((previous) =>
+            previous.map((entry) => (entry.id === id ? value : entry)),
+          );
+      })
+      .catch((error: unknown) => {
+        if (currentRequest === mutationRequestId.current)
+          toast.error(
+            error instanceof Error ? error.message : "Không thể mở phiên khám",
+          );
+      })
+      .finally(() => {
+        activeMutations.current--;
+        refetch(true);
+      });
+  };
+
+  const update = (id: string, changes: Partial<Examination>) => {
+    const item = items.find((value) => value.id === id);
+    const currentRequest = ++mutationRequestId.current;
+    activeMutations.current++;
+    void updateExamination(item?.careSessionId ?? id, changes)
+      .then((value) => {
+        setItems((previous) =>
+          previous.map((entry) =>
+            entry.id === id && currentRequest === mutationRequestId.current
+              ? value
+              : entry,
+          ),
+        );
+      })
+      .catch((error: unknown) => {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Không thể cập nhật phiên khám",
+        );
+      })
+      .finally(() => {
+        activeMutations.current--;
+        refetch(true);
+      });
+  };
+
+  return { items, isLoading, open, update };
 }

@@ -46,9 +46,22 @@ export function QueueCard({
       <div className="mx-4 flex flex-wrap items-center gap-3 border-t border-border/60 py-2">
         {actions.map((action) => {
           const isCall = action === "CALL";
+          const isStart = action === "START";
+          const isComplete = action === "COMPLETE";
           const isSkip = action === "SKIP";
           const isSkipDisabled = isSkip && secondsToSkip > 0;
-          const isDisabled = (isCall && callDisabled) || isSkipDisabled;
+          const reason = isCall
+            ? item.cannotCallReason
+            : isStart
+              ? item.cannotStartReason
+              : isComplete
+                ? item.cannotCompleteReason
+                : item.cannotSkipReason;
+          const isDisabled =
+            (isCall && callDisabled) ||
+            (isStart && !item.canStart) ||
+            (isComplete && !item.canComplete) ||
+            (isSkip && (!item.canSkip || isSkipDisabled));
           return (
             <div key={action} className="flex flex-col">
               <Button
@@ -75,7 +88,7 @@ export function QueueCard({
                   id={`queue-call-reason-${item.careSessionId}`}
                   className="max-w-48 text-caption text-muted"
                 >
-                  {item.cannotCallReason}
+                  {reason}
                 </span>
               )}
             </div>

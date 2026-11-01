@@ -1,5 +1,9 @@
 export type ExaminationStatus =
-  "IN_PROGRESS" | "WAITING_RESULTS" | "PAUSED" | "COMPLETED";
+  | "CALLED"
+  | "IN_PROGRESS"
+  | "WAITING_RESULTS"
+  | "PAUSED"
+  | "COMPLETED";
 export interface Diagnosis {
   code: string;
   name: string;
@@ -22,6 +26,7 @@ export interface HistoryCondition {
 }
 export interface Examination {
   id: string;
+  careSessionId?: string;
   isQueueOnly?: boolean;
   patientName: string;
   patientCode: string;

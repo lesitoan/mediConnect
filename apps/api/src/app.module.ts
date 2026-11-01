@@ -25,6 +25,7 @@ import { ReceptionModule } from './modules/reception/reception.module';
 import { QueuesModule } from './modules/queues/queues.module';
 import { InvoicesModule } from './modules/invoices/invoices.module';
 import { PaymentsModule } from './modules/payments/payments.module';
+import { ExaminationsModule } from './modules/examinations/examinations.module';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -61,6 +62,7 @@ import { PaymentsModule } from './modules/payments/payments.module';
     QueuesModule,
     InvoicesModule,
     PaymentsModule,
+    ExaminationsModule,
   ],
 })
 export class AppModule {}

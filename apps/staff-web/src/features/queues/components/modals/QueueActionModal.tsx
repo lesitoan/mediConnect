@@ -14,8 +14,10 @@ import {
 import { QUEUE_ACTION_LABELS, QUEUE_ERROR_MESSAGES } from "../../constants";
 import {
   callQueueSession,
+  completeQueueSession,
   restoreQueueSession,
   skipQueueSession,
+  startQueueSession,
 } from "../../services/queuesService";
 import type {
   QueueAction,
@@ -34,6 +36,8 @@ interface QueueActionModalProps {
 
 const ACTION_REQUESTS = {
   CALL: callQueueSession,
+  START: startQueueSession,
+  COMPLETE: completeQueueSession,
   SKIP: skipQueueSession,
   RESTORE: restoreQueueSession,
 };
@@ -47,10 +51,15 @@ export function QueueActionModal({
 }: QueueActionModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const isCallDisabled = action === "CALL" && !item.canCall;
+  const isActionDisabled =
+    (action === "CALL" && !item.canCall) ||
+    (action === "START" && !item.canStart) ||
+    (action === "COMPLETE" && !item.canComplete) ||
+    (action === "SKIP" && !item.canSkip) ||
+    (action === "RESTORE" && !item.canRestore);
 
   const handleConfirm = async () => {
-    if (isSubmitting || isCallDisabled) return;
+    if (isSubmitting || isActionDisabled) return;
     setIsSubmitting(true);
     setErrorMessage(null);
     try {
@@ -119,9 +128,17 @@ export function QueueActionModal({
               qua được giữ nguyên.
             </p>
           )}
-          {isCallDisabled && (
+          {isActionDisabled && (
             <p role="alert" className="text-caption text-danger">
-              {item.cannotCallReason}
+              {action === "CALL"
+                ? item.cannotCallReason
+                : action === "START"
+                  ? item.cannotStartReason
+                  : action === "COMPLETE"
+                    ? item.cannotCompleteReason
+                    : action === "SKIP"
+                      ? item.cannotSkipReason
+                      : item.cannotRestoreReason}
             </p>
           )}
           {errorMessage && (
@@ -144,7 +161,7 @@ export function QueueActionModal({
           </Button>
           <Button
             type="button"
-            disabled={isSubmitting || isCallDisabled}
+            disabled={isSubmitting || isActionDisabled}
             onClick={handleConfirm}
           >
             {isSubmitting ? "Đang xử lý..." : "Xác nhận"}

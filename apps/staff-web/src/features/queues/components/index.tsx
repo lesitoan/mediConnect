@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { Empty } from "@/components/ui/Empty";
 import { Loading } from "@/components/shared/Loading";
+import { useGetAuthUserQuery } from "@/features/auth/services/authApi";
 import {
   DEFAULT_QUEUE_FILTERS,
   QUEUE_ERROR_MESSAGES,
@@ -44,6 +45,8 @@ function getClinicDate(): string {
 }
 
 export function QueueManagementView() {
+  const { data: currentUser } = useGetAuthUserQuery();
+  const isReceptionReadOnly = currentUser?.role === "RECEPTIONIST";
   const [date, setDate] = useState(getClinicDate);
   const [filters, setFilters] = useState<QueueFilterValues>(
     DEFAULT_QUEUE_FILTERS,
@@ -67,6 +70,9 @@ export function QueueManagementView() {
 
   const refreshBoard = useCallback(
     async (signal?: AbortSignal) => {
+      if (!currentUser) return;
+      if (currentUser.role === "RECEPTIONIST" && filters.doctorId === "ALL")
+        return;
       const params = {
         date,
         ...(filters.search ? { search: filters.search } : {}),
@@ -97,7 +103,7 @@ export function QueueManagementView() {
         }
       }
     },
-    [date, filters],
+    [currentUser, date, filters],
   );
 
   useEffect(() => {
@@ -131,6 +137,16 @@ export function QueueManagementView() {
         if (controller.signal.aborted) return;
         setSpecialties(nextSpecialties.map(({ id, name }) => ({ id, name })));
         setDoctors(getQueueDoctorOptions(nextDoctors));
+        if (
+          currentUser?.role === "RECEPTIONIST" &&
+          filters.doctorId === "ALL" &&
+          nextDoctors[0]
+        ) {
+          setFilters((current) => ({
+            ...current,
+            doctorId: nextDoctors[0].id,
+          }));
+        }
       })
       .catch((error: unknown) => {
         if (!controller.signal.aborted) {
@@ -144,7 +160,7 @@ export function QueueManagementView() {
         }
       });
     return () => controller.abort();
-  }, [filters.specialtyId]);
+  }, [currentUser?.role, filters.doctorId, filters.specialtyId]);
 
   useEffect(() => {
     const interval = window.setInterval(() => setServerTime(Date.now()), 1000);
@@ -176,6 +192,10 @@ export function QueueManagementView() {
   };
 
   const handleAction = (item: QueueItem, action: QueueAction) => {
+    if (!item.canAct) {
+      toast.error(item.cannotCallReason ?? "Chỉ xem");
+      return;
+    }
     if (action === "CALL" && !item.canCall) {
       toast.error(item.cannotCallReason ?? QUEUE_ERROR_MESSAGES.STATUS_CHANGED);
       return;
@@ -234,6 +254,9 @@ export function QueueManagementView() {
           }))
         }
       />
+      {isReceptionReadOnly && (
+        <p className="text-caption font-medium text-muted">Chế độ chỉ xem</p>
+      )}
       <div aria-busy={isLoading || isRefreshing}>
         {isLoading ? (
           <Loading label="Đang tải hàng chờ..." className="min-h-[560px]" />

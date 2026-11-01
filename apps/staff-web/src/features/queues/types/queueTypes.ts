@@ -6,7 +6,7 @@ export type QueueStatus =
   | "SKIPPED"
   | "NO_SHOW";
 
-export type QueueAction = "CALL" | "SKIP" | "RESTORE";
+export type QueueAction = "CALL" | "START" | "COMPLETE" | "SKIP" | "RESTORE";
 
 export interface QueueItem {
   careSessionId: string;
@@ -29,6 +29,15 @@ export interface QueueItem {
   nextSkipCount: number;
   canCall: boolean;
   cannotCallReason: string | null;
+  canStart: boolean;
+  cannotStartReason: string | null;
+  canComplete: boolean;
+  cannotCompleteReason: string | null;
+  canSkip: boolean;
+  cannotSkipReason: string | null;
+  canRestore: boolean;
+  cannotRestoreReason: string | null;
+  canAct: boolean;
   calledAt: string | null;
   skippedAt: string | null;
   isNoShow: boolean;

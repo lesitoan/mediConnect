@@ -1,16 +1,13 @@
 import 'dotenv/config';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../src/generated/prisma/client';
+import { clinicDate, clinicDateString } from '../src/common/utils/clinic-date';
 
 const DEMO_PATIENT_PREFIX = 'Q-DEMO-P-';
 const DEMO_APPOINTMENT_PREFIX = 'Q-DEMO-A-';
 const DEMO_USER_EMAIL_PREFIX = 'q-demo-p-';
 const LEGACY_DEMO_USER_EMAIL_PREFIX = 'queue-demo-patient-';
-const DEMO_DOCTOR_CODES = [
-  'SEED-GEN-01',
-  'SEED-GEN-02',
-  'SEED-SUR-01',
-] as const;
+const DEMO_DOCTOR_CODES = ['SEED-GEN-01'] as const;
 const DEMO_QUEUE = [
   {
     doctorCode: 'SEED-GEN-01',
@@ -28,44 +25,33 @@ const DEMO_QUEUE = [
     priorityType: 'RETURNING_LAB',
   },
   {
-    doctorCode: 'SEED-GEN-02',
-    status: 'CALLED',
-    priorityType: 'WALK_IN',
-    calledAgoSeconds: 60,
-  },
-  {
     doctorCode: 'SEED-GEN-01',
     status: 'SKIPPED',
     priorityType: 'APPOINTMENT_LATE',
     skippedAgoSeconds: 300,
   },
   {
-    doctorCode: 'SEED-SUR-01',
+    doctorCode: 'SEED-GEN-01',
+    status: 'CALLED',
+    priorityType: 'WALK_IN',
+    calledAgoSeconds: 60,
+  },
+  {
+    doctorCode: 'SEED-GEN-01',
     status: 'IN_CONSULTATION',
     priorityType: 'APPOINTMENT_ON_TIME',
   },
   {
-    doctorCode: 'SEED-SUR-01',
-    status: 'CALLED',
-    priorityType: 'RETURNING_LAB',
-    calledAgoSeconds: 240,
-  },
-  {
-    doctorCode: 'SEED-SUR-01',
-    status: 'WAITING',
+    doctorCode: 'SEED-GEN-01',
+    status: 'COMPLETED',
     priorityType: 'APPOINTMENT_ON_TIME',
   },
   {
-    doctorCode: 'SEED-SUR-01',
-    status: 'CHECKED_IN',
-    priorityType: 'REFERRAL',
-  },
-  {
-    doctorCode: 'SEED-GEN-02',
-    status: 'CALLED',
-    priorityType: 'WALK_IN',
-    calledAgoSeconds: 240,
-    skipCount: 2,
+    doctorCode: 'SEED-GEN-01',
+    status: 'NO_SHOW',
+    priorityType: 'APPOINTMENT_ON_TIME',
+    skipCount: 3,
+    skippedAgoSeconds: 600,
   },
 ] as const;
 
@@ -93,11 +79,12 @@ async function cleanup(prisma: PrismaClient): Promise<void> {
   const slotIds = appointments.flatMap(({ careSessions }) =>
     careSessions.map(({ appointmentSlotId }) => appointmentSlotId),
   );
-  const patients = await prisma.patient.findMany({
-    where: { patientCode: { startsWith: DEMO_PATIENT_PREFIX } },
-    select: { id: true, userId: true },
-  });
-  const orphanedDemoUsers = await prisma.user.findMany({
+  const patients: Array<{ id: string; userId: string | null }> =
+    await prisma.patient.findMany({
+      where: { patientCode: { startsWith: DEMO_PATIENT_PREFIX } },
+      select: { id: true, userId: true },
+    });
+  const orphanedDemoUsers: Array<{ id: string }> = await prisma.user.findMany({
     where: {
       OR: [
         { email: { startsWith: DEMO_USER_EMAIL_PREFIX } },
@@ -107,6 +94,10 @@ async function cleanup(prisma: PrismaClient): Promise<void> {
     select: { id: true },
   });
   await prisma.$transaction(async (tx) => {
+    if (sessionIds.length)
+      await tx.consultation.deleteMany({
+        where: { careSessionId: { in: sessionIds } },
+      });
     if (sessionIds.length)
       await tx.careSession.deleteMany({ where: { id: { in: sessionIds } } });
     if (appointmentIds.length)
@@ -176,31 +167,27 @@ async function seed(prisma: PrismaClient): Promise<void> {
   });
   if (!patientRole) throw new Error('Không tìm thấy role bệnh nhân.');
   const now = new Date();
-  const queueDate = new Date(
-    `${new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'Asia/Ho_Chi_Minh',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    }).format(now)}T00:00:00+07:00`,
-  );
+  const queueDate = clinicDate(clinicDateString(now));
   const queueNumbers = new Map<string, number>();
   const doctorsByCode = new Map(
     doctors.map((doctor) => [doctor.doctorCode, doctor]),
   );
   for (const doctor of doctors) {
-    if (queueNumbers.has(doctor.specialtyId)) continue;
+    if (queueNumbers.has(doctor.id)) continue;
     const maximum = await prisma.careSession.aggregate({
-      where: { specialtyId: doctor.specialtyId, queueDate },
+      where: {
+        appointmentSlot: { doctorSchedule: { doctorId: doctor.id } },
+        queueDate,
+      },
       _max: { queueNumber: true },
     });
-    queueNumbers.set(doctor.specialtyId, (maximum._max.queueNumber ?? 0) + 1);
+    queueNumbers.set(doctor.id, (maximum._max.queueNumber ?? 0) + 1);
   }
   for (const [index, item] of DEMO_QUEUE.entries()) {
     const doctor = doctorsByCode.get(item.doctorCode);
     if (!doctor || !doctor.schedules[0])
       throw new Error('Không tìm thấy lịch bác sĩ để tạo lượt demo.');
-    const queueNumber = queueNumbers.get(doctor.specialtyId);
+    const queueNumber = queueNumbers.get(doctor.id);
     if (queueNumber === undefined)
       throw new Error('Không thể cấp STT demo theo chuyên khoa.');
     const patientCode = `${DEMO_PATIENT_PREFIX}${String(index + 1).padStart(2, '0')}`;
@@ -244,7 +231,7 @@ async function seed(prisma: PrismaClient): Promise<void> {
       },
       select: { id: true },
     });
-    await prisma.careSession.create({
+    const careSession = await prisma.careSession.create({
       data: {
         appointmentId: appointment.id,
         appointmentSlotId: appointmentSlot.id,
@@ -272,7 +259,26 @@ async function seed(prisma: PrismaClient): Promise<void> {
             : null,
       },
     });
-    queueNumbers.set(doctor.specialtyId, queueNumber + 1);
+    if (item.status === 'IN_CONSULTATION')
+      await prisma.consultation.create({
+        data: {
+          careSessionId: careSession.id,
+          startedAt: now,
+          clinicalNotes: 'Bản nháp khám lâm sàng demo.',
+          prescription: [],
+        },
+      });
+    if (item.status === 'COMPLETED')
+      await prisma.consultation.create({
+        data: {
+          careSessionId: careSession.id,
+          startedAt: new Date(now.getTime() - 30 * 60_000),
+          completedAt: new Date(now.getTime() - 5 * 60_000),
+          lockedAt: new Date(now.getTime() - 5 * 60_000),
+          clinicalNotes: 'Phiên khám demo đã hoàn tất.',
+        },
+      });
+    queueNumbers.set(doctor.id, queueNumber + 1);
   }
 }
 
