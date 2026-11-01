@@ -260,6 +260,10 @@ export const RBAC_PERMISSIONS: Record<
       'Xác nhận khoản tiền thực tế đã thu tại quầy, lưu người thu và thời điểm.',
     roles: [RoleEnum.RECEPTIONIST],
   },
+  [PermissionEnum.PAYMENTS_PREPARE]: {
+    description: 'Tạo QR SePay cho hóa đơn còn thiếu tiền tại quầy.',
+    roles: [RoleEnum.RECEPTIONIST],
+  },
   [PermissionEnum.REFUNDS_REQUEST]: {
     description:
       'Tạo yêu cầu hoàn tiền theo chính sách khi xử lý lịch hẹn bị ảnh hưởng.',
