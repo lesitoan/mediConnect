@@ -2,12 +2,10 @@
 
 import type {
   DoctorScheduleRow,
-  ScheduleShift,
   ScheduleStatistics,
 } from "../types/scheduleTypes";
 import { cn } from "@/lib/utils";
 import { formatScheduleDate } from "../utils";
-import { SCHEDULE_SHIFT_CARD_OPTIONS } from "../shiftCardOptions";
 import { ScheduleShiftCard } from "./ScheduleShiftCard";
 import { ScheduleWeeklyGridFooter } from "./ScheduleWeeklyGridFooter";
 
@@ -16,8 +14,6 @@ interface ScheduleWeeklyGridProps {
   schedules: DoctorScheduleRow[];
   statistics: ScheduleStatistics;
   totalDoctors: number;
-  onResolveConflict: (shift: ScheduleShift) => void;
-  onViewPendingRequest: (shift: ScheduleShift) => void;
 }
 
 export function ScheduleWeeklyGrid({
@@ -25,8 +21,6 @@ export function ScheduleWeeklyGrid({
   schedules,
   statistics,
   totalDoctors,
-  onResolveConflict,
-  onViewPendingRequest,
 }: ScheduleWeeklyGridProps) {
   const today = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Ho_Chi_Minh",
@@ -69,7 +63,7 @@ export function ScheduleWeeklyGrid({
           <div className="divide-y divide-border">
             {schedules.map((row) => (
               <div
-                key={row.doctorId}
+                key={row.scheduleId}
                 className="flex items-stretch transition-colors hover:bg-secondary/20"
               >
                 <div className="flex w-[220px] shrink-0 items-center gap-2.5 px-3.5 py-3">
@@ -107,9 +101,6 @@ export function ScheduleWeeklyGrid({
                     >
                       <ScheduleShiftCard
                         shift={shift}
-                        options={SCHEDULE_SHIFT_CARD_OPTIONS}
-                        onResolveConflict={onResolveConflict}
-                        onViewPendingRequest={onViewPendingRequest}
                       />
                     </div>
                   );

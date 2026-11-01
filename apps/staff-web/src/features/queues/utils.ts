@@ -1,5 +1,3 @@
-import type { ApiError } from "@/types/apiTypes";
-import { QUEUE_ERROR_MESSAGES } from "./constants";
 import type {
   QueueAction,
   QueueFilterOption,
@@ -8,118 +6,73 @@ import type {
   QueueStatus,
 } from "./types/queueTypes";
 
-export function normalizeQueueSearch(value: string): string {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/đ/gi, "d")
-    .toLowerCase()
-    .replace(/[\s-]+/g, "");
+export function getQueueColumnKey(status: QueueStatus): string {
+  if (status === "CHECKED_IN") return "WAITING";
+  if (status === "NO_SHOW") return "SKIPPED";
+  return status;
 }
 
 export function filterQueueItems(
   items: QueueItem[],
   filters: QueueFilterValues,
 ): QueueItem[] {
-  const search = normalizeQueueSearch(filters.search);
-
-  return items
-    .filter((item) => {
-      if (
-        filters.specialtyId !== "ALL" &&
-        item.specialtyId !== filters.specialtyId
-      )
-        return false;
-      if (filters.doctorId !== "ALL" && item.doctorId !== filters.doctorId)
-        return false;
-
-      return (
-        !search ||
-        [item.patientName, item.patientId, item.queueNumber].some((value) =>
-          normalizeQueueSearch(value).includes(search),
-        )
-      );
-    })
-    .sort(
-      (first, second) =>
-        first.queuePosition - second.queuePosition ||
-        first.id.localeCompare(second.id),
+  const search = filters.search.trim().toLocaleLowerCase("vi-VN");
+  return items.filter((item) => {
+    if (
+      filters.specialtyId !== "ALL" &&
+      item.specialtyId !== filters.specialtyId
+    )
+      return false;
+    if (filters.doctorId !== "ALL" && item.doctorId !== filters.doctorId)
+      return false;
+    return (
+      !search ||
+      [
+        item.patientName,
+        item.patientCode,
+        item.appointmentCode,
+        String(item.queueNumber ?? ""),
+      ].some((value) => value.toLocaleLowerCase("vi-VN").includes(search))
     );
-}
-
-export function getQueueSpecialtyOptions(
-  items: QueueItem[],
-): QueueFilterOption[] {
-  return Array.from(
-    new Map(
-      items.map((item) => [
-        item.specialtyId,
-        { id: item.specialtyId, name: item.specialtyName },
-      ]),
-    ).values(),
-  );
+  });
 }
 
 export function getQueueDoctorOptions(
-  items: QueueItem[],
-  specialtyId: string,
+  doctors: { id: string; user: { fullName: string } }[],
 ): QueueFilterOption[] {
-  return Array.from(
-    new Map(
-      items
-        .filter(
-          (item) => specialtyId === "ALL" || item.specialtyId === specialtyId,
-        )
-        .map((item) => [
-          item.doctorId,
-          { id: item.doctorId, name: item.doctorName },
-        ]),
-    ).values(),
-  );
+  return doctors.map((doctor) => ({
+    id: doctor.id,
+    name: doctor.user.fullName,
+  }));
 }
 
-export function getQueueAction(status: QueueStatus): QueueAction | null {
-  switch (status) {
-    case "WAITING":
-      return "CALL";
-    case "CALLING":
-      return "SKIP";
-    case "SKIPPED":
-      return "RESTORE";
-    default:
-      return null;
-  }
+export function getQueueAction(item: QueueItem): QueueAction[] {
+  if (item.status === "WAITING" || item.status === "CHECKED_IN")
+    return ["CALL"];
+  if (item.status === "CALLED") return ["SKIP"];
+  if (item.status === "SKIPPED") return ["CALL", "RESTORE"];
+  return [];
 }
 
 export function getQueueSubtitle(item: QueueItem): string {
-  switch (item.status) {
-    case "WAITING":
-      return `${item.appointmentStart} · ${item.arrivalStatus === "LATE" ? "Đến trễ" : "Đúng giờ"}`;
-    case "CALLING":
-      return `${item.room} · Đã gọi`;
-    case "IN_PROGRESS":
-      return `${item.room} · Trong phòng`;
-    case "SKIPPED":
-      return "Đã bỏ qua";
+  if (item.status === "WAITING" || item.status === "CHECKED_IN") {
+    return `${item.appointmentTime} · ${item.arrivalStatus === "LATE" ? "Đến trễ" : "Đúng giờ"}`;
   }
+  if (item.status === "CALLED") return `${item.room ?? ""} · Đã gọi`;
+  if (item.status === "IN_CONSULTATION")
+    return `${item.room ?? ""} · Trong phòng`;
+  if (item.status === "NO_SHOW") return "Vắng mặt";
+  return `Đã bỏ qua ${item.skipCount} lần`;
 }
 
-export function getQueueErrorMessage(
-  error: unknown,
-  fallback: string = QUEUE_ERROR_MESSAGES.OPERATION_FAILED,
-): string {
-  return typeof error === "object" &&
-    error !== null &&
-    "message" in error &&
-    typeof error.message === "string"
-    ? error.message
-    : fallback;
+export function getQueueStatusLabel(status: QueueStatus): string {
+  return status === "NO_SHOW"
+    ? "Vắng mặt"
+    : status === "SKIPPED"
+      ? "Đã bỏ qua"
+      : status;
 }
 
-export function toQueueError(error: unknown): ApiError {
-  return {
-    status: "FETCH_ERROR",
-    message: getQueueErrorMessage(error),
-    data: null,
-  };
+export function getQueueErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback;
 }

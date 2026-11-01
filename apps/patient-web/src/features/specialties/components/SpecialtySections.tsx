@@ -25,7 +25,17 @@ import { suggestSpecialties } from "../data";
 
 /* ---------- Hero ---------- */
 
-export function Hero({ onList, onAi }: { onList: () => void; onAi: () => void }) {
+export function Hero({
+  onList,
+  onAi,
+  specialtyCount,
+  doctorCount,
+}: {
+  onList: () => void;
+  onAi: () => void;
+  specialtyCount: number | null;
+  doctorCount: number | null;
+}) {
   return (
     <div className="grid items-center gap-8 py-10 lg:grid-cols-[1.15fr_1fr] lg:py-14">
       <div>
@@ -39,9 +49,8 @@ export function Hero({ onList, onAi }: { onList: () => void; onAi: () => void })
           <span className="text-[#0A5A84]">Chuyên Khoa Y Tế MediConnect</span>
         </h1>
         <p className="mt-5 max-w-xl text-[15px] leading-relaxed text-slate-600">
-          Hơn 22 chuyên khoa lâm sàng và cận lâm sàng đạt chuẩn quốc tế, trang bị máy móc hiện đại
-          bậc nhất cùng hội đồng cố vấn y khoa, giáo sư, bác sĩ đầu ngành sẵn sàng đồng hành chăm
-          sóc sức khỏe cho bạn và gia đình.
+          Tra cứu danh sách chuyên khoa và bác sĩ đang hoạt động để tìm dịch vụ phù hợp với nhu cầu
+          khám của bạn.
         </p>
         <div className="mt-7 flex flex-wrap gap-3">
           <button
@@ -49,7 +58,7 @@ export function Hero({ onList, onAi }: { onList: () => void; onAi: () => void })
             onClick={onList}
             className="inline-flex items-center gap-2 rounded-full bg-[#0A5A84] px-6 py-3.5 text-sm font-bold text-white shadow transition hover:bg-[#08486B]"
           >
-            Xem danh sách 22+ Chuyên khoa
+            Xem danh sách chuyên khoa
             <ChevronDown className="h-4 w-4" />
           </button>
           <button
@@ -68,20 +77,24 @@ export function Hero({ onList, onAi }: { onList: () => void; onAi: () => void })
           <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100 text-[#0A5A84]">
             <Plus className="h-5 w-5" />
           </span>
-          <p className="mt-3 text-4xl font-extrabold text-[#0A5A84]">22+</p>
-          <p className="mt-1 text-sm font-extrabold text-slate-900">Chuyên khoa mũi nhọn</p>
+          <p className="mt-3 text-4xl font-extrabold text-[#0A5A84]">
+            {specialtyCount ?? "..."}
+          </p>
+          <p className="mt-1 text-sm font-extrabold text-slate-900">Chuyên khoa</p>
           <p className="mt-1 text-[11px] leading-snug text-slate-500">
-            Phủ rộng từ nội khoa, ngoại khoa đến can thiệp chuyên sâu.
+            Danh sách chuyên khoa hiện có trên hệ thống.
           </p>
         </div>
         <div className="rounded-2xl bg-white p-5 shadow-[0_6px_24px_rgba(10,90,132,0.08)]">
           <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100 text-[#0A5A84]">
             <Users className="h-5 w-5" />
           </span>
-          <p className="mt-3 text-4xl font-extrabold text-[#0A5A84]">200+</p>
-          <p className="mt-1 text-sm font-extrabold text-slate-900">Chuyên gia &amp; Bác sĩ</p>
+          <p className="mt-3 text-4xl font-extrabold text-[#0A5A84]">
+            {doctorCount ?? "..."}
+          </p>
+          <p className="mt-1 text-sm font-extrabold text-slate-900">Bác sĩ đang hoạt động</p>
           <p className="mt-1 text-[11px] leading-snug text-slate-500">
-            Giáo sư, Tiến sĩ, Bác sĩ CKI-CKII từ nghiệp quốc tế.
+            Có thể chọn bác sĩ khi đặt lịch khám.
           </p>
         </div>
         <div className="col-span-2 flex items-center justify-between gap-4 rounded-2xl bg-[#0A5A84] p-5 text-white shadow-[0_6px_24px_rgba(10,90,132,0.2)]">
@@ -90,15 +103,17 @@ export function Hero({ onList, onAi }: { onList: () => void; onAi: () => void })
               <Activity className="h-5 w-5" />
             </span>
             <div className="leading-tight">
-              <p className="text-lg font-extrabold">100% Trang thiết bị đạt chuẩn G7</p>
+              <p className="text-lg font-extrabold">Thông tin được cập nhật từ hệ thống</p>
               <p className="mt-1 text-[11px] text-white/75">
-                MRI 3.0T Lumina, CT 512 lát, Phòng mổ Hybrid vô khuẩn áp lực âm.
+                Danh sách chuyên khoa và bác sĩ đang hoạt động được tải trực tiếp từ MediConnect.
               </p>
             </div>
           </div>
           <div className="shrink-0 text-right">
-            <p className="text-3xl font-extrabold text-sky-200">99.4%</p>
-            <p className="text-[9px] font-bold uppercase text-white/75">Hài lòng dịch vụ</p>
+            <p className="text-3xl font-extrabold text-sky-200">
+              {specialtyCount ?? "..."}
+            </p>
+            <p className="text-[9px] font-bold uppercase text-white/75">Chuyên khoa</p>
           </div>
         </div>
       </div>

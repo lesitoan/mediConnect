@@ -11,7 +11,6 @@ import {
   EyeOff,
   Headset,
   Lock,
-  Mail,
   PhoneCall,
   ShieldCheck,
   User,
@@ -144,7 +143,6 @@ export default function RegisterForm() {
 
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [showPw, setShowPw] = useState(false);
@@ -159,10 +157,6 @@ export default function RegisterForm() {
     phone: /^0\d{9}$/.test(phone)
       ? ""
       : "Số điện thoại gồm 10 chữ số, bắt đầu bằng 0.",
-    email:
-      email.trim() === "" || /^\S+@\S+\.\S+$/.test(email.trim())
-        ? ""
-        : "Địa chỉ email chưa đúng định dạng.",
     password: /^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^a-zA-Z0-9]).{8,}$/.test(
       password,
     )
@@ -183,7 +177,6 @@ export default function RegisterForm() {
     setTouched({
       fullName: true,
       phone: true,
-      email: true,
       password: true,
       confirm: true,
     });
@@ -194,7 +187,6 @@ export default function RegisterForm() {
       const challenge = await registerPatient({
         name: fullName.trim(),
         phone,
-        ...(email.trim() ? { email: email.trim() } : {}),
         password,
       });
       setOtpChallenge(challenge);
@@ -202,7 +194,7 @@ export default function RegisterForm() {
     } catch (error: unknown) {
       setRegistrationError(
         error instanceof AuthApiError && error.status === 409
-          ? "Số điện thoại hoặc email này đã được đăng ký."
+          ? "Số điện thoại này đã được đăng ký."
           : getAuthErrorMessage(error, "Không thể đăng ký tài khoản."),
       );
     } finally {
@@ -300,25 +292,6 @@ export default function RegisterForm() {
               </div>
             </Field>
           </div>
-
-          <Field
-            label="Email cá nhân"
-            hint="Nhận kết quả xét nghiệm, lịch hẹn & hóa đơn VAT"
-            error={show("email")}
-          >
-            <div className={wrap}>
-              <Mail className="h-4 w-4 shrink-0 text-slate-400" />
-              <input
-                type="email"
-                className={base}
-                placeholder="example@gmail.com"
-                autoComplete="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                onBlur={() => blur("email")}
-              />
-            </div>
-          </Field>
 
           <div className="grid gap-4 md:grid-cols-2">
             <Field

@@ -1,34 +1,46 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { Controller, useForm } from "react-hook-form";
 import toast from "react-hot-toast";
 import { useCreateScheduleMutation } from "../../services/schedulesApi";
-import { Plus } from "lucide-react";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/Dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
-import { Checkbox } from "@/components/ui/Checkbox";
-import type {
-  CreateScheduleInput,
-  DoctorScheduleRow,
-} from "../../types/scheduleTypes";
-import { AVAILABLE_ROOMS, TIME_RANGE_MAP } from "../../constants";
-import { formatScheduleDate, getScheduleDayOfWeek } from "../../utils";
+import type { AdminDoctor, CreateScheduleInput } from "../../types/scheduleTypes";
+import { getVietnamDate } from "@/lib/dateUtils";
+
+interface CreateScheduleFormValues
+  extends Omit<CreateScheduleInput, "startsAt" | "endsAt" | "effectiveTo"> {
+  startsAt: string;
+  endsAt: string;
+  effectiveTo: string;
+}
 
 interface CreateScheduleModalProps {
   isOpen: boolean;
   onClose: () => void;
-  doctors: DoctorScheduleRow[];
+  doctors: AdminDoctor[];
   dates: string[];
 }
+
+const WEEKDAYS = [
+  { value: 1, label: "Thứ Hai" },
+  { value: 2, label: "Thứ Ba" },
+  { value: 3, label: "Thứ Tư" },
+  { value: 4, label: "Thứ Năm" },
+  { value: 5, label: "Thứ Sáu" },
+  { value: 6, label: "Thứ Bảy" },
+  { value: 7, label: "Chủ nhật" },
+];
 
 export function CreateScheduleModal({
   isOpen,
@@ -36,6 +48,10 @@ export function CreateScheduleModal({
   doctors,
   dates,
 }: CreateScheduleModalProps) {
+  const activeDoctors = useMemo(
+    () => doctors.filter((doctor) => doctor.isActive),
+    [doctors],
+  );
   const [createSchedule, { isLoading: isSubmitting, reset: resetMutation }] =
     useCreateScheduleMutation();
   const {
@@ -43,45 +59,56 @@ export function CreateScheduleModal({
     register,
     handleSubmit,
     reset,
+    getValues,
     formState: { errors },
-  } = useForm<Omit<CreateScheduleInput, "dayOfWeek" | "timeRange">>({
+  } = useForm<CreateScheduleFormValues>({
     defaultValues: {
-      doctorId: "",
-      date: dates[0] ?? "",
-      shiftType: "MORNING",
-      room: "P.204",
-      isDraft: true,
-      note: "",
+      staffUserId: "",
+      staffType: "DOCTOR",
+      dayOfWeek: 1,
+      startsAt: "07:30",
+      endsAt: "12:00",
+      effectiveFrom: getVietnamDate(),
+      effectiveTo: "",
+      scheduleType: "REGULAR",
+      slotDurationMinutes: 30,
     },
   });
 
   useEffect(() => {
-    if (isOpen) {
-      resetMutation();
-      reset({
-        doctorId: doctors[0]?.doctorId ?? "",
-        date: dates[0] ?? "",
-        shiftType: "MORNING",
-        room: "P.204",
-        isDraft: true,
-        note: "",
-      });
-    }
-  }, [isOpen, doctors, dates, reset, resetMutation]);
+    if (!isOpen) return;
+    resetMutation();
+    reset({
+      staffUserId: activeDoctors[0]?.userId ?? "",
+      staffType: "DOCTOR",
+      dayOfWeek: 1,
+      startsAt: "07:30",
+      endsAt: "12:00",
+      effectiveFrom: dates[0] ?? getVietnamDate(),
+      effectiveTo: "",
+      scheduleType: "REGULAR",
+      slotDurationMinutes: 30,
+    });
+  }, [activeDoctors, dates, isOpen, reset, resetMutation]);
 
   const onFormSubmit = handleSubmit(async (values) => {
     if (isSubmitting) return;
     try {
-      const result = await createSchedule({
-        ...values,
-        dayOfWeek: getScheduleDayOfWeek(values.date),
-        timeRange: TIME_RANGE_MAP[values.shiftType],
-        note: values.note?.trim(),
+      await createSchedule({
+        staffUserId: values.staffUserId,
+        staffType: "DOCTOR",
+        dayOfWeek: values.dayOfWeek,
+        startsAt: `${values.effectiveFrom}T${values.startsAt}:00+07:00`,
+        endsAt: `${values.effectiveFrom}T${values.endsAt}:00+07:00`,
+        effectiveFrom: values.effectiveFrom,
+        ...(values.effectiveTo ? { effectiveTo: values.effectiveTo } : {}),
+        scheduleType: values.scheduleType,
+        slotDurationMinutes: values.slotDurationMinutes,
       }).unwrap();
-      toast.success(result.message);
+      toast.success("Đã tạo lịch lặp theo tuần.");
       onClose();
     } catch {
-      toast.error("Không thể thêm ca trực. Vui lòng thử lại.");
+      toast.error("Không thể tạo lịch. Vui lòng kiểm tra dữ liệu và thử lại.");
     }
   });
 
@@ -91,172 +118,219 @@ export function CreateScheduleModal({
       onOpenChange={(open) => !open && !isSubmitting && onClose()}
       disablePointerDismissal={isSubmitting}
     >
-      <DialogContent className="max-w-[560px]" showCloseButton={!isSubmitting}>
+      <DialogContent className="max-w-[620px]" showCloseButton={!isSubmitting}>
         <DialogHeader>
-          <DialogTitle>Xếp lịch trực mới</DialogTitle>
+          <DialogTitle>Tạo lịch làm việc lặp theo tuần</DialogTitle>
+          <DialogDescription>
+            Lịch sẽ áp dụng vào ngày trong tuần đã chọn cho đến ngày kết thúc,
+            hoặc không giới hạn nếu để trống ngày kết thúc. Khi công bố, hệ
+            thống tạo lượt khám tối đa 90 ngày tiếp theo.
+          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={onFormSubmit} aria-busy={isSubmitting}>
           <fieldset
-            disabled={isSubmitting}
+            disabled={isSubmitting || activeDoctors.length === 0}
             className="m-0 min-w-0 border-0 p-0"
           >
-            <div className="flex flex-col gap-4 p-5 sm:p-6">
-              <div className="flex flex-col gap-1.5">
+            <div className="grid gap-4 p-5 sm:grid-cols-2 sm:p-6">
+              <div className="flex flex-col gap-1.5 sm:col-span-2">
                 <label
                   htmlFor="schedule-doctor"
                   className="text-caption font-semibold text-foreground"
                 >
-                  Chọn bác sĩ:
+                  Bác sĩ
                 </label>
                 <Controller
-                  name="doctorId"
+                  name="staffUserId"
                   control={control}
                   rules={{ required: "Vui lòng chọn bác sĩ." }}
                   render={({ field }) => (
                     <Select
                       {...field}
                       id="schedule-doctor"
-                      disabled={isSubmitting}
-                      className="h-10 text-body bg-surface"
+                      className="h-10 bg-surface text-body"
                     >
-                      {doctors.map((d) => (
-                        <option key={d.doctorId} value={d.doctorId}>
-                          {d.doctorName} ({d.doctorCode} - {d.specialtyName})
+                      {activeDoctors.map((doctor) => (
+                        <option key={doctor.userId} value={doctor.userId}>
+                          {doctor.user.fullName} ({doctor.doctorCode} -{" "}
+                          {doctor.specialty.name})
+                        </option>
+                      ))}
+                    </Select>
+                  )}
+                />
+                {errors.staffUserId && (
+                  <p role="alert" className="text-caption text-error">
+                    {errors.staffUserId.message}
+                  </p>
+                )}
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label
+                  htmlFor="schedule-day"
+                  className="text-caption font-semibold text-foreground"
+                >
+                  Ngày trong tuần
+                </label>
+                <Controller
+                  name="dayOfWeek"
+                  control={control}
+                  render={({ field }) => (
+                    <Select
+                      id="schedule-day"
+                      value={field.value}
+                      onChange={(event) =>
+                        field.onChange(Number(event.target.value))
+                      }
+                      className="h-10 bg-surface text-body"
+                    >
+                      {WEEKDAYS.map((day) => (
+                        <option key={day.value} value={day.value}>
+                          {day.label}
                         </option>
                       ))}
                     </Select>
                   )}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="flex flex-col gap-1.5">
-                  <label
-                    htmlFor="schedule-day"
-                    className="text-caption font-semibold text-foreground"
-                  >
-                    Ngày trực:
-                  </label>
-                  <Controller
-                    name="date"
-                    control={control}
-                    render={({ field }) => (
-                      <Select
-                        {...field}
-                        id="schedule-day"
-                        disabled={isSubmitting}
-                        className="h-10 text-body bg-surface"
-                      >
-                        {dates.map((date) => (
-                          <option key={date} value={date}>
-                            {formatScheduleDate(date)}
-                          </option>
-                        ))}
-                      </Select>
-                    )}
-                  />
-                </div>
 
-                <div className="flex flex-col gap-1.5">
-                  <label
-                    htmlFor="schedule-shift"
-                    className="text-caption font-semibold text-foreground"
-                  >
-                    Ca trực:
-                  </label>
-                  <Controller
-                    name="shiftType"
-                    control={control}
-                    render={({ field }) => (
-                      <Select
-                        {...field}
-                        id="schedule-shift"
-                        disabled={isSubmitting}
-                        className="h-10 text-body bg-surface"
-                      >
-                        <option value="MORNING">Ca sáng (07:30 – 12:00)</option>
-                        <option value="AFTERNOON">
-                          Ca chiều (13:00 – 17:30)
-                        </option>
-                        <option value="FULL_DAY">
-                          Cả ngày (07:30 – 17:30)
-                        </option>
-                      </Select>
-                    )}
-                  />
-                </div>
-              </div>
               <div className="flex flex-col gap-1.5">
                 <label
-                  htmlFor="schedule-room"
+                  htmlFor="schedule-type"
                   className="text-caption font-semibold text-foreground"
                 >
-                  Phòng khám phân công:
+                  Loại lịch
                 </label>
                 <Controller
-                  name="room"
+                  name="scheduleType"
                   control={control}
                   render={({ field }) => (
                     <Select
                       {...field}
-                      id="schedule-room"
-                      disabled={isSubmitting}
-                      className="h-10 text-body bg-surface"
+                      id="schedule-type"
+                      className="h-10 bg-surface text-body"
                     >
-                      {AVAILABLE_ROOMS.map((r) => (
-                        <option key={r.id} value={r.name}>
-                          {r.name} · {r.specialty}
-                        </option>
-                      ))}
+                      <option value="REGULAR">Lịch thường</option>
+                      <option value="SHIFT">Lịch theo ca</option>
                     </Select>
                   )}
                 />
               </div>
-              <div className="flex items-center gap-2.5 rounded-app-md border border-border bg-secondary/30 p-3">
-                <Controller
-                  name="isDraft"
-                  control={control}
-                  render={({ field }) => (
-                    <Checkbox
-                      id="isDraftCheck"
-                      checked={field.value}
-                      disabled={isSubmitting}
-                      onCheckedChange={(checked) =>
-                        field.onChange(checked === true)
-                      }
-                    />
-                  )}
-                />
-                <label
-                  htmlFor="isDraftCheck"
-                  className="cursor-pointer text-caption text-foreground select-none"
-                >
-                  Lưu dưới dạng <strong>Lịch nháp</strong> (chưa mở cho bệnh
-                  nhân đặt hẹn ngay)
-                </label>
-              </div>
+
               <div className="flex flex-col gap-1.5">
                 <label
-                  htmlFor="schedule-note"
+                  htmlFor="schedule-start"
                   className="text-caption font-semibold text-foreground"
                 >
-                  Ghi chú:
+                  Giờ bắt đầu
                 </label>
                 <Input
-                  id="schedule-note"
-                  type="text"
-                  {...register("note")}
-                  placeholder="Ví dụ: Trực khám bệnh theo yêu cầu"
-                  className="h-10 text-body bg-surface"
+                  id="schedule-start"
+                  type="time"
+                  {...register("startsAt", { required: true })}
+                  className="h-10 bg-surface text-body"
                 />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label
+                  htmlFor="schedule-end"
+                  className="text-caption font-semibold text-foreground"
+                >
+                  Giờ kết thúc
+                </label>
+                <Input
+                  id="schedule-end"
+                  type="time"
+                  {...register("endsAt", {
+                    required: true,
+                    validate: (value) =>
+                      value > getValues("startsAt") ||
+                      "Giờ kết thúc phải sau giờ bắt đầu.",
+                  })}
+                  className="h-10 bg-surface text-body"
+                />
+                {errors.endsAt && (
+                  <p role="alert" className="text-caption text-error">
+                    {errors.endsAt.message}
+                  </p>
+                )}
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label
+                  htmlFor="schedule-slot-duration"
+                  className="text-caption font-semibold text-foreground"
+                >
+                  Thời lượng mỗi lượt khám (phút)
+                </label>
+                <Input
+                  id="schedule-slot-duration"
+                  type="number"
+                  min={1}
+                  max={240}
+                  {...register("slotDurationMinutes", {
+                    valueAsNumber: true,
+                    required: true,
+                    min: 1,
+                    max: 240,
+                  })}
+                  className="h-10 bg-surface text-body"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label
+                  htmlFor="schedule-effective-from"
+                  className="text-caption font-semibold text-foreground"
+                >
+                  Ngày bắt đầu áp dụng
+                </label>
+                <Input
+                  id="schedule-effective-from"
+                  type="date"
+                  {...register("effectiveFrom", { required: true })}
+                  className="h-10 bg-surface text-body"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5 sm:col-span-2">
+                <label
+                  htmlFor="schedule-effective-to"
+                  className="text-caption font-semibold text-foreground"
+                >
+                  Ngày kết thúc áp dụng
+                </label>
+                <Input
+                  id="schedule-effective-to"
+                  type="date"
+                  {...register("effectiveTo", {
+                    validate: (value) =>
+                      !value ||
+                      value >= getValues("effectiveFrom") ||
+                      "Ngày kết thúc không được trước ngày bắt đầu.",
+                  })}
+                  className="h-10 bg-surface text-body"
+                />
+                <span className="text-label text-muted">
+                  Để trống nếu lịch không có ngày kết thúc.
+                </span>
+                {errors.effectiveTo && (
+                  <p role="alert" className="text-caption text-error">
+                    {errors.effectiveTo.message}
+                  </p>
+                )}
               </div>
             </div>
 
-            {errors.doctorId && (
-              <p role="alert" className="px-5 pb-3 text-caption text-error">
-                {errors.doctorId.message}
+            {activeDoctors.length === 0 && (
+              <p className="px-5 pb-4 text-caption text-muted sm:px-6">
+                Không có bác sĩ đang hoạt động để tạo lịch.
               </p>
             )}
+
             <DialogFooter>
               <Button
                 type="button"
@@ -266,9 +340,12 @@ export function CreateScheduleModal({
               >
                 Hủy
               </Button>
-              <Button type="submit" variant="default" disabled={isSubmitting}>
-                <Plus className="size-4" />
-                <span>{isSubmitting ? "Đang thêm..." : "Thêm ca trực"}</span>
+              <Button
+                type="submit"
+                variant="default"
+                disabled={isSubmitting || activeDoctors.length === 0}
+              >
+                {isSubmitting ? "Đang lưu..." : "Tạo lịch lặp"}
               </Button>
             </DialogFooter>
           </fieldset>

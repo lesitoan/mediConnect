@@ -1,18 +1,11 @@
-export type AppointmentStatus =
-  | "WAITING_CHECKIN" // Chờ check-in (Người bệnh đã đến, chờ cấp số)
-  | "UPCOMING"        // Sắp đến (Người bệnh chưa đến cơ sở y tế)
-  | "LATE"            // Trễ hẹn
-  | "CHECKED_IN";     // Đã check-in (Đã cấp STT vào phòng khám)
-
-export type PaymentStatus =
-  | "PAID"         // Đã thu
-  | "UNPAID"       // Chưa thu
-  | "FREE_REEXAM"; // Miễn phí tái khám
+export type ReceptionAppointmentStatus =
+  | "WAITING_CHECKIN"
+  | "LATE"
+  | "CHECKED_IN";
 
 export type ReceptionFilterTab =
   | "ALL"
   | "WAITING_CHECKIN"
-  | "UPCOMING"
   | "LATE"
   | "CHECKED_IN";
 
@@ -26,59 +19,154 @@ export interface ReceptionFilterValues {
 
 export interface PatientAppointment {
   id: string;
-  appointmentCode: string; // VD: AP-2045
-  patientCode: string;     // VD: BN-0881
+  appointmentCode: string;
+  patientCode: string;
   patientName: string;
   patientPhone: string;
-  patientGender?: "MALE" | "FEMALE";
+  patientGender?: "MALE" | "FEMALE" | "OTHER";
   patientBirthYear?: number;
-  time: string;            // VD: "07:45"
+  time: string;
+  startsAt?: string;
+  endsAt?: string;
   doctorName: string;
-  doctorDegree: string;    // VD: "TS.BS", "PGS.TS.BS"
-  room: string;            // VD: "P.305"
-  specialtyName: string;   // VD: "Khoa Tim mạch"
-  status: AppointmentStatus;
-  paymentStatus: PaymentStatus;
-  queueNumber?: string;    // VD: "A-023"
-  reason?: string;
-  checkInTime?: string;
+  doctorDegree: string;
+  room: string;
+  specialtyId?: string;
+  specialtyName: string;
+  doctorId?: string;
+  status: ReceptionAppointmentStatus;
+  queueNumber?: number | string | null;
+  queueDisplayNumber?: string | null;
+  reason?: string | null;
+  checkInTime?: string | null;
+  checkedInAt?: string | null;
+  isLate?: boolean;
+  isOnTime?: boolean;
 }
 
-export interface PatientProfile {
+export interface ReceptionAppointmentDetail extends PatientAppointment {
+  patientBirthDate?: string;
+}
+
+export interface ReceptionListResponse {
+  items: ReceptionAppointmentDetail[];
+  total: number;
+  page: number;
+  limit: number;
+  stats: ReceptionStats;
+  timeZone: string;
+}
+
+export interface SpecialtyOption {
+  id: string;
+  code: string;
+  name: string;
+  description?: string | null;
+  roomCode?: string | null;
+}
+
+export interface ReceptionProvider {
+  id: string;
+  doctorCode: string;
+  academicTitle: string | null;
+  qualification: string | null;
+  isActive: boolean;
+  isPaused?: boolean;
+  user: { fullName: string };
+  specialty: { id: string; name: string; roomCode: string | null };
+}
+
+export interface WalkInSlot {
+  id: string;
+  startsAt: string;
+  endsAt: string;
+  doctor: {
+    id: string;
+    fullName: string;
+    specialty: { id: string; name: string; roomCode: string | null };
+  };
+}
+
+export interface ReceptionPatient {
   id: string;
   patientCode: string;
-  name: string;
+  fullName: string;
   phone: string;
-  gender: "MALE" | "FEMALE";
-  birthYear: number;
-  address: string;
-  nationalId?: string;
-  insuranceCode?: string;
-  lastVisit?: string;
+  dateOfBirth: string;
+  gender: "MALE" | "FEMALE" | "OTHER";
+  nationalId: string | null;
+  address: string | null;
 }
 
-export interface WalkInReceptionInput {
-  patientCode?: string;
-  patientName: string;
-  patientPhone: string;
-  patientGender: "MALE" | "FEMALE";
-  patientBirthYear: number;
+export interface WalkInRequest {
+  patientId?: string;
+  fullName?: string;
+  phone?: string;
+  birthYear?: number;
+  gender?: "MALE" | "FEMALE" | "OTHER";
+  nationalId?: string;
   address?: string;
-  nationalId?: string;     // CCCD/BHYT
-  specialtyName: string;
+  specialtyId: string;
+  doctorId: string;
+  appointmentSlotId: string;
+  reason?: string;
+  checkIn: boolean;
+}
+
+export interface ReceptionQueueItem {
+  id: string;
+  appointmentId: string;
+  appointmentCode: string;
+  specialtyId: string;
+  patientCode: string;
+  patientName: string;
+  patientPhone?: string | null;
+  queueNumber: number | null;
+  queueDisplayNumber: string | null;
+  appointmentTime: string;
+  startsAt: string;
+  status: string;
   doctorName: string;
-  room: string;
-  servicePackage: string;
-  appointmentDate: string;
-  timeSlot: string;
-  reason: string;
+  doctorTitle: string;
+}
+
+export interface ReceptionQueueResponse {
+  items: ReceptionQueueItem[];
+  total: number;
+  page: number;
+  limit: number;
+  timeZone: string;
+}
+
+export interface ReceptionTicket {
+  appointmentId: string;
+  appointmentCode: string;
+  patient: {
+    patientCode: string;
+    fullName: string;
+    phone: string;
+  };
+  doctor: {
+    id: string;
+    name: string;
+    title: string;
+  };
+  specialty: {
+    id: string;
+    name: string;
+    roomCode: string | null;
+  };
+  room: string | null;
+  appointmentTime: string;
+  queueNumber: number | null;
+  queueDisplayNumber: string | null;
+  reason: string | null;
 }
 
 export interface ReceptionStats {
   total: number;
-  waitingCheckIn: number; // Chờ check-in (Người bệnh đã đến rồi)
-  upcoming: number;       // Sắp đến (Người bệnh chưa đến)
-  late: number;           // Trễ hẹn
-  checkedIn: number;      // Đã check-in
+  waitingCheckIn: number;
+  upcoming: number;
+  late: number;
+  checkedIn: number;
 }
-

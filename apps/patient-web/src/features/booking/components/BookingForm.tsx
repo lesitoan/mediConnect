@@ -26,6 +26,14 @@ import {
     getAppointmentAvailability,
     type AvailabilitySlot,
 } from "@/features/appointments/services/appointmentsService";
+import {
+    getPublicDoctors,
+    type PublicDoctor,
+} from "@/features/providers/services/providersService";
+import {
+    getPublicSpecialties,
+    type PublicSpecialty,
+} from "@/features/specialties/services/specialtiesService";
 
 /* ---------- Hằng số & tiện ích ---------- */
 
@@ -175,6 +183,10 @@ export default function BookingForm() {
 
     const [specialtyId, setSpecialtyId] = useState("");
     const [doctorId, setDoctorId] = useState("");
+    const [specialties, setSpecialties] = useState<PublicSpecialty[]>([]);
+    const [doctorsCatalog, setDoctorsCatalog] = useState<PublicDoctor[]>([]);
+    const [isLoadingCatalog, setIsLoadingCatalog] = useState(true);
+    const [catalogError, setCatalogError] = useState("");
     const [dayIndex, setDayIndex] = useState(0);
     const [session, setSession] = useState<SessionKey>("morning");
     const [slotId, setSlotId] = useState<string | null>(null);
@@ -190,6 +202,43 @@ export default function BookingForm() {
     const [email, setEmail] = useState("");
     const [reason, setReason] = useState("");
     const [agree, setAgree] = useState(false);
+
+    useEffect(() => {
+        let isCancelled = false;
+        const controller = new AbortController();
+        Promise.all([
+            getPublicSpecialties(controller.signal),
+            getPublicDoctors(controller.signal),
+        ])
+            .then(([specialtyItems, doctorItems]) => {
+                if (isCancelled) return;
+                setSpecialties(specialtyItems);
+                setDoctorsCatalog(doctorItems);
+                const requestedSpecialtyId = new URLSearchParams(
+                    window.location.search,
+                ).get("specialty");
+                if (specialtyItems.some(({ id }) => id === requestedSpecialtyId)) {
+                    setSpecialtyId(requestedSpecialtyId ?? "");
+                }
+                setCatalogError("");
+            })
+            .catch((error: unknown) => {
+                if (!isCancelled) {
+                    setCatalogError(
+                        error instanceof Error
+                            ? error.message
+                            : "Không thể tải danh sách chuyên khoa và bác sĩ.",
+                    );
+                }
+            })
+            .finally(() => {
+                if (!isCancelled) setIsLoadingCatalog(false);
+            });
+        return () => {
+            isCancelled = true;
+            controller.abort();
+        };
+    }, []);
 
     const days = useMemo(() => (now ? buildDays(now) : []), [now]);
     const day = days[dayIndex];
@@ -220,23 +269,9 @@ export default function BookingForm() {
 
     const isLoadingAvailability = !!day && availabilityLoadedDate !== dateKey(day);
 
-    const specialties = useMemo(
-        () =>
-            Array.from(
-                new Map(availability.map((slot) => [slot.doctor.specialty.id, slot.doctor.specialty])).values(),
-            ),
-        [availability],
-    );
     const doctors = useMemo(
-        () =>
-            Array.from(
-                new Map(
-                    availability
-                        .filter((slot) => !specialtyId || slot.doctor.specialty.id === specialtyId)
-                        .map((slot) => [slot.doctor.id, slot.doctor]),
-                ).values(),
-            ),
-        [availability, specialtyId],
+        () => doctorsCatalog.filter((item) => item.specialty.id === specialtyId),
+        [doctorsCatalog, specialtyId],
     );
     const visibleSlots = useMemo(
         () =>
@@ -387,13 +422,22 @@ export default function BookingForm() {
                                             <select
                                                 className={inputClass}
                                                 value={specialtyId}
+                                                disabled={isLoadingCatalog || !!catalogError}
                                                 onChange={(e) => {
                                                     setSpecialtyId(e.target.value);
                                                     setDoctorId("");
                                                     setSlotId(null);
                                                 }}
                                             >
-                                                <option value="">-- Chọn chuyên khoa --</option>
+                                                <option value="">
+                                                    {isLoadingCatalog
+                                                        ? "Đang tải chuyên khoa..."
+                                                        : catalogError
+                                                          ? "Không thể tải chuyên khoa"
+                                                          : specialties.length === 0
+                                                            ? "Chưa có chuyên khoa"
+                                                            : "-- Chọn chuyên khoa --"}
+                                                </option>
                                                 {specialties.map((s) => (
                                                     <option key={s.id} value={s.id}>
                                                         {s.name}
@@ -409,19 +453,24 @@ export default function BookingForm() {
                                                     setDoctorId(e.target.value);
                                                     setSlotId(null);
                                                 }}
-                                                disabled={!specialtyId}
+                                                disabled={!specialtyId || isLoadingCatalog}
                                             >
                                                 <option value="">
                                                     {specialtyId ? "Bác sĩ bất kỳ" : "Chọn chuyên khoa trước"}
                                                 </option>
                                                 {doctors.map((d) => (
                                                     <option key={d.id} value={d.id}>
-                                                        {d.name}
+                                                        {d.user.fullName}
                                                     </option>
                                                 ))}
                                             </select>
                                         </Field>
                                     </div>
+                                    {catalogError && (
+                                        <p role="alert" className="mt-3 text-xs text-red-600">
+                                            Không thể tải danh sách chuyên khoa và bác sĩ: {catalogError}
+                                        </p>
+                                    )}
 
                                     <div className="mt-6 flex items-center justify-between">
                                         <h3 className="flex items-center gap-1.5 text-xs font-extrabold uppercase text-slate-700">
@@ -714,7 +763,7 @@ export default function BookingForm() {
                                 <>
                                     <b className="block text-slate-900">{specialty.name}</b>
                                     <span className="text-xs text-slate-500">
-                                        {doctor ? doctor.name : "Bác sĩ bất kỳ"}
+                                        {doctor ? doctor.user.fullName : "Bác sĩ bất kỳ"}
                                     </span>
                                 </>
                             ) : (

@@ -32,6 +32,7 @@ const PopoverContent = React.forwardRef<
   ) => (
     <PopoverPortal>
       <PopoverPrimitive.Positioner
+        className="z-50"
         align={align}
         side={side}
         sideOffset={sideOffset}

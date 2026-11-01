@@ -1,30 +1,57 @@
-export type QueueStatus = "WAITING" | "CALLING" | "IN_PROGRESS" | "SKIPPED";
+export type QueueStatus =
+  | "WAITING"
+  | "CHECKED_IN"
+  | "CALLED"
+  | "IN_CONSULTATION"
+  | "SKIPPED"
+  | "NO_SHOW";
 
 export type QueueAction = "CALL" | "SKIP" | "RESTORE";
 
-export interface QueueActionContent {
-  title: string;
-  confirmLabel: string;
-  description: string;
-  successMessage: string;
-}
-
 export interface QueueItem {
-  id: string;
-  queueNumber: string;
-  queuePosition: number;
-  patientId: string;
+  careSessionId: string;
+  appointmentId: string;
+  appointmentCode: string;
+  patientCode: string;
   patientName: string;
-  appointmentStart: string;
-  appointmentEnd: string;
+  queueNumber: number | null;
+  queueDisplayNumber: string | null;
+  appointmentTime: string;
+  appointmentStartsAt: string;
+  arrivalStatus: "LATE" | "ON_TIME";
+  room: string | null;
   doctorId: string;
   doctorName: string;
   specialtyId: string;
   specialtyName: string;
-  room: string;
-  visitType: "APPOINTMENT" | "WALK_IN";
-  arrivalStatus: "ON_TIME" | "LATE";
   status: QueueStatus;
+  skipCount: number;
+  nextSkipCount: number;
+  canCall: boolean;
+  cannotCallReason: string | null;
+  calledAt: string | null;
+  skippedAt: string | null;
+  isNoShow: boolean;
+  skipAllowedInSeconds: number;
+}
+
+export interface QueueBoardResponse {
+  date: string;
+  timeZone: "Asia/Ho_Chi_Minh";
+  counts: {
+    waiting: number;
+    called: number;
+    inConsultation: number;
+    skipped: number;
+  };
+  items: QueueItem[];
+}
+
+export interface QueueBoardParams {
+  date: string;
+  search?: string;
+  specialtyId?: string;
+  doctorId?: string;
 }
 
 export interface QueueFilterValues {
@@ -33,13 +60,15 @@ export interface QueueFilterValues {
   doctorId: string;
 }
 
-export interface QueueActionInput {
-  id: string;
-  action: QueueAction;
-  expectedStatus: QueueStatus;
-}
-
 export interface QueueFilterOption {
   id: string;
   name: string;
+}
+
+export interface QueueStatusResponse extends QueueItem {
+  date: string;
+}
+
+export interface QueueActionResponse {
+  board: QueueBoardResponse;
 }
