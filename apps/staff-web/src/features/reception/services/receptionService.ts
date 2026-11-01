@@ -1,138 +1,254 @@
+import axios from "axios";
+import { axiosClient } from "@/lib/api/axiosClient";
 import type {
-  PatientAppointment,
-  ReceptionStats,
-  ReceptionFilterTab,
-  WalkInReceptionInput,
-  PatientProfile,
+  ReceptionAppointmentDetail,
+  ReceptionAppointmentStatus,
+  ReceptionListResponse,
+  ReceptionPatient,
+  ReceptionProvider,
+  ReceptionQueueResponse,
+  ReceptionTicket,
+  SpecialtyOption,
+  WalkInRequest,
+  WalkInSlot,
 } from "../types/receptionTypes";
 
-export function computeReceptionStats(
-  appointments: PatientAppointment[]
-): ReceptionStats {
-  const waitingCheckIn = appointments.filter(
-    (a) => a.status === "WAITING_CHECKIN"
-  ).length;
-  const upcoming = appointments.filter((a) => a.status === "UPCOMING").length;
-  const late = appointments.filter((a) => a.status === "LATE").length;
-  const checkedIn = appointments.filter((a) => a.status === "CHECKED_IN").length;
-
-  return {
-    total: appointments.length,
-    waitingCheckIn,
-    upcoming,
-    late,
-    checkedIn,
-  };
+interface ApiSuccess<T> {
+  success: boolean;
+  data: T;
 }
 
-export function filterAppointments(
-  appointments: PatientAppointment[],
-  tab: ReceptionFilterTab,
-  searchQuery: string,
-  specialtyFilter: string
-): PatientAppointment[] {
-  let result = appointments;
+export interface ReceptionAppointmentsParams {
+  date: string;
+  tab?: ReceptionAppointmentStatus;
+  search?: string;
+  specialtyId?: string;
+  page: number;
+  pageSize: number;
+}
 
-  // Filter by tab
-  if (tab === "WAITING_CHECKIN") {
-    result = result.filter((a) => a.status === "WAITING_CHECKIN");
-  } else if (tab === "UPCOMING") {
-    result = result.filter((a) => a.status === "UPCOMING");
-  } else if (tab === "LATE") {
-    result = result.filter((a) => a.status === "LATE");
-  } else if (tab === "CHECKED_IN") {
-    result = result.filter((a) => a.status === "CHECKED_IN");
+export interface ReceptionQueueParams {
+  specialtyId: string;
+  date: string;
+  page?: number;
+  limit?: number;
+}
+
+export class ReceptionApiError extends Error {
+  status: number | undefined;
+  errors: Record<string, string[]> | undefined;
+
+  constructor(
+    message: string,
+    status?: number,
+    errors?: Record<string, string[]>,
+  ) {
+    super(message);
+    this.name = "ReceptionApiError";
+    this.status = status;
+    this.errors = errors;
   }
+}
 
-  // Filter by search query
-  if (searchQuery.trim()) {
-    const q = searchQuery.toLowerCase().trim();
-    result = result.filter(
-      (a) =>
-        a.patientName.toLowerCase().includes(q) ||
-        a.patientCode.toLowerCase().includes(q) ||
-        a.appointmentCode.toLowerCase().includes(q) ||
-        a.patientPhone.includes(q) ||
-        a.doctorName.toLowerCase().includes(q) ||
-        a.room.toLowerCase().includes(q)
+function unwrap<T>(response: { data: ApiSuccess<T> }): T {
+  return response.data.data;
+}
+
+export function getReceptionError(error: unknown): ReceptionApiError {
+  if (error instanceof ReceptionApiError) return error;
+  if (axios.isAxiosError(error)) {
+    const responseMessage = error.response?.data as
+      | { message?: string | string[]; errors?: Record<string, string[]> }
+      | undefined;
+    const message = Array.isArray(responseMessage?.message)
+      ? responseMessage.message.join(", ")
+      : responseMessage?.message;
+    const validationMessage = responseMessage?.errors
+      ? Object.values(responseMessage.errors).flat().join(", ")
+      : undefined;
+    const status = error.response?.status;
+    return new ReceptionApiError(
+      status === 500
+        ? "Hệ thống gặp lỗi, vui lòng thử lại."
+        : message || validationMessage || "Không thể kết nối máy chủ.",
+      status,
+      responseMessage?.errors,
     );
   }
-
-  // Filter by specialty
-  if (specialtyFilter && specialtyFilter !== "ALL") {
-    result = result.filter((a) => a.specialtyName === specialtyFilter);
-  }
-
-  return result;
+  if (error instanceof Error) return new ReceptionApiError(error.message);
+  return new ReceptionApiError("Đã xảy ra lỗi không xác định.");
 }
 
-export function searchPatientProfiles(
+export async function listReceptionAppointments(
+  params: ReceptionAppointmentsParams,
+  signal?: AbortSignal,
+): Promise<ReceptionListResponse> {
+  try {
+    return unwrap(
+      await axiosClient.get<ApiSuccess<ReceptionListResponse>>(
+        "/reception/appointments",
+        { params, signal },
+      ),
+    );
+  } catch (error) {
+    throw getReceptionError(error);
+  }
+}
+
+export async function getReceptionAppointment(
+  id: string,
+): Promise<ReceptionAppointmentDetail> {
+  try {
+    return unwrap(
+      await axiosClient.get<ApiSuccess<ReceptionAppointmentDetail>>(
+        `/reception/appointments/${id}`,
+      ),
+    );
+  } catch (error) {
+    throw getReceptionError(error);
+  }
+}
+
+export async function checkInReceptionAppointment(
+  id: string,
+): Promise<ReceptionAppointmentDetail> {
+  try {
+    return unwrap(
+      await axiosClient.post<ApiSuccess<ReceptionAppointmentDetail>>(
+        `/reception/appointments/${id}/check-in`,
+      ),
+    );
+  } catch (error) {
+    throw getReceptionError(error);
+  }
+}
+
+export async function getReceptionQueue(
+  params: ReceptionQueueParams,
+): Promise<ReceptionQueueResponse> {
+  try {
+    return unwrap(
+      await axiosClient.get<ApiSuccess<ReceptionQueueResponse>>(
+        "/reception/queue",
+        { params },
+      ),
+    );
+  } catch (error) {
+    throw getReceptionError(error);
+  }
+}
+
+export async function getReceptionTicket(id: string): Promise<ReceptionTicket> {
+  try {
+    return unwrap(
+      await axiosClient.get<ApiSuccess<ReceptionTicket>>(
+        `/reception/appointments/${id}/ticket`,
+      ),
+    );
+  } catch (error) {
+    throw getReceptionError(error);
+  }
+}
+
+export async function searchReceptionSpecialties(
+  query = "",
+): Promise<SpecialtyOption[]> {
+  try {
+    const response = await axiosClient.get<
+      ApiSuccess<{ items: SpecialtyOption[] }>
+    >("/specialties/ai-search", { params: { q: query } });
+    return unwrap(response).items;
+  } catch (error) {
+    throw getReceptionError(error);
+  }
+}
+
+export async function searchReceptionPatients(
   query: string,
-  profiles: PatientProfile[]
-): PatientProfile[] {
-  if (!query.trim()) {
-    return profiles;
+): Promise<ReceptionPatient[]> {
+  try {
+    const response = await axiosClient.get<
+      ApiSuccess<{ items: ReceptionPatient[]; total: number }>
+    >("/reception/patients/search", { params: { q: query } });
+    return unwrap(response).items;
+  } catch (error) {
+    throw getReceptionError(error);
   }
-  const q = query.toLowerCase().trim().replace(/[\s.-]/g, "");
-  return profiles.filter((p) => {
-    const nameMatch = p.name.toLowerCase().includes(query.toLowerCase().trim());
-    const codeMatch = p.patientCode.toLowerCase().includes(query.toLowerCase().trim());
-    const phoneClean = p.phone.replace(/[\s.-]/g, "");
-    const phoneMatch = phoneClean.includes(q);
-    const idMatch = p.nationalId ? p.nationalId.includes(q) : false;
-    const addressMatch = p.address.toLowerCase().includes(query.toLowerCase().trim());
-    return nameMatch || codeMatch || phoneMatch || idMatch || addressMatch;
-  });
 }
 
-export function checkInExistingAppointment(
-  appointment: PatientAppointment
-): PatientAppointment {
-  const currentCheckedCount = Math.floor(Math.random() * 20) + 15;
-  const prefix = appointment.specialtyName.includes("Nhi") ? "A" : "B";
-  const queueNumber = `${prefix}-${String(currentCheckedCount).padStart(3, "0")}`;
-
-  const now = new Date();
-  const timeString = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-
-  return {
-    ...appointment,
-    status: "CHECKED_IN",
-    paymentStatus: "PAID",
-    queueNumber,
-    checkInTime: timeString,
-  };
+export async function listReceptionProviders(
+  specialtyId: string,
+): Promise<ReceptionProvider[]> {
+  try {
+    const response = await axiosClient.get<
+      ApiSuccess<ReceptionProvider[]>
+    >("/providers", { params: { specialtyId, page: 1, limit: 100 } });
+    return unwrap(response);
+  } catch (error) {
+    throw getReceptionError(error);
+  }
 }
 
-export function createWalkInAppointment(
-  input: WalkInReceptionInput,
-  currentCount: number
-): PatientAppointment {
-  const nextNum = currentCount + 1;
-  const appointmentCode = `AP-${2060 + nextNum}`;
-  const patientCode = input.patientCode || `BN-${1450 + nextNum}`;
-  const prefix = input.specialtyName.includes("Nhi") ? "A" : "B";
-  const queueNumber = `${prefix}-${String(nextNum + 10).padStart(3, "0")}`;
+export async function listWalkInSlots(
+  date: string,
+  specialtyId: string,
+  doctorId: string,
+): Promise<WalkInSlot[]> {
+  try {
+    const response = await axiosClient.get<
+      ApiSuccess<{ items: WalkInSlot[]; total: number }>
+    >("/reception/walk-in/slots", {
+      params: {
+        date,
+        specialtyId,
+        doctorId,
+        page: 1,
+        limit: 100,
+      },
+    });
+    return unwrap(response).items;
+  } catch (error) {
+    throw getReceptionError(error);
+  }
+}
 
-  const time = input.timeSlot.split(" - ")[0] || "08:30";
+export async function findNearestWalkInDate(
+  date: string,
+  specialtyId: string,
+  doctorId: string,
+  maximumDays = 31,
+): Promise<string | null> {
+  const start = new Date(`${date}T00:00:00+07:00`);
+  for (let offset = 0; offset <= maximumDays; offset += 1) {
+    const candidate = new Date(start);
+    candidate.setDate(candidate.getDate() + offset);
+    const candidateDate = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Ho_Chi_Minh",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(candidate);
+    const slots = await listWalkInSlots(
+      candidateDate,
+      specialtyId,
+      doctorId,
+    );
+    if (slots.length > 0) return candidateDate;
+  }
+  return null;
+}
 
-  return {
-    id: `apt-walkin-${Date.now()}`,
-    appointmentCode,
-    patientCode,
-    patientName: input.patientName,
-    patientPhone: input.patientPhone,
-    patientGender: input.patientGender,
-    patientBirthYear: input.patientBirthYear,
-    time,
-    doctorName: input.doctorName,
-    doctorDegree: "BS.CKII",
-    room: input.room,
-    specialtyName: input.specialtyName,
-    status: "CHECKED_IN",
-    paymentStatus: "PAID",
-    queueNumber,
-    checkInTime: time,
-    reason: input.reason || input.servicePackage,
-  };
+export async function createReceptionWalkIn(
+  input: WalkInRequest,
+): Promise<ReceptionAppointmentDetail> {
+  try {
+    return unwrap(
+      await axiosClient.post<ApiSuccess<ReceptionAppointmentDetail>>(
+        "/reception/walk-in",
+        input,
+      ),
+    );
+  } catch (error) {
+    throw getReceptionError(error);
+  }
 }

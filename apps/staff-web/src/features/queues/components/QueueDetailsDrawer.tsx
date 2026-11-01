@@ -4,60 +4,49 @@ import {
   DrawerClose,
   DrawerContent,
   DrawerDescription,
-  DrawerFooter,
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/Drawer";
-import { QUEUE_ACTION_LABELS, QUEUE_STATUS_LABELS } from "../constants";
-import { getQueueAction } from "../utils";
-import type { QueueAction, QueueItem } from "../types/queueTypes";
+import { QUEUE_STATUS_LABELS } from "../constants";
+import type { QueueItem } from "../types/queueTypes";
 
 interface QueueDetailsDrawerProps {
   item: QueueItem | null;
   isOpen: boolean;
   onClose: () => void;
-  onAction: (item: QueueItem, action: QueueAction) => void;
 }
 
 export function QueueDetailsDrawer({
   item,
   isOpen,
   onClose,
-  onAction,
 }: QueueDetailsDrawerProps) {
   if (!item) return null;
-  const action = getQueueAction(item.status);
   const rows = [
-    { label: "Trạng thái", value: QUEUE_STATUS_LABELS[item.status] },
     {
-      label: "Giờ hẹn",
-      value: `${item.appointmentStart}–${item.appointmentEnd}`,
+      label: "Trạng thái",
+      value: item.isNoShow ? "Vắng mặt" : QUEUE_STATUS_LABELS[item.status],
     },
+    { label: "Giờ hẹn", value: item.appointmentTime },
+    { label: "Mã lịch hẹn", value: item.appointmentCode },
     { label: "Bác sĩ", value: item.doctorName },
-    { label: "Phòng khám", value: item.room },
-    {
-      label: "Loại lượt",
-      value:
-        item.visitType === "APPOINTMENT" ? "Có lịch hẹn" : "Khám trực tiếp",
-    },
+    { label: "Chuyên khoa", value: item.specialtyName },
+    { label: "Phòng khám", value: item.room ?? "Chưa cập nhật" },
+    { label: "Số lần bỏ qua", value: String(item.skipCount) },
   ];
 
   return (
     <Drawer
       open={isOpen}
-      onOpenChange={(isOpen) => !isOpen && onClose()}
+      onOpenChange={(open) => !open && onClose()}
       swipeDirection="right"
     >
       <DrawerContent className="sm:max-w-[440px]">
         <DrawerHeader className="h-16 flex-row items-center justify-between bg-surface px-6 py-3">
-          <DrawerTitle>Chi tiết lượt chờ</DrawerTitle>
+          <DrawerTitle>Chi tiết lượt khám</DrawerTitle>
           <DrawerClose
             render={
-              <Button
-                type="button"
-                variant="ghost"
-                className="text-body text-muted"
-              >
+              <Button type="button" variant="ghost">
                 Đóng
               </Button>
             }
@@ -69,7 +58,7 @@ export function QueueDetailsDrawer({
               {item.patientName}
             </h3>
             <DrawerDescription className="text-caption font-medium">
-              {item.patientId} · STT {item.queueNumber}
+              {item.patientCode} · STT {item.queueDisplayNumber ?? "—"}
             </DrawerDescription>
           </div>
           <dl>
@@ -85,29 +74,19 @@ export function QueueDetailsDrawer({
               </div>
             ))}
           </dl>
-        </div>
-        <DrawerFooter className="justify-end gap-3 bg-background">
-          <DrawerClose
-            render={
-              <Button
-                type="button"
-                variant="outline"
-                className="h-9 px-4 text-body"
-              >
-                Đóng
-              </Button>
-            }
-          />
-          {action && (
-            <Button
-              type="button"
-              className="h-9 px-5 text-body"
-              onClick={() => onAction(item, action)}
-            >
-              {QUEUE_ACTION_LABELS[action]}
-            </Button>
+          {item.status === "SKIPPED" && (
+            <p className="mt-4 text-body font-semibold">
+              Lần bỏ qua tiếp theo: {item.nextSkipCount}
+            </p>
           )}
-        </DrawerFooter>
+          {!item.canCall &&
+            item.status === "SKIPPED" &&
+            item.cannotCallReason && (
+              <p className="mt-2 text-caption text-muted">
+                {item.cannotCallReason}
+              </p>
+            )}
+        </div>
       </DrawerContent>
     </Drawer>
   );

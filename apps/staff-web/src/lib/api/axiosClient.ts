@@ -1,7 +1,11 @@
 import axios, { type InternalAxiosRequestConfig } from "axios";
 
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ||
+  "http://localhost:4000/api/v1";
+
 export const axiosClient = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL,
+  baseURL: API_BASE_URL,
   timeout: Number(process.env.NEXT_PUBLIC_API_TIMEOUT) || 10000,
   withCredentials: true,
 });

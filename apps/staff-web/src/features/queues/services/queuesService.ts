@@ -1,73 +1,146 @@
+import axios from "axios";
+import { axiosClient } from "@/lib/api/axiosClient";
 import {
-  INITIAL_QUEUE_ITEMS,
-  QUEUE_ERROR_MESSAGES,
-  QUEUE_STATUSES,
-  QUEUE_STORAGE_KEY,
-  QUEUE_TRANSITIONS,
-} from "../constants";
+  listReceptionProviders,
+  searchReceptionSpecialties,
+} from "@/features/reception/services/receptionService";
 import type {
-  QueueActionInput,
-  QueueItem,
-  QueueStatus,
+  ReceptionProvider,
+  SpecialtyOption,
+} from "@/features/reception/types/receptionTypes";
+import { QUEUE_ERROR_MESSAGES } from "../constants";
+import type {
+  QueueActionResponse,
+  QueueBoardParams,
+  QueueBoardResponse,
+  QueueStatusResponse,
 } from "../types/queueTypes";
 
-export function applyQueueAction(
-  items: QueueItem[],
-  input: QueueActionInput,
-): QueueItem[] {
-  const item = items.find((item) => item.id === input.id);
-  if (!item) throw new Error(QUEUE_ERROR_MESSAGES.NOT_FOUND);
+interface ApiSuccess<T> {
+  success: boolean;
+  data: T;
+}
 
-  const transition = QUEUE_TRANSITIONS[input.action];
-  if (item.status !== input.expectedStatus || item.status !== transition.from) {
-    throw new Error(QUEUE_ERROR_MESSAGES.STATUS_CHANGED);
+export class QueueApiError extends Error {
+  status: number | undefined;
+
+  constructor(message: string, status?: number) {
+    super(message);
+    this.name = "QueueApiError";
+    this.status = status;
   }
+}
 
-  return items.map((item) =>
-    item.id === input.id ? { ...item, status: transition.to } : item,
+function unwrap<T>(response: { data: ApiSuccess<T> }): T {
+  return response.data.data;
+}
+
+function toQueueApiError(error: unknown): QueueApiError {
+  if (error instanceof QueueApiError) return error;
+  if (axios.isAxiosError(error)) {
+    const status = error.response?.status;
+    if (status === 401 || status === 403)
+      return new QueueApiError(QUEUE_ERROR_MESSAGES.SESSION_EXPIRED, status);
+    if (status === 404)
+      return new QueueApiError(QUEUE_ERROR_MESSAGES.SESSION_NOT_FOUND, status);
+    if (status === 500)
+      return new QueueApiError(QUEUE_ERROR_MESSAGES.SYSTEM_FAILED, status);
+    if (!error.response)
+      return new QueueApiError(QUEUE_ERROR_MESSAGES.NETWORK_FAILED);
+    const body = error.response?.data as
+      { message?: string | string[] } | undefined;
+    const message = Array.isArray(body?.message)
+      ? body.message.join(", ")
+      : body?.message;
+    return new QueueApiError(
+      message || QUEUE_ERROR_MESSAGES.ACTION_FAILED,
+      status,
+    );
+  }
+  return new QueueApiError(
+    error instanceof Error ? error.message : QUEUE_ERROR_MESSAGES.ACTION_FAILED,
   );
 }
 
-// Persist only demo status overrides in this tab until the queue API is available.
-export function getQueueItems(): QueueItem[] {
-  const items = structuredClone(INITIAL_QUEUE_ITEMS);
-  if (typeof window === "undefined") return items;
-
-  const stored = window.sessionStorage.getItem(QUEUE_STORAGE_KEY);
-  if (!stored) return items;
-
-  let statuses: unknown;
+export async function getQueueBoard(
+  params: QueueBoardParams,
+  signal?: AbortSignal,
+): Promise<QueueBoardResponse> {
   try {
-    statuses = JSON.parse(stored);
-  } catch {
-    return items;
+    const response = await axiosClient.get<ApiSuccess<QueueBoardResponse>>(
+      "/queues/board",
+      { params, signal },
+    );
+    return unwrap(response);
+  } catch (error) {
+    throw toQueueApiError(error);
   }
-  if (!statuses || typeof statuses !== "object" || Array.isArray(statuses))
-    return items;
-
-  return items.map((item) => {
-    const status = (statuses as Record<string, unknown>)[item.id];
-    return typeof status === "string" &&
-      QUEUE_STATUSES.includes(status as QueueStatus)
-      ? { ...item, status: status as QueueStatus }
-      : item;
-  });
 }
 
-export function updateQueueItem(input: QueueActionInput): QueueItem {
-  const items = applyQueueAction(getQueueItems(), input);
-  if (typeof window === "undefined")
-    throw new Error(QUEUE_ERROR_MESSAGES.BROWSER_REQUIRED);
-
+async function postQueueAction(
+  careSessionId: string,
+  action: "call" | "skip" | "restore",
+): Promise<QueueActionResponse> {
   try {
-    window.sessionStorage.setItem(
-      QUEUE_STORAGE_KEY,
-      JSON.stringify(
-        Object.fromEntries(items.map((item) => [item.id, item.status])),
-      ),
+    const response = await axiosClient.post<ApiSuccess<QueueActionResponse>>(
+      `/queues/${careSessionId}/${action}`,
     );
-  } catch {
-    throw new Error(QUEUE_ERROR_MESSAGES.STORAGE_FAILED);
+    return unwrap(response);
+  } catch (error) {
+    throw toQueueApiError(error);
   }
-  return items.find((item) => item.id === input.id)!;
+}
+
+export function callQueueSession(
+  careSessionId: string,
+): Promise<QueueActionResponse> {
+  return postQueueAction(careSessionId, "call");
+}
+
+export function skipQueueSession(
+  careSessionId: string,
+): Promise<QueueActionResponse> {
+  return postQueueAction(careSessionId, "skip");
+}
+
+export function restoreQueueSession(
+  careSessionId: string,
+): Promise<QueueActionResponse> {
+  return postQueueAction(careSessionId, "restore");
+}
+
+export async function getQueueStatus(
+  careSessionId: string,
+  date: string,
+): Promise<QueueStatusResponse> {
+  try {
+    const response = await axiosClient.get<ApiSuccess<QueueStatusResponse>>(
+      `/queues/${careSessionId}/status`,
+      { params: { date } },
+    );
+    return unwrap(response);
+  } catch (error) {
+    throw toQueueApiError(error);
+  }
+}
+
+export async function getQueueFilterOptions(specialtyId: string): Promise<{
+  specialties: SpecialtyOption[];
+  doctors: ReceptionProvider[];
+}> {
+  try {
+    const [specialties, doctors] = await Promise.all([
+      searchReceptionSpecialties(),
+      specialtyId === "ALL"
+        ? axiosClient
+            .get<ApiSuccess<ReceptionProvider[]>>("/providers", {
+              params: { page: 1, limit: 100 },
+            })
+            .then(unwrap)
+        : listReceptionProviders(specialtyId),
+    ]);
+    return { specialties, doctors };
+  } catch (error) {
+    throw toQueueApiError(error);
+  }
 }
