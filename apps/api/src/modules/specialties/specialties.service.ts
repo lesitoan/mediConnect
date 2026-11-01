@@ -26,6 +26,7 @@ const SPECIALTY_SELECT = {
   name: true,
   roomCode: true,
   description: true,
+  consultationFee: true,
   isActive: true,
   createdAt: true,
   updatedAt: true,
@@ -75,6 +76,7 @@ export class SpecialtiesService {
         name: true,
         description: true,
         roomCode: true,
+        consultationFee: true,
         isActive: true,
       },
       orderBy: [{ name: 'asc' }, { id: 'asc' }],
@@ -101,7 +103,10 @@ export class SpecialtiesService {
   async create(input: CreateSpecialtyDto, actor: CurrentUserDto) {
     return this.prisma.$transaction(async (tx) => {
       const item = await tx.specialty.create({
-        data: input,
+        data: {
+          ...input,
+          consultationFee: new Prisma.Decimal(input.consultationFee),
+        },
         select: SPECIALTY_SELECT,
       });
       await this.audit.record(
@@ -121,6 +126,7 @@ export class SpecialtiesService {
             code: item.code,
             name: item.name,
             roomCode: item.roomCode,
+            consultationFee: item.consultationFee?.toString() ?? null,
             isActive: item.isActive,
             descriptionProvided: !!item.description,
           },
@@ -140,20 +146,31 @@ export class SpecialtiesService {
         where: { id },
         select: SPECIALTY_SELECT,
       });
-      if (
-        !(['code', 'name', 'roomCode', 'description'] as const).some(
-          (field) =>
-            input[field] !== undefined && input[field] !== before[field],
-        )
-      )
-        return before;
+      const { consultationFee: requestedFee, ...otherChanges } = input;
+      const consultationFee =
+        requestedFee === undefined
+          ? undefined
+          : new Prisma.Decimal(requestedFee);
+      const hasConsultationFeeChanged =
+        consultationFee !== undefined &&
+        (before.consultationFee === null ||
+          !before.consultationFee.equals(consultationFee));
+      const hasOtherChanges = (
+        ['code', 'name', 'roomCode', 'description'] as const
+      ).some(
+        (field) => input[field] !== undefined && input[field] !== before[field],
+      );
+      if (!hasOtherChanges && !hasConsultationFeeChanged) return before;
       const item = await tx.specialty.update({
         where: { id },
-        data: input,
+        data: {
+          ...otherChanges,
+          ...(consultationFee ? { consultationFee } : {}),
+        },
         select: SPECIALTY_SELECT,
       });
-      const oldValues: Record<string, string | boolean> = {};
-      const newValues: Record<string, string | boolean> = {};
+      const oldValues: Record<string, string | boolean | null> = {};
+      const newValues: Record<string, string | boolean | null> = {};
       for (const field of ['code', 'name', 'roomCode'] as const) {
         if (before[field] !== item[field]) {
           oldValues[field] = before[field];
@@ -163,6 +180,12 @@ export class SpecialtiesService {
       if (before.description !== item.description) {
         oldValues.descriptionChanged = false;
         newValues.descriptionChanged = true;
+      }
+      if (
+        before.consultationFee?.toString() !== item.consultationFee?.toString()
+      ) {
+        oldValues.consultationFee = before.consultationFee?.toString() ?? null;
+        newValues.consultationFee = item.consultationFee?.toString() ?? null;
       }
       if (Object.keys(newValues).length)
         await this.audit.record(
@@ -254,6 +277,7 @@ export class SpecialtiesService {
         name: true,
         description: true,
         roomCode: true,
+        consultationFee: true,
       },
       orderBy: { name: 'asc' },
     });

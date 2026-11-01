@@ -3,6 +3,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  Matches,
   MaxLength,
   ValidateIf,
 } from 'class-validator';
@@ -39,4 +40,16 @@ export class UpdateSpecialtyDto {
   @IsString()
   @MaxLength(10000)
   description?: string | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    example: '200000',
+    description: 'Phí khám bằng VND nguyên đồng, lớn hơn 0',
+    pattern: '^[1-9]\\d{0,11}$',
+  })
+  @AutoTrim()
+  @ValidateIf((_object, value: unknown) => value !== undefined)
+  @IsString()
+  @Matches(/^[1-9]\d{0,11}$/)
+  consultationFee?: string;
 }

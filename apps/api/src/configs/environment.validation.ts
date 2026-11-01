@@ -12,6 +12,13 @@ const ENVIRONMENT_SCHEMA = Joi.object<Record<string, unknown>>({
     .default('development'),
   OTP_DEV_MODE: Joi.boolean().truthy('true').falsy('false').default(false),
   PORT: Joi.number().port().default(4000),
+  SEPAY_WEBHOOK_SECRET: Joi.string().min(32).empty('').optional(),
+  BANK_CODE: Joi.string().max(30).empty('').optional(),
+  BANK_ACCOUNT_NUMBER: Joi.string()
+    .pattern(/^[A-Za-z0-9]{1,19}$/)
+    .empty('')
+    .optional(),
+  BANK_ACCOUNT_NAME: Joi.string().max(160).empty('').optional(),
   CLOUDINARY_CLOUD_NAME: Joi.string()
     .pattern(/^[a-zA-Z0-9_-]+$/)
     .empty('')
@@ -71,7 +78,12 @@ const ENVIRONMENT_SCHEMA = Joi.object<Record<string, unknown>>({
   AUTH_COOKIE_SAME_SITE: Joi.string()
     .valid('lax', 'strict', 'none')
     .default('lax'),
-});
+}).and(
+  'SEPAY_WEBHOOK_SECRET',
+  'BANK_CODE',
+  'BANK_ACCOUNT_NUMBER',
+  'BANK_ACCOUNT_NAME',
+);
 
 export function validateEnvironment(
   config: Record<string, unknown>,

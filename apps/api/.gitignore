@@ -8,6 +8,8 @@ docs
 !src/modules/providers/**/*.spec.ts
 !src/modules/audit-logs/**/*.spec.ts
 !src/modules/specialties/**/*.spec.ts
+!src/modules/invoices/**/*.spec.ts
+!src/modules/payments/**/*.spec.ts
 !src/modules/users/services/users-staff-account.service.spec.ts
 !src/modules/users/services/users-account-audit.service.spec.ts
 !src/modules/users/services/users-self.service.spec.ts
@@ -34,3 +36,4 @@ docs/*
 !docs/me.md
 !docs/users.md
 !docs/catalog-recovery.md
+!docs/sepay.md

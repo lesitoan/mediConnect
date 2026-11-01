@@ -1,5 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+} from 'class-validator';
 import { AutoTrim } from '../../../../common/decorators/auto-trim.decorator';
 
 export class CreateSpecialtyDto {
@@ -30,4 +36,15 @@ export class CreateSpecialtyDto {
   @IsString()
   @MaxLength(10000)
   description?: string | null;
+
+  @ApiProperty({
+    type: String,
+    example: '200000',
+    description: 'Phí khám bằng VND nguyên đồng, lớn hơn 0',
+    pattern: '^[1-9]\\d{0,11}$',
+  })
+  @AutoTrim()
+  @IsString()
+  @Matches(/^[1-9]\d{0,11}$/)
+  consultationFee: string;
 }
