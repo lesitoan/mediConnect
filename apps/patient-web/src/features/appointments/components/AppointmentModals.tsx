@@ -493,7 +493,7 @@ export function RescheduleModal({
               </span>
               <span className="text-xl font-extrabold leading-tight">{d.getDate()}</span>
               <span className={`text-[10px] ${active ? "text-white/80" : "text-slate-400"}`}>
-                {pad(d.getMonth() + 1)}/{String(d.getFullYear()).slice(2)}
+                {pad(d.getDate())}/{pad(d.getMonth() + 1)}
               </span>
             </button>
           );

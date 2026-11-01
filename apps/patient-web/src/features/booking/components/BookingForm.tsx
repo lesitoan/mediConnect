@@ -34,30 +34,59 @@ import {
     getPublicSpecialties,
     type PublicSpecialty,
 } from "@/features/specialties/services/specialtiesService";
+import {
+  getPatientProfile,
+  PatientProfileApiError,
+  type PatientProfile,
+} from "@/features/profile/services/patientProfileService";
 
 /* ---------- Hằng số & tiện ích ---------- */
 
 const SESSIONS = {
-    morning: { label: "Buổi sáng", range: "8:00 - 12:00", start: 480, end: 720 },
-    afternoon: { label: "Buổi chiều", range: "13:00 - 18:00", start: 780, end: 1080 },
+  morning: { label: "Buổi sáng", range: "8:00 - 13:00", start: 480, end: 780 },
+  afternoon: {
+    label: "Buổi chiều",
+    range: "13:00 - 18:00",
+    start: 780,
+    end: 1080,
+  },
 } as const;
 type SessionKey = keyof typeof SESSIONS;
 
 const CUTOFF_HOURS = 2;
-const DAYS_AHEAD = 14;
+const DAYS_AHEAD = 7;
 const BOOKING_LOGIN_URL = "/login?next=%2Fdat-lich";
+const SLOT_DURATION_MINUTES = 30;
 
-const WEEKDAY_FULL = ["Chủ nhật", "Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy"];
+const WEEKDAY_FULL = [
+  "Chủ nhật",
+  "Thứ Hai",
+  "Thứ Ba",
+  "Thứ Tư",
+  "Thứ Năm",
+  "Thứ Sáu",
+  "Thứ Bảy",
+];
 
 const TRUST_ITEMS = [
-    { icon: ShieldCheck, title: "Bảo mật chuẩn Y tế", desc: "Mã hóa dữ liệu bệnh án" },
+  {
+    icon: ShieldCheck,
+    title: "Bảo mật chuẩn Y tế",
+    desc: "Mã hóa dữ liệu bệnh án",
+  },
     { icon: Clock, title: "Ưu tiên phân luồng", desc: "Giảm 80% thời gian chờ" },
-    { icon: BadgeCheck, title: "Bảo lãnh trực tiếp", desc: "BHYT & Bảo hiểm tư nhân" },
+  {
+    icon: BadgeCheck,
+    title: "Bảo lãnh trực tiếp",
+    desc: "BHYT & Bảo hiểm tư nhân",
+  },
 ];
 
 const pad = (n: number) => String(n).padStart(2, "0");
-const dateKey = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-const fmtVN = (d: Date) => `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+const dateKey = (d: Date) =>
+  `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const fmtVN = (d: Date) =>
+  `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
 function buildDays(now: Date) {
     const out: Date[] = [];
     const d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -73,16 +102,10 @@ const inputClass =
 
 /* ---------- Thành phần nhỏ ---------- */
 
-function Stepper({
-    step,
-    doneNote,
-}: {
-    step: 1 | 2;
-    doneNote?: string;
-}) {
+function Stepper({ step, doneNote }: { step: 1 | 2; doneNote?: string }) {
     const items = [
         { label: "Thời gian", sub: step > 1 ? doneNote : undefined },
-        { label: "Thông tin", sub: step === 2 ? "Đang điền thông tin" : undefined },
+    { label: "Xác nhận", sub: step === 2 ? "Kiểm tra & đặt lịch" : undefined },
     ];
     return (
         <ol className="mx-auto flex max-w-sm items-start justify-center">
@@ -99,7 +122,8 @@ function Stepper({
                         )}
                         <div className="flex w-28 flex-col items-center gap-1">
                             <span
-                                className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold ring-4 ${active || done
+                className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold ring-4 ${
+                  active || done
                                     ? "bg-[#2B6CB0] text-white ring-blue-100"
                                     : "border border-slate-200 bg-white text-slate-400 ring-slate-100"
                                     }`}
@@ -107,13 +131,16 @@ function Stepper({
                                 {done ? <Check className="h-4 w-4" /> : n}
                             </span>
                             <span
-                                className={`text-[10px] font-bold uppercase ${active || done ? "text-[#174A8F]" : "text-slate-400"
+                className={`text-[10px] font-bold uppercase ${
+                  active || done ? "text-[#174A8F]" : "text-slate-400"
                                     }`}
                             >
                                 {n}. {it.label}
                             </span>
                             {it.sub && (
-                                <span className="text-center text-[10px] text-slate-500">{it.sub}</span>
+                <span className="text-center text-[10px] text-slate-500">
+                  {it.sub}
+                </span>
                             )}
                         </div>
                     </li>
@@ -161,7 +188,9 @@ function Field({
                     {label}
                     {required && <span className="text-red-500"> *</span>}
                 </span>
-                {hint && <span className="font-normal italic text-slate-400">{hint}</span>}
+        {hint && (
+          <span className="font-normal italic text-slate-400">{hint}</span>
+        )}
             </span>
             {children}
         </label>
@@ -191,17 +220,17 @@ export default function BookingForm() {
     const [session, setSession] = useState<SessionKey>("morning");
     const [slotId, setSlotId] = useState<string | null>(null);
     const [availability, setAvailability] = useState<AvailabilitySlot[]>([]);
-    const [availabilityLoadedDate, setAvailabilityLoadedDate] = useState("");
+  const [availabilityLoadedKey, setAvailabilityLoadedKey] = useState("");
     const [availabilityError, setAvailabilityError] = useState("");
     const [bookingError, setBookingError] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
+  const [patientProfile, setPatientProfile] = useState<PatientProfile | null>(
+    null,
+  );
+  const [isLoadingPatientProfile, setIsLoadingPatientProfile] = useState(false);
+  const [patientProfileError, setPatientProfileError] = useState("");
 
-    const [lastName, setLastName] = useState(""); // Họ và tên đệm
-    const [firstName, setFirstName] = useState(""); // Tên
-    const [phone, setPhone] = useState("");
-    const [email, setEmail] = useState("");
     const [reason, setReason] = useState("");
-    const [agree, setAgree] = useState(false);
 
     useEffect(() => {
         let isCancelled = false;
@@ -242,32 +271,44 @@ export default function BookingForm() {
 
     const days = useMemo(() => (now ? buildDays(now) : []), [now]);
     const day = days[dayIndex];
+  const availabilityRequestKey = `${day ? dateKey(day) : ""}:${specialtyId}:${doctorId}`;
     useEffect(() => {
-        if (!day) return;
+    if (!day || !specialtyId) return;
         let isCancelled = false;
-        getAppointmentAvailability(dateKey(day))
+    const controller = new AbortController();
+    const requestKey = `${dateKey(day)}:${specialtyId}:${doctorId}`;
+    getAppointmentAvailability(
+      dateKey(day),
+      doctorId || undefined,
+      specialtyId,
+      controller.signal,
+    )
             .then((data) => {
                 if (!isCancelled) {
                     setAvailability(data);
                     setAvailabilityError("");
-                    setAvailabilityLoadedDate(dateKey(day));
+          setAvailabilityLoadedKey(requestKey);
                 }
             })
             .catch((error: unknown) => {
                 if (!isCancelled) {
                     setAvailability([]);
                     setAvailabilityError(
-                        error instanceof Error ? error.message : "Không thể tải khung giờ khám",
+            error instanceof Error
+              ? error.message
+              : "Không thể tải khung giờ khám",
                     );
-                    setAvailabilityLoadedDate(dateKey(day));
+          setAvailabilityLoadedKey(requestKey);
                 }
             });
         return () => {
             isCancelled = true;
+      controller.abort();
         };
-    }, [day]);
+  }, [day, doctorId, specialtyId]);
 
-    const isLoadingAvailability = !!day && availabilityLoadedDate !== dateKey(day);
+  const isLoadingAvailability =
+    !!specialtyId && availabilityLoadedKey !== availabilityRequestKey;
 
     const doctors = useMemo(
         () => doctorsCatalog.filter((item) => item.specialty.id === specialtyId),
@@ -277,43 +318,87 @@ export default function BookingForm() {
         () =>
             availability.filter(
                 (slot) =>
-                    (!specialtyId || slot.doctor.specialty.id === specialtyId) &&
+          slot.doctor.specialty.id === specialtyId &&
                     (!doctorId || slot.doctor.id === doctorId),
             ),
         [availability, doctorId, specialtyId],
     );
     const slots = useMemo(() => {
         const { start, end } = SESSIONS[session];
-        const sessionSlots = visibleSlots.filter((slot) => {
+    const slotsByTime = new Map<string, Map<string, AvailabilitySlot>>();
+    for (const slot of visibleSlots) {
             const startsAt = new Date(slot.startsAt);
+      const endsAt = new Date(slot.endsAt);
             const minutes = startsAt.getHours() * 60 + startsAt.getMinutes();
-            return minutes >= start && minutes < end;
-        });
-        if (specialtyId) return sessionSlots;
+      const duration = (endsAt.getTime() - startsAt.getTime()) / 60000;
+      if (
+        minutes < start ||
+        minutes >= end ||
+        duration !== SLOT_DURATION_MINUTES
+      ) {
+        continue;
+      }
 
-        return Array.from(
-            new Map(
-                sessionSlots.map((slot) => [
-                    `${slot.startsAt}-${slot.endsAt}`,
-                    slot,
-                ]),
-            ).values(),
-        );
-    }, [session, specialtyId, visibleSlots]);
+      const timeKey = `${slot.startsAt}-${slot.endsAt}`;
+      const doctorsAtTime =
+        slotsByTime.get(timeKey) ?? new Map<string, AvailabilitySlot>();
+      doctorsAtTime.set(slot.doctor.id, slot);
+      slotsByTime.set(timeKey, doctorsAtTime);
+    }
+
+    const groupedSlots: Array<
+      AvailabilitySlot & { availableDoctorCount: number }
+    > = [];
+    for (const doctorsAtTime of slotsByTime.values()) {
+      const [slot] = Array.from(doctorsAtTime.values());
+      if (!slot) continue;
+      groupedSlots.push({
+        ...slot,
+        availableDoctorCount: doctorsAtTime.size,
+        });
+    }
+    return groupedSlots;
+  }, [session, visibleSlots]);
     const displaySlots = isLoadingAvailability ? [] : slots;
     const specialty = specialties.find((item) => item.id === specialtyId);
     const doctor = doctors.find((item) => item.id === doctorId);
     const selectedSlot = availability.find((slot) => slot.id === slotId);
 
-    const phoneOk = /^0\d{9}$/.test(phone.trim());
-    const emailOk = email.trim() === "" || /^\S+@\S+\.\S+$/.test(email.trim());
     const canNext = !!specialtyId && slotId !== null;
     const canSubmit =
-        lastName.trim() !== "" && firstName.trim() !== "" && phoneOk && emailOk && agree;
+    !!patientProfile && !!selectedSlot && !isLoadingPatientProfile;
+
+  const loadPatientProfile = async () => {
+    setIsLoadingPatientProfile(true);
+    setPatientProfileError("");
+    setPatientProfile(null);
+    try {
+      setPatientProfile(await getPatientProfile());
+    } catch (error: unknown) {
+      if (error instanceof PatientProfileApiError && error.status === 401) {
+        clearSession();
+        router.push(BOOKING_LOGIN_URL);
+        return;
+      }
+      setPatientProfileError(
+        error instanceof Error
+          ? error.message
+          : "Không thể tải thông tin tài khoản.",
+      );
+    } finally {
+      setIsLoadingPatientProfile(false);
+    }
+  };
+
+  const goToConfirmation = async () => {
+    if (!canNext || isLoadingPatientProfile) return;
+    setStep(2);
+    await loadPatientProfile();
+  };
 
     const handleSubmit = async (e: React.SyntheticEvent) => {
         e.preventDefault();
-        if (!canSubmit || !selectedSlot) return;
+    if (!canSubmit || !selectedSlot || !patientProfile) return;
         if (!user) {
             router.push(BOOKING_LOGIN_URL);
             return;
@@ -351,7 +436,8 @@ export default function BookingForm() {
                     Đăng nhập để đặt lịch khám
                 </h2>
                 <p className="mt-3 text-sm leading-relaxed text-slate-600">
-                    Bạn cần đăng nhập tài khoản bệnh nhân trước khi chọn và xác nhận lịch khám.
+          Bạn cần đăng nhập tài khoản bệnh nhân trước khi chọn và xác nhận lịch
+          khám.
                 </p>
                 <Link
                     href={BOOKING_LOGIN_URL}
@@ -391,8 +477,14 @@ export default function BookingForm() {
                                 Đặt lịch thành công
                             </h2>
                             <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-slate-600">
-                                Lịch khám lúc <b>{slotText}</b> ngày <b>{fmtVN(day)}</b> đã được ghi nhận. Thông
-                                báo xác nhận sẽ gửi đến số <b>{phone}</b>.
+                Lịch khám lúc <b>{slotText}</b> ngày <b>{fmtVN(day)}</b> đã được
+                ghi nhận. Thông báo xác nhận sẽ gửi đến{" "}
+                <b>
+                  {patientProfile?.phone ||
+                    patientProfile?.email ||
+                    "thông tin liên hệ trên tài khoản"}
+                </b>
+                .
                             </p>
                         </div>
                     ) : (
@@ -410,7 +502,10 @@ export default function BookingForm() {
                                     </h2>
                                     <p className="mt-1 text-xs text-slate-500">
                                         Chỉ nhận đặt từ{" "}
-                                        <b className="text-[#2B6CB0]">Hiện tại + {CUTOFF_HOURS} giờ</b> trở đi.
+                    <b className="text-[#2B6CB0]">
+                      Hiện tại + {CUTOFF_HOURS} giờ
+                    </b>{" "}
+                    trở đi.
                                     </p>
 
                                     <h3 className="mt-6 flex items-center gap-1.5 text-xs font-extrabold uppercase text-slate-700">
@@ -456,7 +551,9 @@ export default function BookingForm() {
                                                 disabled={!specialtyId || isLoadingCatalog}
                                             >
                                                 <option value="">
-                                                    {specialtyId ? "Bác sĩ bất kỳ" : "Chọn chuyên khoa trước"}
+                          {specialtyId
+                            ? "Bác sĩ bất kỳ"
+                            : "Chọn chuyên khoa trước"}
                                                 </option>
                                                 {doctors.map((d) => (
                                                     <option key={d.id} value={d.id}>
@@ -468,7 +565,8 @@ export default function BookingForm() {
                                     </div>
                                     {catalogError && (
                                         <p role="alert" className="mt-3 text-xs text-red-600">
-                                            Không thể tải danh sách chuyên khoa và bác sĩ: {catalogError}
+                      Không thể tải danh sách chuyên khoa và bác sĩ:{" "}
+                      {catalogError}
                                         </p>
                                     )}
 
@@ -482,18 +580,21 @@ export default function BookingForm() {
                                         </span>
                                     </div>
 
-                                    <div className="mt-3 flex gap-2 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  <div className="mt-3 grid grid-cols-7 gap-1.5 pb-2 sm:gap-2">
                                         {days.map((d, i) => {
                                             const active = i === dayIndex;
                                             return (
                                                 <button
                                                     key={dateKey(d)}
                                                     type="button"
+                          aria-label={`${WEEKDAY_FULL[d.getDay()]}, ${fmtVN(d)}`}
+                          title={fmtVN(d)}
                                                     onClick={() => {
                                                         setDayIndex(i);
                                                     setSlotId(null);
                                                     }}
-                                                    className={`flex w-[62px] shrink-0 flex-col items-center rounded-xl border py-2.5 transition ${active
+                          className={`flex w-full min-w-0 flex-col items-center rounded-xl border py-2.5 transition ${
+                            active
                                                         ? "border-[#2B6CB0] bg-[#2B6CB0] text-white shadow-md"
                                                         : "border-slate-200 bg-white text-slate-700 hover:border-[#2B6CB0]"
                                                         }`}
@@ -501,15 +602,15 @@ export default function BookingForm() {
                                                     <span
                                                         className={`text-[10px] font-bold ${active ? "text-white/80" : "text-slate-400"}`}
                                                     >
-                                                        T{d.getDay() + 1}
+                            {d.getDay() === 0 ? "CN" : `T${d.getDay() + 1}`}
                                                     </span>
                                                     <span className="text-xl font-extrabold leading-tight">
                                                         {d.getDate()}
                                                     </span>
                                                     <span
-                                                        className={`text-[10px] ${active ? "text-white/80" : "text-slate-400"}`}
+                            className={`text-[9px] sm:text-[10px] ${active ? "text-white/80" : "text-slate-400"}`}
                                                     >
-                                                        {pad(d.getMonth() + 1)}/{String(d.getFullYear()).slice(2)}
+                            {pad(d.getDate())}/{pad(d.getMonth() + 1)}
                                                     </span>
                                                 </button>
                                             );
@@ -533,7 +634,8 @@ export default function BookingForm() {
                                                         setSession(key);
                                                         setSlotId(null);
                                                     }}
-                                                    className={`flex flex-col items-center gap-1 rounded-2xl border py-5 transition ${active
+                          className={`flex flex-col items-center gap-1 rounded-2xl border py-5 transition ${
+                            active
                                                         ? "border-transparent bg-gradient-to-br from-[#2B6CB0] to-[#0E9A8C] text-white shadow-lg"
                                                         : "border-slate-200 bg-white text-slate-700 hover:border-[#2B6CB0]"
                                                         }`}
@@ -541,7 +643,9 @@ export default function BookingForm() {
                                                     <Ico
                                                         className={`h-6 w-6 ${active ? "text-amber-300" : "text-amber-500"}`}
                                                     />
-                                                    <span className="text-sm font-extrabold">{s.label}</span>
+                          <span className="text-sm font-extrabold">
+                            {s.label}
+                          </span>
                                                     <span
                                                         className={`text-xs ${active ? "text-white/85" : "text-slate-500"}`}
                                                     >
@@ -553,19 +657,31 @@ export default function BookingForm() {
                                     </div>
 
                                     <p className="mt-6 text-xs font-semibold text-slate-600">
-                                        Các khung giờ {SESSIONS[session].label.toLowerCase()} khả dụng:
+                    Các khung giờ {SESSIONS[session].label.toLowerCase()} khả
+                    dụng:
+                  </p>
+                  {!specialtyId && (
+                    <p className="mt-3 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs text-blue-700">
+                      Vui lòng chọn chuyên khoa để xem lịch khám còn trống.
                                     </p>
+                  )}
                                     {isLoadingAvailability && (
-                                        <p className="mt-3 text-xs text-slate-500">Đang tải khung giờ còn trống...</p>
+                    <p className="mt-3 text-xs text-slate-500">
+                      Đang tải khung giờ còn trống...
+                    </p>
                                     )}
                                     {availabilityError && (
                                         <p className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs text-rose-600">
                                             {availabilityError}
                                         </p>
                                     )}
-                                    {!isLoadingAvailability && !availabilityError && displaySlots.length === 0 && (
+                  {!isLoadingAvailability &&
+                    !availabilityError &&
+                    displaySlots.length === 0 && (
                                         <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-700">
-                                            Không còn khung giờ phù hợp trong buổi này. Vui lòng chọn ngày, bác sĩ hoặc buổi khác.
+                        Chưa có ca khám còn trống trong buổi này. Thử ngày hoặc
+                        buổi khác; chỉ các ca đã công bố và còn trong thời hạn
+                        đặt trước mới hiển thị.
                                         </p>
                                     )}
                                     <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -578,7 +694,8 @@ export default function BookingForm() {
                                                     key={s.id}
                                                     type="button"
                                                     onClick={() => setSlotId(s.id)}
-                                                    className={`rounded-xl border px-2 py-2.5 text-center transition ${active
+                          className={`rounded-xl border px-2 py-2.5 text-center transition ${
+                            active
                                                         ? "border-[#2B6CB0] bg-blue-50 ring-2 ring-[#2B6CB0]/40"
                                                         : "border-slate-200 bg-white hover:border-[#2B6CB0]"
                                                         }`}
@@ -586,10 +703,22 @@ export default function BookingForm() {
                                                     <span
                                                         className={`block text-xs font-bold ${active ? "text-[#174A8F]" : "text-slate-800"}`}
                                                     >
-                                                        {startsAt.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })} - {endsAt.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}
+                            {startsAt.toLocaleTimeString("vi-VN", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}{" "}
+                            -{" "}
+                            {endsAt.toLocaleTimeString("vi-VN", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
                                                     </span>
-                                                    <span className={`mt-0.5 block text-[10px] font-bold ${active ? "text-[#2B6CB0]" : "text-emerald-600"}`}>
-                                                        {active ? "Đang chọn" : "Còn trống"}
+                          <span
+                            className={`mt-0.5 block text-[10px] font-bold ${active ? "text-[#2B6CB0]" : "text-emerald-600"}`}
+                          >
+                            {active
+                              ? "Đang chọn"
+                              : `Còn ${s.availableDoctorCount} bác sĩ`}
                                                     </span>
                                                 </button>
                                             );
@@ -598,15 +727,19 @@ export default function BookingForm() {
 
                                     <div className="mt-8 flex items-center justify-between gap-3 border-t border-slate-100 pt-6">
                                         <p className="text-xs text-slate-400">
-                                            {!specialtyId ? "Vui lòng chọn chuyên khoa để tiếp tục." : ""}
+                      {!specialtyId
+                        ? "Vui lòng chọn chuyên khoa để tiếp tục."
+                        : ""}
                                         </p>
                                         <button
                                             type="button"
-                                            disabled={!canNext}
-                                            onClick={() => setStep(2)}
+                      disabled={!canNext || isLoadingPatientProfile}
+                      onClick={goToConfirmation}
                                             className="inline-flex items-center gap-2 rounded-full bg-[#2B6CB0] px-8 py-3 text-sm font-bold text-white shadow transition hover:bg-[#174A8F] disabled:cursor-not-allowed disabled:bg-slate-300"
                                         >
-                                            Tiếp theo
+                      {isLoadingPatientProfile
+                        ? "Đang tải thông tin..."
+                        : "Tiếp theo"}
                                             <ArrowRight className="h-4 w-4" />
                                         </button>
                                     </div>
@@ -616,54 +749,77 @@ export default function BookingForm() {
                             {/* ---------- BƯỚC 2 ---------- */}
                             {step === 2 && (
                                 <div className="mt-8">
-                                    <h2 className="text-xl font-extrabold text-slate-900">Thông tin bệnh nhân</h2>
+                  <h2 className="text-xl font-extrabold text-slate-900">
+                    Xác nhận thông tin bệnh nhân
+                  </h2>
                                     <p className="mt-1 text-xs leading-relaxed text-slate-500">
-                                        Điền thông tin để chúng tôi xác nhận lịch khám, chuẩn bị hồ sơ y tế và liên hệ
-                                        hỗ trợ bạn kịp thời.
+                    Thông tin được lấy từ hồ sơ tài khoản của bạn. Kiểm tra lại
+                    và xác nhận để đặt lịch.
                                     </p>
 
-                                    <div className="mt-6 grid gap-5 md:grid-cols-2">
-                                        <Field label="Họ và tên đệm" required>
-                                            <input
-                                                className={inputClass}
-                                                placeholder="Nguyễn"
-                                                autoComplete="family-name"
-                                                value={lastName}
-                                                onChange={(e) => setLastName(e.target.value)}
-                                            />
+                  {isLoadingPatientProfile && (
+                    <p
+                      className="mt-5 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs text-[#174A8F]"
+                      role="status"
+                    >
+                      Đang tải thông tin từ hồ sơ tài khoản...
+                    </p>
+                  )}
+                  {patientProfileError && (
+                    <div className="mt-5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3">
+                      <p className="text-xs text-rose-600" role="alert">
+                        {patientProfileError}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={loadPatientProfile}
+                        disabled={isLoadingPatientProfile}
+                        className="mt-3 text-xs font-bold text-rose-700 underline disabled:opacity-50"
+                      >
+                        Tải lại thông tin
+                      </button>
+                    </div>
+                  )}
+
+                  {patientProfile && (
+                    <div className="mt-6 grid gap-5 rounded-2xl border border-blue-100 bg-blue-50/50 p-5 md:grid-cols-2">
+                      <Field label="Họ và tên">
+                        <div
+                          className={`${inputClass} bg-slate-50 font-semibold`}
+                        >
+                          {patientProfile.fullName}
+                        </div>
                                         </Field>
-                                        <Field label="Tên bệnh nhân" required>
-                                            <input
-                                                className={inputClass}
-                                                placeholder="Văn An"
-                                                autoComplete="given-name"
-                                                value={firstName}
-                                                onChange={(e) => setFirstName(e.target.value)}
-                                            />
-                                        </Field>
-                                        <Field label="Số điện thoại" required>
-                                            <input
-                                                type="tel"
-                                                inputMode="numeric"
-                                                className={inputClass}
-                                                placeholder="0905 123 456"
-                                                autoComplete="tel"
-                                                value={phone}
-                                                onChange={(e) => setPhone(e.target.value.replace(/\s/g, ""))}
-                                            />
+                      <Field label="Số điện thoại">
+                        <div
+                          className={`${inputClass} bg-slate-50 font-semibold`}
+                        >
+                          {patientProfile.phone || "Chưa cập nhật"}
+                        </div>
                                         </Field>
                                         <Field label="Địa chỉ Email">
-                                            <input
-                                                type="email"
-                                                className={inputClass}
-                                                placeholder="van.an.nguyen@example.com"
-                                                autoComplete="email"
-                                                value={email}
-                                                onChange={(e) => setEmail(e.target.value)}
-                                            />
+                        <div
+                          className={`${inputClass} bg-slate-50 font-semibold`}
+                        >
+                          {patientProfile.email || "Chưa cập nhật"}
+                        </div>
+                      </Field>
+                      <Field label="Mã bệnh nhân">
+                        <div
+                          className={`${inputClass} bg-slate-50 font-semibold`}
+                        >
+                          {patientProfile.patientCode}
+                        </div>
                                         </Field>
+                    </div>
+                  )}
+
+                  <div className="mt-5 grid gap-5">
                                         <div className="md:col-span-2">
-                                            <Field label="Triệu chứng / Ghi chú cho bác sĩ" hint="Tùy chọn">
+                      <Field
+                        label="Triệu chứng / Ghi chú cho bác sĩ"
+                        hint="Tùy chọn"
+                      >
                                                 <textarea
                                                     rows={4}
                                                     className={inputClass}
@@ -675,39 +831,15 @@ export default function BookingForm() {
                                         </div>
                                     </div>
 
-                                    {phone && !phoneOk && (
-                                        <p className="mt-3 text-xs text-red-500">
-                                            Số điện thoại phải gồm 10 chữ số và bắt đầu bằng 0.
-                                        </p>
-                                    )}
-                                    {!emailOk && (
-                                        <p className="mt-3 text-xs text-red-500">Địa chỉ email chưa đúng định dạng.</p>
-                                    )}
-
                                     <div className="mt-5 flex items-start gap-2.5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-relaxed text-slate-700">
                                         <Info className="mt-0.5 h-4 w-4 shrink-0 text-[#2B6CB0]" />
                                         <p>
-                                            <b>Lưu ý quan trọng:</b> Vui lòng có mặt tại cơ sở trước giờ hẹn{" "}
-                                            <b>15 phút</b> để hoàn tất thủ tục phân luồng. Vui lòng mang theo{" "}
-                                            <b>CCCD gắn chip / Hộ chiếu</b> và thẻ BHYT bản cứng hoặc ứng dụng VssID
-                                            (nếu có).
+                      <b>Lưu ý quan trọng:</b> Vui lòng có mặt tại cơ sở trước
+                      giờ hẹn <b>15 phút</b> để hoàn tất thủ tục phân luồng. Vui
+                      lòng mang theo <b>CCCD gắn chip / Hộ chiếu</b> và thẻ BHYT
+                      bản cứng hoặc ứng dụng VssID (nếu có).
                                         </p>
                                     </div>
-
-                                    <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-xl border border-blue-100 bg-blue-50/60 px-4 py-3">
-                                        <input
-                                            type="checkbox"
-                                            checked={agree}
-                                            onChange={(e) => setAgree(e.target.checked)}
-                                            className="mt-0.5 h-4 w-4 shrink-0 accent-[#2B6CB0]"
-                                        />
-                                        <span className="text-xs leading-relaxed text-slate-700">
-                                            Tôi cam đoan thông tin khai báo trên là chính xác, đồng thời đã đọc và hoàn
-                                            toàn đồng ý với <b className="text-[#174A8F]">Điều khoản dịch vụ y tế</b> và{" "}
-                                            <b className="text-[#174A8F]">Chính sách bảo mật dữ liệu sức khỏe</b> của
-                                            MediConnect.
-                                        </span>
-                                    </label>
 
                                     <button
                                         type="submit"
@@ -715,7 +847,7 @@ export default function BookingForm() {
                                         className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-[#174A8F] px-6 py-3.5 text-sm font-bold uppercase text-white shadow transition hover:bg-[#0E3A75] disabled:cursor-not-allowed disabled:bg-slate-300"
                                     >
                                         <CalendarCheck className="h-4 w-4" />
-                                        {isSubmitting ? "Đang đặt lịch..." : "Xem lại & xác nhận lịch khám"}
+                    {isSubmitting ? "Đang đặt lịch..." : "Xác nhận và đặt lịch"}
                                     </button>
 
                                     {bookingError && (
@@ -724,10 +856,12 @@ export default function BookingForm() {
                                         </p>
                                     )}
 
+                  {patientProfile && (
                                     <p className="mt-4 text-center text-xs leading-relaxed text-slate-500">
-                                        Bạn sẽ nhận được thông báo xác nhận qua số điện thoại hoặc email. Đội ngũ điều
-                                        phối viên sẽ liên hệ trong vòng <b>30 phút</b> nếu cần hỗ trợ thêm.
+                      Bạn sẽ nhận được thông báo xác nhận qua số điện thoại hoặc
+                      email trong hồ sơ tài khoản.
                                     </p>
+                  )}
 
                                     <div className="mt-6 border-t border-slate-100 pt-5">
                                         <button
@@ -758,7 +892,10 @@ export default function BookingForm() {
                             </span>
                         </div>
 
-                        <SummaryRow icon={<Stethoscope className="h-3 w-3" />} label="Chuyên khoa & bác sĩ">
+            <SummaryRow
+              icon={<Stethoscope className="h-3 w-3" />}
+              label="Chuyên khoa & bác sĩ"
+            >
                             {specialty ? (
                                 <>
                                     <b className="block text-slate-900">{specialty.name}</b>
@@ -771,19 +908,27 @@ export default function BookingForm() {
                             )}
                         </SummaryRow>
 
-                        <SummaryRow icon={<Calendar className="h-3 w-3" />} label="Ngày khám dự kiến">
+            <SummaryRow
+              icon={<Calendar className="h-3 w-3" />}
+              label="Ngày khám dự kiến"
+            >
                             <b className="block text-slate-900">
                                 {WEEKDAY_FULL[day.getDay()]}, {fmtVN(day)}
                             </b>
-                            <span className="text-xs text-slate-500">Lịch khám theo yêu cầu</span>
+              <span className="text-xs text-slate-500">
+                Lịch khám theo yêu cầu
+              </span>
                         </SummaryRow>
 
-                        <SummaryRow icon={<Clock className="h-3 w-3 text-amber-500" />} label="Khung giờ khám">
+            <SummaryRow
+              icon={<Clock className="h-3 w-3 text-amber-500" />}
+              label="Khung giờ khám"
+            >
                             {selectedSlot ? (
                                 <>
                                     <b className="block text-[#2B6CB0]">{slotText}</b>
                                     <span className="text-xs text-slate-500">
-                                        {SESSIONS[session].label} (Khung giờ sáng)
+                    {SESSIONS[session].label}
                                     </span>
                                 </>
                             ) : (
@@ -791,8 +936,13 @@ export default function BookingForm() {
                             )}
                         </SummaryRow>
 
-                        <SummaryRow icon={<MapPin className="h-3 w-3" />} label="Cơ sở & chuyên khoa">
-                            <b className="block text-slate-900">Phòng khám đa khoa MediConnect</b>
+            <SummaryRow
+              icon={<MapPin className="h-3 w-3" />}
+              label="Cơ sở & chuyên khoa"
+            >
+              <b className="block text-slate-900">
+                Phòng khám đa khoa MediConnect
+              </b>
                             <span className="text-xs text-slate-500">
                                 216 Nguyễn Công Trứ, An Hải Bắc, Sơn Trà, Đà Nẵng
                             </span>
@@ -819,8 +969,6 @@ export default function BookingForm() {
                     </div>
 
                     <BookingConsultCard />
-
-
                 </aside>
             </div>
 
@@ -836,7 +984,9 @@ export default function BookingForm() {
                                 <Ico className="h-5 w-5" />
                             </span>
                             <span className="leading-tight">
-                                <span className="block text-xs font-bold text-slate-800">{title}</span>
+                <span className="block text-xs font-bold text-slate-800">
+                  {title}
+                </span>
                                 <span className="block text-[11px] text-slate-500">{desc}</span>
                             </span>
                         </div>

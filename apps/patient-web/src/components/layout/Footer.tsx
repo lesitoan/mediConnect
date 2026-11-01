@@ -74,9 +74,8 @@ export default function Footer() {
             </Link>
 
             <p className="mt-5 max-w-sm text-xs leading-relaxed text-slate-600">
-              Hệ thống Bệnh viện Đa khoa Quốc tế tiên phong về chất lượng khám
-              chữa bệnh chuyên sâu, ứng dụng công nghệ cao đạt chuẩn quốc tế
-              JCI.
+              Hệ thống phòng khám đa chuyên khoa MediConnect tập trung vào chất
+              lượng khám chữa bệnh chuyên sâu và ứng dụng công nghệ hiện đại.
             </p>
 
             <ul className="mt-5 space-y-3 text-xs text-slate-600">
@@ -158,8 +157,8 @@ export default function Footer() {
         {/* Dòng bản quyền */}
         <div className="mt-12 flex flex-col gap-3 border-t border-slate-200 pt-6 text-xs text-slate-500 md:flex-row md:items-center md:justify-between">
           <p>
-            © {new Date().getFullYear()} MediConnect International General
-            Hospital. Bản quyền đã được bảo hộ.
+            © {new Date().getFullYear()} MediConnect International Clinic. Bản
+            quyền đã được bảo hộ.
           </p>
           <ul className="flex flex-wrap gap-x-6 gap-y-2 md:mr-0 lg:mr-24">
             {LEGAL_LINKS.map((l) => (

@@ -10,7 +10,7 @@ export type Visit = {
   room: string;
 };
 
-const CLINIC = "Bệnh viện Đa khoa MediConnect Đà Nẵng";
+const CLINIC = "Phòng khám Đa khoa MediConnect Đà Nẵng";
 
 function initialsOf(name: string) {
   const last = name.trim().split(/\s+/).slice(-1)[0] ?? "";

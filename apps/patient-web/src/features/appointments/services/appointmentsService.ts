@@ -15,6 +15,7 @@ export type AvailabilitySlot = {
 };
 
 type AppointmentAvailabilityResponse = {
+  total: number;
   items: Array<{
     id: string;
     startsAt: string;
@@ -30,6 +31,8 @@ type AppointmentAvailabilityResponse = {
     };
   }>;
 };
+
+const AVAILABILITY_PAGE_SIZE = 50;
 
 type PatientAppointmentResponse = {
   id: string;
@@ -105,29 +108,54 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return payload.data;
 }
 
-export function getAppointmentAvailability(date: string, doctorId?: string) {
+export async function getAppointmentAvailability(
+  date: string,
+  doctorId?: string,
+  specialtyId?: string,
+  signal?: AbortSignal,
+) {
   const query = new URLSearchParams({
     dateFrom: date,
     dateTo: date,
-    limit: "50",
+    page: "1",
+    limit: String(AVAILABILITY_PAGE_SIZE),
   });
   if (doctorId) query.set("doctorId", doctorId);
+  if (specialtyId) query.set("specialtyId", specialtyId);
 
-  return request<AppointmentAvailabilityResponse>(
-    `/schedules/ai-availability?${query}`,
-  ).then(({ items }) =>
-    items.map(({ doctor, ...slot }) => ({
-      ...slot,
-      doctor: {
-        id: doctor.id,
-        name: doctor.fullName,
-        specialty: {
-          id: doctor.specialty.id,
-          name: doctor.specialty.name,
-        },
+  const availability: AppointmentAvailabilityResponse["items"] = [];
+  let page = 1;
+  let total = 0;
+
+  do {
+    query.set("page", String(page));
+    const response = await request<AppointmentAvailabilityResponse>(
+      `/schedules/ai-availability?${query}`,
+      { signal },
+    );
+    if (!Number.isInteger(response.total) || response.total < 0) {
+      throw new Error("API trả về tổng số khung giờ không hợp lệ.");
+    }
+
+    availability.push(...response.items);
+    total = response.total;
+    page += 1;
+    if (response.items.length === 0 && availability.length < total) {
+      throw new Error("API không trả đủ các trang khung giờ khám.");
+    }
+  } while (availability.length < total);
+
+  return availability.map(({ doctor, ...slot }) => ({
+    ...slot,
+    doctor: {
+      id: doctor.id,
+      name: doctor.fullName,
+      specialty: {
+        id: doctor.specialty.id,
+        name: doctor.specialty.name,
       },
-    })),
-  );
+    },
+  }));
 }
 
 export function bookAppointment(input: {

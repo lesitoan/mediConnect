@@ -79,6 +79,10 @@ npm run dev:api
 
 `prisma:migrate` áp dụng migration vào database đã cấu hình; kiểm tra đúng database trước khi chạy. Seed mặc định bổ sung role/permission còn thiếu, không tạo người dùng hoặc mật khẩu. `npm run prisma:seed:clinic --workspace api` tạo dữ liệu phòng khám giả lập cho đồ án. Tạo thêm 2 admin và 2 lễ tân bằng `npm run prisma:seed:staff --workspace api`. Các tài khoản demo mới đã xác minh email, có trạng thái ACTIVE và mật khẩu `123456`. Xem [danh sách tài khoản và cách chạy seed](../../docs/clinic-seed-and-staff-activation.md).
 
+Để tạo tài khoản bệnh nhân kiểm thử đăng nhập trên patient web, chạy `npm run prisma:seed:patient --workspace api`. Lệnh chỉ chạy khi `DATABASE_URL` trỏ tới PostgreSQL trên loopback và `NODE_ENV` không phải `production`; chạy lại sẽ đặt lại mật khẩu, hồ sơ cá nhân và hai bản ghi tiền sử/dị ứng kiểm thử ở trạng thái chờ bác sĩ xác nhận. Đăng nhập bằng `patient-test@mediconnect.local` với mật khẩu `MediConnect123!`.
+
+Để tạo lịch đặt khám kiểm thử, chạy `npm run prisma:seed:local-schedules --workspace api`. Lệnh chỉ chạy với PostgreSQL loopback ngoài production, dùng các bác sĩ đang hoạt động hiện có và bổ sung lịch đã công bố trong 7 ngày (8:00–18:00, mỗi slot 30 phút). Lệnh không tạo tài khoản hoặc đụng đến lịch bị xung đột; có thể chạy lại an toàn.
+
 Trong môi trường development/test, đặt `SEED_DEMO_DATA=true` trước khi chạy `prisma:seed` để tạo thêm tài khoản demo và lịch khám mẫu. Không bật tùy chọn này trên production.
 
 Cổng mặc định: `4000`. Base path: `/api/v1`. Swagger: `http://localhost:4000/api/docs`. Health check: `GET /api/v1/health-check`. Thông tin người dùng hiện tại: `GET /api/v1/me`.

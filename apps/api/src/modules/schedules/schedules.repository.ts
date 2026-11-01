@@ -411,7 +411,13 @@ export class SchedulesRepository {
         JOIN ${sqlTable(this.prisma.schemaName, 'doctors')} d ON d.id = ds.doctor_id
         JOIN ${sqlTable(this.prisma.schemaName, 'users')} u ON u.id = d.user_id
         JOIN ${sqlTable(this.prisma.schemaName, 'specialties')} sp ON sp.id = d.specialty_id
-        WHERE s.starts_at >= ${input.from} AND s.starts_at < ${input.until} AND s.starts_at > ${input.now}
+        WHERE s.starts_at >= ${input.from} AND s.starts_at < ${input.until}
+          AND s.starts_at >= (${input.now}::timestamptz + INTERVAL '2 hours')
+          AND EXTRACT(EPOCH FROM (s.ends_at - s.starts_at)) = 1800
+          AND EXTRACT(HOUR FROM s.starts_at AT TIME ZONE 'Asia/Ho_Chi_Minh') * 60
+            + EXTRACT(MINUTE FROM s.starts_at AT TIME ZONE 'Asia/Ho_Chi_Minh') >= 480
+          AND EXTRACT(HOUR FROM s.ends_at AT TIME ZONE 'Asia/Ho_Chi_Minh') * 60
+            + EXTRACT(MINUTE FROM s.ends_at AT TIME ZONE 'Asia/Ho_Chi_Minh') <= 1080
           AND s.starts_at >= ds.starts_at AND s.ends_at <= ds.ends_at
           AND s.is_blocked = false AND ds.status = 'PUBLISHED'
           AND d.is_active = true AND sp.is_active = true AND u.status = 'ACTIVE' AND u.deleted_at IS NULL

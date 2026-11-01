@@ -21,7 +21,7 @@ export default function AuthedHero() {
         <div>
           <span className="inline-flex items-center gap-2 rounded-full border border-blue-100 bg-white/80 px-3.5 py-1.5 text-[11px] font-bold text-[#0A5A84]">
             <BadgeCheck className="h-3.5 w-3.5" />
-            Bệnh viện Đạt Chuẩn Giám Định Y Khoa Quốc Tế JCI
+            Phòng khám đa chuyên khoa MediConnect
           </span>
 
           <h1 className="mt-5 text-4xl font-extrabold leading-[1.15] text-slate-900 md:text-5xl">
