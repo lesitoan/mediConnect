@@ -14,6 +14,7 @@ import {
   UserRole,
 } from '../../generated/prisma/enums';
 import { clinicDate, clinicDateString } from '../../common/utils/clinic-date';
+import { getCurrentTime } from '../../common/utils/e2e-clock';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { PrismaService } from '../database/services/prisma.service';
 import type { CurrentUserDto } from '../users/dto/responses/current-user.dto';
@@ -382,7 +383,7 @@ export class QueuesService {
         include: QUEUE_INCLUDE,
         orderBy: [{ queueDate: 'asc' }, { queueNumber: 'asc' }, { id: 'asc' }],
       });
-      const now = new Date();
+      const now = getCurrentTime();
       const doctorIds = [
         ...new Set(
           sessions.map(
@@ -475,7 +476,10 @@ export class QueuesService {
           assertQueueCanCall(current, candidates);
           await tx.careSession.update({
             where: { id: current.id },
-            data: { status: CareSessionStatus.CALLED, calledAt: new Date() },
+            data: {
+              status: CareSessionStatus.CALLED,
+              calledAt: getCurrentTime(),
+            },
           });
         },
         { isolationLevel: 'Serializable', timeout: 15000 },
@@ -527,7 +531,7 @@ export class QueuesService {
           });
           if (active)
             throw new ConflictException('Bác sĩ đang có một phiên khám khác.');
-          const startedAt = new Date();
+          const startedAt = getCurrentTime();
           await tx.careSession.update({
             where: { id: current.id },
             data: { status: CareSessionStatus.IN_CONSULTATION },
@@ -627,7 +631,7 @@ export class QueuesService {
             throw new BadRequestException(
               missingFields.map((field) => `${field} is required`),
             );
-          const completedAt = new Date();
+          const completedAt = getCurrentTime();
           await tx.careSession.update({
             where: { id: current.id },
             data: { status: CareSessionStatus.COMPLETED },
@@ -713,7 +717,7 @@ export class QueuesService {
             throw new ConflictException(
               'Chá»‰ cÃ³ thá»ƒ bá» qua bá»‡nh nhÃ¢n Ä‘ang Ä‘Æ°á»£c gá»i.',
             );
-          const now = new Date();
+          const now = getCurrentTime();
           const remainingSeconds = skipAllowedInSeconds(current.calledAt, now);
           if (remainingSeconds > 0)
             throw new ConflictException(
@@ -726,7 +730,7 @@ export class QueuesService {
             data: {
               skipCount: nextSkipCount,
               status: nextStatus,
-              skippedAt: new Date(),
+              skippedAt: getCurrentTime(),
             },
           });
           const activePatients = await tx.careSession.findMany({
@@ -767,7 +771,7 @@ export class QueuesService {
                 where: { id: next.id },
                 data: {
                   status: CareSessionStatus.CALLED,
-                  calledAt: new Date(),
+                  calledAt: getCurrentTime(),
                 },
               });
           }
@@ -823,7 +827,7 @@ export class QueuesService {
         user,
         session.appointmentSlot.doctorSchedule.doctor.userId,
       );
-      const now = new Date();
+      const now = getCurrentTime();
       const doctorQueue = await this.prisma.careSession.findMany({
         where: {
           queueDate: session.queueDate,

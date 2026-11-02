@@ -10,6 +10,7 @@ const ENVIRONMENT_SCHEMA = Joi.object<Record<string, unknown>>({
   NODE_ENV: Joi.string()
     .valid('development', 'test', 'production')
     .default('development'),
+  E2E_NOW: Joi.string().empty('').optional(),
   OTP_DEV_MODE: Joi.boolean().truthy('true').falsy('false').default(false),
   PORT: Joi.number().port().default(4000),
   SEPAY_WEBHOOK_SECRET: Joi.string().min(32).empty('').optional(),
@@ -106,6 +107,24 @@ export function validateEnvironment(
   }
   if (values.OTP_DEV_MODE && values.NODE_ENV === 'production') {
     throw new Error('OTP_DEV_MODE cannot be enabled in production');
+  }
+  if (values.E2E_NOW) {
+    if (values.NODE_ENV === 'production')
+      throw new Error('E2E_NOW cannot be used in production.');
+    if (
+      !/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?\+07:00$/.test(
+        values.E2E_NOW as string,
+      ) ||
+      !Number.isFinite(Date.parse(values.E2E_NOW as string))
+    )
+      throw new Error(
+        'E2E_NOW must be a valid ISO datetime with the +07:00 offset.',
+      );
+    const databaseUrl = new URL(values.DATABASE_URL as string);
+    if (
+      !['localhost', '127.0.0.1', '::1', '[::1]'].includes(databaseUrl.hostname)
+    )
+      throw new Error('E2E_NOW can only be used with a local database.');
   }
   return values;
 }

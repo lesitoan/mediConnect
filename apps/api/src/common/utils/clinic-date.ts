@@ -1,8 +1,9 @@
 import { BadRequestException } from '@nestjs/common';
+import { getCurrentTime } from './e2e-clock';
 
 const CLINIC_TIME_ZONE = 'Asia/Ho_Chi_Minh';
 
-export function clinicDateString(value: Date = new Date()): string {
+export function clinicDateString(value: Date = getCurrentTime()): string {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: CLINIC_TIME_ZONE,
   }).format(value);

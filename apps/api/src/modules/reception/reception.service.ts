@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -18,6 +17,7 @@ import {
 } from '../../generated/prisma/enums';
 import { PrismaService } from '../database/services/prisma.service';
 import { clinicDate, clinicDateString } from '../../common/utils/clinic-date';
+import { getCurrentTime } from '../../common/utils/e2e-clock';
 import { sqlTable } from '../database/utils/sql-table';
 import type { CurrentUserDto } from '../users/dto/responses/current-user.dto';
 import { RoleEnum } from '../users/constants/roles.constant';
@@ -131,7 +131,7 @@ export class ReceptionService {
     const pageSize = query.pageSize ?? query.limit;
     const dateStart = clinicDate(query.date);
     const dateEnd = new Date(dateStart.getTime() + 86400000);
-    const now = new Date();
+    const now = getCurrentTime();
     const slotStartsAt =
       status === ReceptionAppointmentStatus.LATE
         ? { gte: dateStart, lt: now }
@@ -279,7 +279,7 @@ export class ReceptionService {
 
   async getAppointment(id: string) {
     const appointment = await this.findAppointment(id);
-    return this.presentAppointment(appointment, new Date());
+    return this.presentAppointment(appointment, getCurrentTime());
   }
 
   async checkIn(id: string, user: CurrentUserDto) {
@@ -300,6 +300,8 @@ export class ReceptionService {
               throw new NotFoundException('Appointment not found');
             if (appointment.status === AppointmentStatus.CANCELLED)
               throw new ConflictException('Appointment is cancelled');
+            if (appointment.status === AppointmentStatus.PENDING_RESOLUTION)
+              throw new ConflictException('Appointment is pending resolution');
             const session = appointment.careSessions[0];
             if (!session)
               throw new ConflictException('Appointment session not found');
@@ -331,13 +333,13 @@ export class ReceptionService {
               where: { id: session.id },
               data: {
                 status: CareSessionStatus.CHECKED_IN,
-                checkedInAt: new Date(),
+                checkedInAt: getCurrentTime(),
                 checkedInBy: user.id,
                 queueDate,
                 queueNumber,
                 queuePosition: queueNumber,
                 priorityType:
-                  session.appointmentSlot.startsAt < new Date()
+                  session.appointmentSlot.startsAt < getCurrentTime()
                     ? CareSessionPriorityType.APPOINTMENT_LATE
                     : CareSessionPriorityType.APPOINTMENT_ON_TIME,
               },
@@ -698,13 +700,13 @@ export class ReceptionService {
       where: { id: session.id },
       data: {
         status: CareSessionStatus.CHECKED_IN,
-        checkedInAt: new Date(),
+        checkedInAt: getCurrentTime(),
         checkedInBy: userId,
         queueDate,
         queueNumber,
         queuePosition: queueNumber,
         priorityType:
-          session.appointmentSlot.startsAt < new Date()
+          session.appointmentSlot.startsAt < getCurrentTime()
             ? CareSessionPriorityType.APPOINTMENT_LATE
             : CareSessionPriorityType.APPOINTMENT_ON_TIME,
       },
@@ -727,9 +729,10 @@ export class ReceptionService {
   }
 
   private appointmentCode() {
-    return `MDC-${Date.now().toString(36).toUpperCase()}-${randomBytes(2)
-      .toString('hex')
-      .toUpperCase()}`;
+    return `MDC-${getCurrentTime()
+      .getTime()
+      .toString(36)
+      .toUpperCase()}-${randomBytes(2).toString('hex').toUpperCase()}`;
   }
 
   private isUniqueConstraintError(error: unknown) {

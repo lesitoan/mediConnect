@@ -1,12 +1,12 @@
 
 
-**ĐẠI HỌC ĐÀ NẴNG**
+**ĐẠI HỌC ĐÀ NẴNG** 
 
 **TRƯỜNG ĐẠI HỌC BÁCH KHOA**
 
-**KHOA CÔNG NGHỆ THÔNG TIN**
+**KHOA CÔNG NGHỆ THÔNG TIN** 
 
-**![][image1]**
+**![][image1]**   
 
 
 **Software Requirements Specification**
@@ -280,7 +280,7 @@ Tài liệu trình bày toàn bộ quá trình khảo sát bài toán, đặc t�
 
 [Hình 3.29: ERD Notification, AI, Audit, Cross-cutting	117](#hình-3.28:-erd-notification,-ai,-audit)
 
-#
+# 
 
 # **DANH MỤC BẢNG BIỂU**  {#danh-mục-bảng-biểu}
 
@@ -294,11 +294,11 @@ Tài liệu trình bày toàn bộ quá trình khảo sát bài toán, đặc t�
 
 [\*Bảng 2.2: Các ca sử dụng của hệ thống:	26](#*bảng-2.2:-các-ca-sử-dụng-của-hệ-thống:)
 
-#
+# 
 
-#
+# 
 
-#
+# 
 
 # **CHƯƠNG 1\. KHẢO SÁT BÀI TOÁN** {#chương-1.-khảo-sát-bài-toán}
 
@@ -308,7 +308,7 @@ Tài liệu trình bày toàn bộ quá trình khảo sát bài toán, đặc t�
 
 Tại các phòng khám đa khoa tư nhân \- nơi vận hành nhiều chuyên khoa với đội ngũ bác sĩ làm việc theo ca, lịch trực và lịch tăng ca linh hoạt thì quy trình từ đặt lịch, tiếp nhận, xếp hàng chờ đến khám và ghi nhận hồ sơ sức khỏe thường được thực hiện thủ công hoặc bán tự động: sổ sách giấy, bảng tính Excel, hoặc trao đổi qua điện thoại/Zalo giữa lễ tân và bác sĩ. Cách làm này phù hợp khi quy mô còn nhỏ, nhưng bộc lộ rõ hạn chế khi phòng khám có nhiều chuyên khoa và lượng bệnh nhân tăng: dễ xảy ra trùng lịch do dữ liệu không đồng bộ giữa các quầy/kênh đặt lịch, người bệnh khó theo dõi trạng thái lịch hẹn của mình, và khi phát sinh sự cố (bác sĩ đột xuất nghỉ, bệnh nhân bị bỏ sót trong hàng chờ) thì không có dữ liệu để truy vết nguyên nhân.
 
-Bên cạnh đó, người bệnh tại các phòng khám tư nhân ngày càng có xu hướng muốn tự tra cứu chuyên khoa, bác sĩ và đặt lịch nhanh qua các kênh số thay vì gọi điện, trong khi lễ tân và bác sĩ cần một công cụ quản lý lịch làm việc, lịch trực thống nhất, có phân quyền rõ ràng theo vai trò. Đây là động lực để nhóm xây dựng ***MediConnect*** \- nền tảng quản lý khám chữa bệnh ngoại trú tại các phòng khám đa chuyên khoa \- mô hình hóa toàn bộ quy trình khám thành các trạng thái nhất quán, một hệ thống quản lý tập trung giúp các phòng khám vận hành chuyên nghiệp, tiết kiệm thời gian và đảm bảo tính chính xác, minh bạch trong toàn bộ quy trình khám chữa bệnh.
+Bên cạnh đó, người bệnh tại các phòng khám tư nhân ngày càng có xu hướng muốn tự tra cứu chuyên khoa, bác sĩ và đặt lịch nhanh qua các kênh số thay vì gọi điện, trong khi lễ tân và bác sĩ cần một công cụ quản lý lịch làm việc, lịch trực thống nhất, có phân quyền rõ ràng theo vai trò. Đây là động lực để nhóm xây dựng ***MediConnect*** \- nền tảng quản lý khám chữa bệnh ngoại trú tại các phòng khám đa chuyên khoa \- mô hình hóa toàn bộ quy trình khám thành các trạng thái nhất quán, một hệ thống quản lý tập trung giúp các phòng khám vận hành chuyên nghiệp, tiết kiệm thời gian và đảm bảo tính chính xác, minh bạch trong toàn bộ quy trình khám chữa bệnh. 
 
 ### ***1.1.2. Phạm vi hệ thống:*** {#1.1.2.-phạm-vi-hệ-thống:}
 
@@ -342,35 +342,35 @@ Hệ thống không giải quyết các nghiệp vụ sau:
 
 * Quản lý giường bệnh, phòng khám vật lý, hoặc vận hành nhiều chi nhánh phòng khám cùng lúc.
 
-* Quản lý thuốc, kho dược, vật tư y tế.
+* Quản lý thuốc, kho dược, vật tư y tế. 
 
 * Quản lý nhân sự nội bộ, tính lương, hoặc quản lý hàng hóa/tồn kho.
 
-* Trợ lý ảo AI không được phép tự chẩn đoán bệnh, kê đơn thuốc, hay đưa ra khuyến nghị y khoa thay cho bác sĩ.
+* Trợ lý ảo AI không được phép tự chẩn đoán bệnh, kê đơn thuốc, hay đưa ra khuyến nghị y khoa thay cho bác sĩ. 
 
 ## **1.2. Khảo sát bài toán**  {#1.2.-khảo-sát-bài-toán}
 
 * **Về phía vận hành nội bộ phòng khám:**
 
-***STD Clinic*** mạnh về quản lý nội bộ phòng khám, bao gồm tiếp đón, khám bệnh, danh sách chờ, cận lâm sàng, kê đơn, thuốc \- vật tư và báo cáo. Tuy nhiên, phần quản lý lịch bác sĩ, khung giờ khám và liên kết giữa lịch hẹn \- check-in \- hàng đợi chưa được thể hiện rõ, là những điểm có thể tiếp tục cải tiến.
+***STD Clinic*** mạnh về quản lý nội bộ phòng khám, bao gồm tiếp đón, khám bệnh, danh sách chờ, cận lâm sàng, kê đơn, thuốc \- vật tư và báo cáo. Tuy nhiên, phần quản lý lịch bác sĩ, khung giờ khám và liên kết giữa lịch hẹn \- check-in \- hàng đợi chưa được thể hiện rõ, là những điểm có thể tiếp tục cải tiến. 
 
 ![][image2]
 
 ##### ***Hình 1.1: Tham khảo nội bộ phòng khám STD CLINIC*** {#hình-1.1:-tham-khảo-nội-bộ-phòng-khám-std-clinic}
 
-* **Về phía bệnh nhân:**
+* **Về phía bệnh nhân:** 
 
 ![][image3]
 
 ##### ***Hình 1.2 : Tham khảo website Vinmec*** {#hình-1.2-:-tham-khảo-website-vinmec}
 
-Website ***Vinmec*** có quy trình tra cứu và đặt lịch khám rõ ràng, cho phép người bệnh chọn cơ sở, chuyên khoa, bác sĩ và thời gian khám. Tuy nhiên, trải nghiệm vẫn có thể được tối ưu theo hướng giảm thao tác và giảm thời gian chờ của người bệnh. Người bệnh có nhu cầu được đặt lịch nhanh hơn bằng AI, chủ động check-in và lấy số trước, theo dõi hàng chờ theo thời gian thực, thanh toán trực tuyến, nhận thông báo tự động và xem tập trung toàn bộ hồ sơ khám. Đây là những điểm có thể giúp quy trình khám thuận tiện và liền mạch hơn từ trước khi đến bệnh viện đến sau khi khám.
+Website ***Vinmec*** có quy trình tra cứu và đặt lịch khám rõ ràng, cho phép người bệnh chọn cơ sở, chuyên khoa, bác sĩ và thời gian khám. Tuy nhiên, trải nghiệm vẫn có thể được tối ưu theo hướng giảm thao tác và giảm thời gian chờ của người bệnh. Người bệnh có nhu cầu được đặt lịch nhanh hơn bằng AI, chủ động check-in và lấy số trước, theo dõi hàng chờ theo thời gian thực, thanh toán trực tuyến, nhận thông báo tự động và xem tập trung toàn bộ hồ sơ khám. Đây là những điểm có thể giúp quy trình khám thuận tiện và liền mạch hơn từ trước khi đến bệnh viện đến sau khi khám. 
 
 ![][image4]
 
 ##### ***Hình 1.3: Tham khảo website Bệnh viện đại học y dược TPHCM*** {#hình-1.3:-tham-khảo-website-bệnh-viện-đại-học-y-dược-tphcm}
 
-Hệ thống web-app của Bệnh viện Đại học Y dược TP. Hồ Chí Minh tập trung nhiều vào việc hỗ trợ người bệnh thực hiện các thao tác sau khi đã xác định được nhu cầu khám, chẳng hạn lựa chọn chuyên khoa, bác sĩ và khung giờ. Các nghiệp vụ vận hành phía bệnh viện như quản lý lịch làm việc của bác sĩ, công bố lịch và khung giờ khám, tiếp nhận bệnh nhân, quản lý hàng đợi cũng chưa được thể hiện rõ trong trải nghiệm dành cho người dùng. Do đó, UMC Care có ưu điểm về sự thuận tiện trong đặt lịch và quản lý thông tin người bệnh, nhưng phạm vi thể hiện quy trình vận hành khám bệnh còn chưa toàn diện.
+Hệ thống web-app của Bệnh viện Đại học Y dược TP. Hồ Chí Minh tập trung nhiều vào việc hỗ trợ người bệnh thực hiện các thao tác sau khi đã xác định được nhu cầu khám, chẳng hạn lựa chọn chuyên khoa, bác sĩ và khung giờ. Các nghiệp vụ vận hành phía bệnh viện như quản lý lịch làm việc của bác sĩ, công bố lịch và khung giờ khám, tiếp nhận bệnh nhân, quản lý hàng đợi cũng chưa được thể hiện rõ trong trải nghiệm dành cho người dùng. Do đó, UMC Care có ưu điểm về sự thuận tiện trong đặt lịch và quản lý thông tin người bệnh, nhưng phạm vi thể hiện quy trình vận hành khám bệnh còn chưa toàn diện. 
 
 ## **1.3. Xác định thông tin cơ bản cho nghiệp vụ của bài toán**  {#1.3.-xác-định-thông-tin-cơ-bản-cho-nghiệp-vụ-của-bài-toán}
 
@@ -382,42 +382,42 @@ Hệ thống web-app của Bệnh viện Đại học Y dược TP. Hồ Chí Mi
 
   * Mỗi vai trò chỉ truy cập được chức năng và dữ liệu phù hợp với quyền được giao.
 
-* Quản lý tài khoản người dùng: Admin tạo, sửa, khóa/mở khóa tài khoản nội bộ và gán vai trò.
-* Quản lý danh mục bác sĩ:
-  * Admin thêm, sửa và quản lý trạng thái hoạt động của bác sĩ, mỗi bác sĩ thuộc một chuyên khoa duy nhất.
-  * Vô hiệu hóa bác sĩ phải đảm bảo không còn lịch hẹn tương lai hoặc yêu cầu xử lý trước.
-  * Bệnh nhân và lễ tân tra cứu bác sĩ đang hoạt động để chọn nơi khám.
-* Quản lý danh mục chuyên khoa:
-  * Admin thêm, sửa và quản lý trạng thái hoạt động của chuyên khoa.
-  * Vô hiệu hóa chuyên khoa phải đảm bảo không còn bác sĩ đang hoạt động thuộc chuyên khoa đó, hoặc yêu cầu xử lý trước.
-  * Bệnh nhân và lễ tân tra cứu chuyên khoa để chọn dịch vụ khám phù hợp.
-* Quản lý lịch làm việc:
-  * Admin xếp lịch làm việc (thường ngày, trực), kiểm tra trùng lặp và công bố; hệ thống sinh khung giờ khám tương ứng.
-  * Bác sĩ gửi yêu cầu nghỉ phép (≥48h trước), báo vắng đột xuất (\<48h); Admin phê duyệt hoặc từ chối.
-* Quản lý lịch khám:
-  * Bệnh nhân (Đăng nhập và không đăng nhập) tra cứu khung giờ trống, đặt, đổi, hủy lịch theo chính sách; hệ thống kiểm tra khung giờ để tránh đặt trùng.
-  * Lịch hẹn được tạo ở trạng thái "Đã xác nhận" ngay sau khi đặt thành công.
-  * Bệnh nhân thanh toán chi phí khám (SePay QR hoặc tại quầy).
-  * Đổi/hủy lịch: Tối thiểu 2 giờ trước giờ khám; mỗi lịch đổi tối đa 2 lần; hủy muộn không hoàn tiền.
-  * Sau khi khám, bệnh nhân đánh giá bác sĩ và dịch vụ.
-* Quản lý tiếp nhận bệnh nhân:
-  * Lễ tân tiếp nhận bệnh nhân có lịch hẹn hoặc vãng lai: tìm hoặc tạo hồ sơ, xác minh thông tin, check-in.
-  * Trạng thái đến: Sớm (\>15 phút trước), Đúng giờ (-15 đến \+10 phút), Trễ (\>10 phút sau). Bệnh nhân đến sớm được check-in nhưng chờ đến khung giờ hẹn mới được ưu tiên gọi khám.
+* Quản lý tài khoản người dùng: Admin tạo, sửa, khóa/mở khóa tài khoản nội bộ và gán vai trò.  
+* Quản lý danh mục bác sĩ:  
+  * Admin thêm, sửa và quản lý trạng thái hoạt động của bác sĩ, mỗi bác sĩ thuộc một chuyên khoa duy nhất.   
+  * Vô hiệu hóa bác sĩ phải đảm bảo không còn lịch hẹn tương lai hoặc yêu cầu xử lý trước.   
+  * Bệnh nhân và lễ tân tra cứu bác sĩ đang hoạt động để chọn nơi khám.  
+* Quản lý danh mục chuyên khoa:  
+  * Admin thêm, sửa và quản lý trạng thái hoạt động của chuyên khoa.  
+  * Vô hiệu hóa chuyên khoa phải đảm bảo không còn bác sĩ đang hoạt động thuộc chuyên khoa đó, hoặc yêu cầu xử lý trước.   
+  * Bệnh nhân và lễ tân tra cứu chuyên khoa để chọn dịch vụ khám phù hợp.  
+* Quản lý lịch làm việc:  
+  * Admin xếp lịch làm việc (thường ngày, trực), kiểm tra trùng lặp và công bố; hệ thống sinh khung giờ khám tương ứng.  
+  * Bác sĩ gửi yêu cầu nghỉ phép (≥48h trước), báo vắng đột xuất (\<48h); Admin phê duyệt hoặc từ chối.   
+* Quản lý lịch khám:  
+  * Bệnh nhân (Đăng nhập và không đăng nhập) tra cứu khung giờ trống, đặt, đổi, hủy lịch theo chính sách; hệ thống kiểm tra khung giờ để tránh đặt trùng.  
+  * Lịch hẹn được tạo ở trạng thái "Đã xác nhận" ngay sau khi đặt thành công.   
+  * Bệnh nhân thanh toán chi phí khám (SePay QR hoặc tại quầy).  
+  * Đổi/hủy lịch: Tối thiểu 2 giờ trước giờ khám; mỗi lịch đổi tối đa 2 lần; hủy muộn không hoàn tiền.   
+  * Sau khi khám, bệnh nhân đánh giá bác sĩ và dịch vụ.  
+* Quản lý tiếp nhận bệnh nhân:   
+  * Lễ tân tiếp nhận bệnh nhân có lịch hẹn hoặc vãng lai: tìm hoặc tạo hồ sơ, xác minh thông tin, check-in.   
+  * Trạng thái đến: Sớm (\>15 phút trước), Đúng giờ (-15 đến \+10 phút), Trễ (\>10 phút sau). Bệnh nhân đến sớm được check-in nhưng chờ đến khung giờ hẹn mới được ưu tiên gọi khám. 
 
-* Quản lý hàng chờ: Lễ tân/Bác sĩ cấp số, gọi, bỏ qua, đưa bệnh nhân trở lại hàng chờ.
+* Quản lý hàng chờ: Lễ tân/Bác sĩ cấp số, gọi, bỏ qua, đưa bệnh nhân trở lại hàng chờ. 
 
-  * Quy tắc ưu tiên: (1) Appointment trong khung giờ hẹn, (2) Walk-in theo thứ tự check-in, (3) Appointment đến trễ.
+  * Quy tắc ưu tiên: (1) Appointment trong khung giờ hẹn, (2) Walk-in theo thứ tự check-in, (3) Appointment đến trễ. 
 
-  * Bệnh nhân bị bỏ qua được đưa vào vị trí ngay sau bệnh nhân đang khám, không xếp lại cuối hàng.
+  * Bệnh nhân bị bỏ qua được đưa vào vị trí ngay sau bệnh nhân đang khám, không xếp lại cuối hàng. 
 
-* Quản lý khám bệnh:
-  * Bệnh nhân khai báo tiền sử bệnh, dị ứng; bác sĩ xác nhận khi khám.
-  * Bác sĩ thực hiện phiên khám từ hàng chờ: ghi chú lâm sàng, chẩn đoán, đơn thuốc; xử lý chờ cận lâm sàng, tạm dừng, chuyển chuyên khoa nội bộ; hoàn thành khám và khóa hồ sơ bệnh án.
-* Trợ lý AI:
-  * Hỗ trợ bệnh nhân tra cứu bác sĩ, chuyên khoa, lịch trống và đặt, đổi, hủy lịch bằng ngôn ngữ tự nhiên.
-  * Chỉ thực hiện thao tác sau khi bệnh nhân xác nhận, trong phạm vi quyền của bệnh nhân; không chẩn đoán hay kê đơn.
-* Quản lý Audit Log: Hệ thống ghi nhật ký bất biến các thao tác quan trọng; Admin tra cứu, lọc, xuất để truy vết.
-* Xử lý ngoại lệ: Admin xử lý lịch hẹn bị ảnh hưởng khi bác sĩ nghỉ hoặc lịch thay đổi: đổi bác sĩ, đề xuất lịch mới hoặc hủy lịch (kèm hoàn tiền nếu đã thanh toán).
+* Quản lý khám bệnh:  
+  * Bệnh nhân khai báo tiền sử bệnh, dị ứng; bác sĩ xác nhận khi khám.  
+  * Bác sĩ thực hiện phiên khám từ hàng chờ: ghi chú lâm sàng, chẩn đoán, đơn thuốc; xử lý chờ cận lâm sàng, tạm dừng, chuyển chuyên khoa nội bộ; hoàn thành khám và khóa hồ sơ bệnh án.  
+* Trợ lý AI:  
+  * Hỗ trợ bệnh nhân tra cứu bác sĩ, chuyên khoa, lịch trống và đặt, đổi, hủy lịch bằng ngôn ngữ tự nhiên.  
+  * Chỉ thực hiện thao tác sau khi bệnh nhân xác nhận, trong phạm vi quyền của bệnh nhân; không chẩn đoán hay kê đơn.  
+* Quản lý Audit Log: Hệ thống ghi nhật ký bất biến các thao tác quan trọng; Admin tra cứu, lọc, xuất để truy vết.  
+* Xử lý ngoại lệ: Admin xử lý lịch hẹn bị ảnh hưởng khi bác sĩ nghỉ hoặc lịch thay đổi: đổi bác sĩ, đề xuất lịch mới hoặc hủy lịch (kèm hoàn tiền nếu đã thanh toán).  
 * Thông báo: Hệ thống gửi thông báo đúng người nhận khi có sự kiện về lịch hẹn, hàng chờ, thanh toán, lịch làm việc.
 
 ### ***1.3.2. Kết quả phân tích:*** {#1.3.2.-kết-quả-phân-tích:}
@@ -446,7 +446,7 @@ Hệ thống web-app của Bệnh viện Đại học Y dược TP. Hồ Chí Mi
 
 ##### ***![][image6]  Hình 1.5: Biểu đồ phân rã chức năng webssite Admin***
 
-####
+#### 
 
 #### ***\*Bảng 1.2: Mô tả các chức năng trong biểu đồ:***
 
@@ -466,7 +466,7 @@ Hệ thống web-app của Bệnh viện Đại học Y dược TP. Hồ Chí Mi
 | Thanh toán | Bệnh nhân thực hiện thanh toán chi phí khám hoặc xét nghiệm nếu có. Hệ thống ghi nhận trạng thái thanh toán. Receptionist xác nhận thanh toán trực tiếp tại quầy đối với trường hợp thanh toán tiền mặt. | Nhân lực: 1 người. Thời gian: 2 \- 3 ngày. Công nghệ: Next.js/React Native \+ NestJS \+ PostgreSQL \+ Payment API. Môi trường: VS Code \+ Node.js \+ PostgreSQL. Khả thi: Trung bình. |
 | Đánh giá bác sĩ và dịch vụ | Sau khi hoàn tất buổi khám, bệnh nhân có thể đánh giá bác sĩ và chất lượng dịch vụ bằng số sao và nhận xét. | Nhân lực: 1 người. Thời gian: 1 ngày. Công nghệ: Next.js/React Native \+ NestJS \+ PostgreSQL. Môi trường: VS Code \+ Node.js \+ PostgreSQL. Khả thi: Cao. |
 
-## **1.5. Thư viện và công cụ sử dụng**
+## **1.5. Thư viện và công cụ sử dụng**  
 
 #### ***\*Bảng 1.3: Thư viện và công cụ sử dụng*** {#*bảng-1.3:-thư-viện-và-công-cụ-sử-dụng}
 
@@ -483,11 +483,11 @@ Hệ thống web-app của Bệnh viện Đại học Y dược TP. Hồ Chí Mi
 | 9 | Caching và lưu trữ dữ liệu tạm thời  | Redis  | — | R[edis](https://redis.io/fr/) |
 | 10 | Phát triển AI Service | Python \+ FastAPI | — | [Python](https://www.python.org/) ,  [FastAPI](https://fastapi.tiangolo.com/) |
 
-####
+#### 
 
 ####  {#heading-1}
 
-#
+# 
 
 # **CHƯƠNG 2\.  ĐẶC TẢ YÊU CẦU BÀI TOÁN**  {#chương-2.-đặc-tả-yêu-cầu-bài-toán}
 
@@ -530,7 +530,7 @@ Hệ thống được thiết kế xoay quanh 4 tác nhân chính, mỗi tác nh
 
 ##### ***Hình 2.1: Biểu đồ usecase tổng quan***  {#hình-2.1:-biểu-đồ-usecase-tổng-quan}
 
-###
+### 
 
 ### ***2.2.2. Biểu đồ use case phân rã***
 
@@ -546,13 +546,13 @@ Hệ thống được thiết kế xoay quanh 4 tác nhân chính, mỗi tác nh
 
 ##### ***Hình 2.3: Biểu đồ phân rã quản lý tài khoản người dùng*** {#hình-2.3:-biểu-đồ-phân-rã-quản-lý-tài-khoản-người-dùng}
 
-* ***Biểu đồ UC phân rã UC03 \- Quản lý danh mục bác sĩ***
+* ***Biểu đồ UC phân rã UC03 \- Quản lý danh mục bác sĩ*** 
 
 ***![][image10]***
 
 ##### ***Hình 2.4: Biểu đồ phân rã quản lý danh mục bác sĩ***  {#hình-2.4:-biểu-đồ-phân-rã-quản-lý-danh-mục-bác-sĩ}
 
-* ***Biểu đồ UC phân rã UC04 \- Quản lý lịch danh mục chuyên khoa***
+* ***Biểu đồ UC phân rã UC04 \- Quản lý lịch danh mục chuyên khoa*** 
 
 ***![][image11]***
 
@@ -564,29 +564,29 @@ Hệ thống được thiết kế xoay quanh 4 tác nhân chính, mỗi tác nh
 
 ##### ***Hình 2.6: Biểu đồ phân rã quản lý lịch làm việc***  {#hình-2.6:-biểu-đồ-phân-rã-quản-lý-lịch-làm-việc}
 
-* ***Biểu đồ UC phân rã UC06 \- Quản lý lịch khám***
+* ***Biểu đồ UC phân rã UC06 \- Quản lý lịch khám*** 
 
 ![][image13]
 
 ##### ***Hình 2.7: Biểu đồ phân rã quản lý lịch khám***  {#hình-2.7:-biểu-đồ-phân-rã-quản-lý-lịch-khám}
 
-* ***Biểu đồ UC phân rã UC07 \- Quản lý tiếp nhận bệnh nhân***
+* ***Biểu đồ UC phân rã UC07 \- Quản lý tiếp nhận bệnh nhân***  
 
   ***![][image14]***
 
-  ***Hình 2.8: Biểu đồ phân rã quản lý tiếp nhận bệnh nhân***
+  ***Hình 2.8: Biểu đồ phân rã quản lý tiếp nhận bệnh nhân***  
 
-* ***Biểu đồ UC phân rã UC08 \- Quản lý khám bệnh***
+* ***Biểu đồ UC phân rã UC08 \- Quản lý khám bệnh*** 
 
 ***![][image15]***
 
 ##### ***Hình 2.9: Biểu đồ phân rã quản lý khám bệnh***  {#hình-2.9:-biểu-đồ-phân-rã-quản-lý-khám-bệnh}
 
-* ***Biểu đồ UC phân rã UC09 \- Trợ lý AI***
+* ***Biểu đồ UC phân rã UC09 \- Trợ lý AI*** 
 
 ![][image16]
 
-##### ***Hình 2.10: Biểu đồ phân rã trợ lý AI***
+##### ***Hình 2.10: Biểu đồ phân rã trợ lý AI*** 
 
 * ***Biểu đồ UC phân rã UC10 \- Quản lý Audit Log***
 
@@ -637,7 +637,7 @@ Hệ thống được thiết kế xoay quanh 4 tác nhân chính, mỗi tác nh
 | **Tiền điều kiện** | Đối với thao tác quản trị: Admin đã đăng nhập thành công. Đối với thao tác tra cứu: hệ thống phải có sẵn dữ liệu danh mục bác sĩ để truy xuất.  |  |  |
 |  **Admin tạo mới Bác sĩ  Luồng sự kiện chính(thành công) STT Thực hiện bởi Hành động**   1 Admin Chọn chức năng "Thêm mới Bác sĩ" trên giao diện quản trị danh mục. 2 Hệ thống Hiển thị form thu thập thông tin cơ bản (Ví dụ: Mã định danh, Tên, Chuyên khoa trực thuộc, Bằng cấp, Giới thiệu chuyên môn, v.v.). 3 Admin Nhập thông tin, cấu hình các tùy chọn và gửi yêu cầu tạo mới. 4 Hệ thống Kiểm tra tính hợp lệ của dữ liệu và kiểm tra chống trùng lặp mã định danh. 5 Hệ thống Tạo bản ghi danh mục mới trong cơ sở dữ liệu ở trạng thái mặc định là Hoạt động (Active). 6 Hệ thống Ghi Audit Log toàn bộ thao tác tạo mới dữ liệu cấu hình cốt lõi. 7 Hệ thống Hiển thị thông báo "Thêm mới thành công" và làm mới danh sách. **Luồng sự kiện thay thế** 3a Hệ thống Nếu Admin bỏ trống các thông tin bắt buộc: Hiển thị lỗi màu đỏ ngay bên dưới trường dữ liệu và chặn gửi yêu cầu.  4a Hệ thống Nếu Mã bác sĩ đã tồn tại: Hiển thị cảnh báo "Mã định danh đã tồn tại trong hệ thống" và yêu cầu Admin thay đổi dữ liệu bị trùng.  |  |  |  |
 |  **Admin sửa thông tin Bác sĩ  Luồng sự kiện chính(thành công) STT Thực hiện bởi Hành động**   1 Admin Tìm kiếm và chọn Bác sĩ cần chỉnh sửa trong danh mục quản lý. 2 Hệ thống Hiển thị chi tiết thông tin hiện hành của đối tượng. 3 Admin Sửa đổi các thông tin (ví dụ: mô tả kinh nghiệm, cập nhật hình ảnh đại diện) và gửi yêu cầu lưu. 4 Hệ thống Kiểm tra tính hợp lệ của dữ liệu mới.  5 Hệ thống Cập nhật thông tin trực tiếp vào cơ sở dữ liệu.  6 Hệ thống Ghi Audit Log chi tiết các trường thông tin đã bị Admin thay đổi.  7 Hệ thống Hiển thị thông báo "Cập nhật thành công". **Luồng sự kiện thay thế** 4a Hệ thống Nếu dữ liệu đầu vào vi phạm ràng buộc định dạng (ví dụ: file hình ảnh quá giới hạn dung lượng): Hiển thị thông báo lỗi và từ chối cập nhật thay đổi.  |  |  |  |
-|  **Admin vô hiệu hóa Bác sĩ   Luồng sự kiện chính(thành công) STT Thực hiện bởi Hành động**   1 Admin Chọn một Bác sĩ đang ở trạng thái Hoạt động (Active) trong danh mục và nhấn chức năng "Vô hiệu hóa" (Deactivate). 2 Hệ thống Truy vấn cơ sở dữ liệu để kiểm tra xem Bác sĩ này hiện có các Lịch hẹn (Appointments) nào trong tương lai ở trạng thái chưa hoàn thành/chưa hủy hay không. 3 Hệ thống Xác nhận không có Lịch hẹn tương lai nào bị ảnh hưởng. 4 Hệ thống Hiển thị cảnh báo yêu cầu xác nhận: "Bạn có chắc chắn muốn vô hiệu hóa bác sĩ này? Bác sĩ sẽ không xuất hiện trong danh sách tra cứu đặt lịch và không thể nhận thêm lịch hẹn mới". 5 Admin Xác nhận đồng ý vô hiệu hóa. 6 Hệ thống Cập nhật trạng thái của Bác sĩ thành Vô hiệu hóa, áp dụng quy tắc Xóa mềm thay vì xóa vật lý nhằm bảo vệ toàn vẹn hồ sơ khám cũ. 7 Hệ thống Ghi Audit Log hành động vô hiệu hóa. 8 Hệ thống Hiển thị thông báo "Vô hiệu hóa Bác sĩ thành công" và cập nhật hiển thị của danh sách. **Luồng sự kiện thay thế** 3a Hệ thống Nếu phát hiện Bác sĩ vẫn còn Lịch hẹn tương lai chưa được xử lý: Chặn hoàn toàn thao tác vô hiệu hóa. Hiển thị thông báo lỗi "Không thể vô hiệu hóa. Bác sĩ hiện đang có \[X\] lịch hẹn trong tương lai chưa được xử lý".  3b Hệ thống (Tiếp nối 3a): Hiển thị danh sách các lịch hẹn bị ảnh hưởng và yêu cầu Admin xử lý (tái phân công hoặc đổi lịch) trước khi thực hiện vô hiệu hóa.   5a Admin Nếu Admin nhấn Hủy thao tác tại màn hình xác nhận: Hệ thống đóng cửa sổ, kết thúc luồng và giữ nguyên trạng thái Active của Bác sĩ.  |  |  |  |
+|  **Admin tạm dừng hoạt động Bác sĩ   Luồng sự kiện chính(thành công) STT Thực hiện bởi Hành động**   1 Admin Chọn một Bác sĩ đang ở trạng thái Hoạt động (Active) trong danh mục và nhấn chức năng "Vô hiệu hóa" (Deactivate). 2 Hệ thống Truy vấn cơ sở dữ liệu để kiểm tra xem Bác sĩ này hiện có các Lịch hẹn (Appointments) nào trong tương lai ở trạng thái chưa hoàn thành/chưa hủy hay không. 3 Hệ thống Xác nhận không có Lịch hẹn tương lai nào bị ảnh hưởng. 4 Hệ thống Hiển thị cảnh báo yêu cầu xác nhận: "Bạn có chắc chắn muốn vô hiệu hóa bác sĩ này? Bác sĩ sẽ không xuất hiện trong danh sách tra cứu đặt lịch và không thể nhận thêm lịch hẹn mới". 5 Admin Xác nhận đồng ý vô hiệu hóa. 6 Hệ thống Cập nhật trạng thái của Bác sĩ thành Vô hiệu hóa, áp dụng quy tắc Xóa mềm thay vì xóa vật lý nhằm bảo vệ toàn vẹn hồ sơ khám cũ. 7 Hệ thống Ghi Audit Log hành động vô hiệu hóa. 8 Hệ thống Hiển thị thông báo "Vô hiệu hóa Bác sĩ thành công" và cập nhật hiển thị của danh sách. **Luồng sự kiện thay thế** 3a Hệ thống Nếu phát hiện Bác sĩ vẫn còn Lịch hẹn tương lai chưa được xử lý: Chặn hoàn toàn thao tác vô hiệu hóa. Hiển thị thông báo lỗi "Không thể vô hiệu hóa. Bác sĩ hiện đang có \[X\] lịch hẹn trong tương lai chưa được xử lý".  3b Hệ thống (Tiếp nối 3a): Hiển thị danh sách các lịch hẹn bị ảnh hưởng và yêu cầu Admin xử lý (tái phân công hoặc đổi lịch) trước khi thực hiện vô hiệu hóa.   5a Admin Nếu Admin nhấn Hủy thao tác tại màn hình xác nhận: Hệ thống đóng cửa sổ, kết thúc luồng và giữ nguyên trạng thái Active của Bác sĩ.  |  |  |  |
 |  **Người dùng (Bệnh nhân/Lễ tân) tra cứu danh mục   Luồng sự kiện chính(thành công) STT Thực hiện bởi Hành động**   1 Bệnh nhân/Lễ tân Chọn chức năng "Tìm kiếm Bác sĩ/Chuyên khoa" từ giao diện ứng dụng (hoặc từ màn hình bắt đầu tạo Lịch hẹn khám). 2 Bệnh nhân/Lễ tân Nhập từ khóa tìm kiếm (tên, triệu chứng) hoặc chọn bộ lọc (danh mục Chuyên khoa, trạng thái lịch trống hôm nay). 3 Hệ thống Truy vấn cơ sở dữ liệu để lấy danh sách Bác sĩ và Chuyên khoa tương ứng với tiêu chí tìm kiếm. 4 Hệ thống Áp dụng quy tắc lọc (Rule 1): Tự động loại bỏ các bác sĩ đang bị khóa, chỉ giữ lại các Bác sĩ có trạng thái is\_active \= true ở thời điểm hiện tại. 5 Hệ thống Trả về danh sách kết quả tra cứu phù hợp lên màn hình. 6 Bệnh nhân/Lễ tân Chọn một kết quả cụ thể để xem thông tin chi tiết (Giới thiệu, Bằng cấp, Lịch làm việc đã được công bố của bác sĩ đó). **Luồng sự kiện thay thế** 5a Hệ thống Nếu không có dữ liệu nào khớp với từ khóa tìm kiếm (hoặc tất cả bác sĩ thỏa điều kiện đều đã bị vô hiệu hóa): Hiển thị thông báo "Không tìm thấy kết quả phù hợp" và gợi ý người dùng xóa/thay đổi bộ lọc tìm kiếm.   |  |  |  |
 | **Hậu điều kiện** | Dữ liệu Bác sĩ được lưu trữ nhất quán, không xảy ra lỗi bất đồng bộ với lịch hẹn của bệnh nhân. Trải nghiệm tìm kiếm của người dùng chỉ hiển thị những nguồn lực y tế thực sự khả dụng để đặt lịch tại thời điểm đó.  |  |  |
 
@@ -678,7 +678,7 @@ Hệ thống được thiết kế xoay quanh 4 tác nhân chính, mỗi tác nh
 |   **Bệnh nhân hủy lịch khám  Luồng sự kiện chính(thành công) STT Thực hiện bởi Hành động**   1\. Patient  Truy cập danh sách “Lịch hẹn của tôi”.  2\. Hệ thống  Hiển thị danh sách các lịch hẹn của Patient có thể quản lý.  3\. Patient  Chọn lịch hẹn cần hủy.  4\. Hệ thống Hiển thị thông tin chi tiết của lịch hẹn và chức năng “Hủy lịch”.  5 Patient  Chọn và xác nhận  “Hủy lịch”.  6\. Hệ thống  Kiểm tra trạng thái lịch hẹn và điều kiện hủy là Patient được hủy lịch Confirmed trước giờ khám tối thiểu 2 giờ theo chính sách hệ thống.  7 Hệ thống Chuyển trạng thái lịch hẹn sang “Đã hủy” và giải phóng khung giờ khám. 8 Hệ thống Gửi thông báo xác nhận hủy lịch cho Patient và Ghi nhận thao tác hủy lịch vào Audit Log.   **Luồng sự kiện thay thế** 5a. Patient   Chọn “Quay lại” hoặc hủy thao tác → hệ thống không thay đổi lịch hẹn.   6a. Hệ thống  Lịch hẹn không đáp ứng điều kiện hủy theo chính sách → thông báo cho Patient và giữ nguyên lịch hẹn.   **Patient tạo đánh giá bác sĩ và dịch vụ khám cho phiên khám  Luồng sự kiện chính(thành công) STT Thực hiện bởi Hành động**   1 Patient  Mở danh sách lịch sử khám.  2 Hệ thống  Hiển thị các buổi khám đã hoàn thành.  3 Patient  Chọn một buổi khám và chọn “Đánh giá”.  4 Hệ thống  Kiểm tra quyền đánh giá và trạng thái buổi khám.  5 Hệ thống  Hiển thị biểu mẫu đánh giá.  6 Patient  Chấm điểm bác sĩ, chất lượng dịch vụ và nhập nhận xét nếu có.  7 Patient  Gửi đánh giá.  8 Hệ thống  Kiểm tra tính hợp lệ của dữ liệu.  9 Hệ thống  Hiển thị nội dung đánh giá và yêu cầu xác nhận.  10 Patient  Xác nhận gửi đánh giá.  11 Hệ thống  Lưu đánh giá và liên kết với Patient, Doctor và lần khám.  12 Hệ thống  Cập nhật điểm đánh giá trung bình của Doctor.  13 Hệ thống  Thông báo “Gửi đánh giá thành công”.  **Luồng sự kiện thay thế** 2a Hệ thống  Nếu không có buổi khám đã hoàn thành, không hiển thị chức năng đánh giá.   4a Hệ thống  Nếu buổi khám không thuộc Patient, từ chối truy cập.   4b Hệ thống  Nếu buổi khám chưa hoàn thành hoặc đã bị hủy, không cho phép đánh giá.   4c Hệ thống  Nếu lần khám đã được đánh giá, hiển thị đánh giá hiện tại.   8a Hệ thống  Nếu chưa chọn điểm bắt buộc, yêu cầu Patient bổ sung.   8b Hệ thống  Nếu điểm hoặc nhận xét không hợp lệ, hiển thị lỗi và yêu cầu nhập lại.   10a Patient  Hủy xác nhận; hệ thống không lưu đánh giá.   11a Hệ thống  Nếu lưu thất bại, rollback dữ liệu và cho phép Patient thử lại.   **Thanh toán  Luồng sự kiện chính(thành công) STT Thực hiện bởi Hành động**   1 Patient  Chọn chức năng “Thanh toán” tương ứng với phiên khám  2 Hệ thống  Kiểm tra trạng thái lịch khám và hóa đơn; nếu chưa có hóa đơn thì tạo hóa đơn ở trạng thái "Chưa thanh toán" kèm mã thanh toán duy nhất.  3 Hệ thống Hiển thị số tiền, tài khoản ngân hàng, nội dung chuyển khoản và mã QR; đặt trạng thái "Đang chờ xác nhận".  4 Patient  Quét mã QR và chuyển khoản đúng số tiền, đúng nội dung.  5 SePay Gửi webhook về hệ thống khi tài khoản phòng khám nhận được tiền.  6 Hệ thống Xác thực nguồn webhook, kiểm tra mã giao dịch chưa được xử lý, lấy mã thanh toán từ nội dung chuyển khoản, đối chiếu hóa đơn và số tiền.  7 Hệ thống Lưu giao dịch và cập nhật hóa đơn sang "Đã thanh toán" trong cùng một transaction; trả phản hồi thành công cho SePay.  8 Hệ thống Gửi thông báo thanh toán thành công cho Patient và ghi Audit Log.  **Luồng sự kiện thay thế** 2a Hệ thống Lịch khám không hợp lệ hoặc đã hủy: từ chối tạo hóa đơn.   2b Hệ thống Hóa đơn đã tồn tại: hiển thị hóa đơn hiện tại; hóa đơn đã thanh toán: thông báo và không cho thanh toán lại.   3a Patient Chọn thanh toán tại quầy: Receptionist tìm hóa đơn, nhận tiền và xác nhận số tiền đã thu; hệ thống kiểm tra đủ tiền, ghi giao dịch (kèm Receptionist và thời gian), cập nhật "Đã thanh toán", thông báo cho Patient và ghi Audit Log. Nếu số tiền thu chưa đủ, hệ thống báo số tiền còn thiếu và không hoàn tất thanh toán.   4a Patient Hủy thao tác: hóa đơn giữ trạng thái "Chưa thanh toán".   5a Hệ thống Chưa nhận được webhook: giữ trạng thái chờ, cho phép Patient kiểm tra lại sau.   6a Hệ thống Webhook không hợp lệ: từ chối xử lý và ghi cảnh báo.   6b Hệ thống Giao dịch đã được xử lý trước đó: không cập nhật hóa đơn lần nữa, vẫn trả phản hồi thành công.   6c Hệ thống Không tìm thấy hóa đơn hoặc nội dung chuyển khoản sai: lưu giao dịch vào danh sách chờ đối soát.   6d Hệ thống Số tiền không khớp: nếu thiếu, giữ hóa đơn "Chưa thanh toán" và cho bổ sung phần còn thiếu trong 24 giờ; nếu thừa, ghi nhận giao dịch và tạo yêu cầu hoàn tiền/đối soát.   7a Hệ thống Lưu giao dịch thất bại: rollback và trả lỗi để SePay gửi lại webhook.   |  |  |  |
 | **Hậu điều kiện** | **Đặt lịch:** Lịch hẹn được tạo thành công và khung giờ khám được ghi nhận cho bệnh nhân. **Đổi lịch:** Lịch hẹn được cập nhật sang khung giờ mới, khung giờ cũ được giải phóng. **Hủy lịch:** Lịch hẹn được chuyển sang trạng thái "Đã hủy" và khung giờ được giải phóng. **Thanh toán:** Hóa đơn được cập nhật đúng trạng thái theo kết quả thanh toán. Giao dịch (SePay hoặc tại quầy) được lưu và liên kết với hóa đơn tương ứng. Giao dịch bất thường được chuyển sang danh sách chờ đối soát. **Đánh giá bác sĩ và dịch vụ khám:** Đánh giá được liên kết đúng với Patient, Doctor và lần khám. Mỗi lần khám chỉ có một đánh giá. **Chung:** Các sự kiện liên quan đến lịch hẹn và thanh toán được gửi thông báo. Các thao tác quan trọng (đặt, đổi, hủy lịch, thanh toán, đối soát, đánh giá) được ghi nhận vào Audit Log. |  |  |
 
-###
+### 
 
 ### ***2.3.7 Đặc tả use case UC07 “Quản lý tiếp nhận bệnh nhân ”*** {#2.3.7-đặc-tả-use-case-uc07-“quản-lý-tiếp-nhận-bệnh-nhân-”}
 
@@ -691,7 +691,7 @@ Hệ thống được thiết kế xoay quanh 4 tác nhân chính, mỗi tác nh
 | **Tiếp nhận không có lịch:  Luồng sự kiện chính(thành công) STT Thực hiện bởi Hành động**   1\. Lễ tân Chọn chức năng “Tiếp nhận bệnh nhân trực tiếp”.   2\. Hệ thống Hiển thị giao diện tiếp nhận và tiêu chí tra cứu hồ sơ gồm mã bệnh nhân, họ tên, số điện thoại.   3\. Lễ tân Nhập thông tin bệnh nhân để tra cứu hồ sơ trên hệ thống.   4\. Hệ thống Kiểm tra và tìm kiếm hồ sơ bệnh nhân tương ứng.  5\. Hệ thống   Hiển thị hồ sơ bệnh nhân nếu đã tồn tại; nếu chưa có hồ sơ, hiển thị chức năng “Thêm hồ sơ bệnh nhân”.  6\. Lễ tân Nếu bệnh nhân chưa có hồ sơ, nhập thông tin cá nhân gồm họ tên, ngày sinh, giới tính, số điện thoại, CCCD, dân tộc (bắt buộc) và nghề nghiệp, địa chỉ (không bắt buộc) 7\. Lễ Tân  Nhập thông tin yêu cầu khám gồm chuyên khoa cần khám và lý do/nội dung khám.  8\. Hệ thống Kiểm tra lịch làm việc của bác sĩ thuộc chuyên khoa đã chọn và các khung giờ khám còn khả dụng.  9\. Hệ thống  Hiển thị danh sách bác sĩ, ngày và khung giờ còn trống, không gồm khung giờ đã qua hoặc kết thúc sau 18:00.    10\. Lễ tân  Chọn bác sĩ, ngày và khung giờ khám phù hợp.  11\. Hệ thống  Kiểm tra khung giờ được chọn còn khả dụng và chưa có bệnh nhân khác đăng ký.  12\. Hệ thống  Hiển thị thông tin tiếp nhận gồm bệnh nhân, chuyên khoa, bác sĩ, ngày, giờ khám và nội dung khám để Lễ tân kiểm tra.  13\. Lễ tân  Xác nhận thông tin tiếp nhận bệnh nhân trực tiếp.  14\. Hệ thống  Kiểm tra thời điểm xác nhận không muộn hơn 17:30 theo giờ hệ thống GMT+7. 15\. Hệ thống Bắt đầu transaction. Tạo hồ sơ bệnh nhân nếu chưa tồn tại và tạo lượt tiếp nhận với bác sĩ, ngày, khung giờ đã chọn.  16\. Hệ thống  Ghi nhận thời gian tiếp nhận, Lễ tân thực hiện tiếp nhận và thông tin khám của bệnh nhân.  17\. Hệ thống  Check-in bệnh nhân vào hàng chờ của bác sĩ đã chọn trong ngày và cấp số thứ tự theo dạng mã bác sĩ cộng số, ví dụ BS01-005. Số tăng dần từ 1 theo từng bác sĩ, reset về 1 lúc 00:00 hằng ngày. Bệnh nhân walk-in thuộc nhóm ưu tiên 2\.  18\. Hệ thống  Ghi Audit Log, hoàn tất transaction, hiển thị tiếp nhận thành công, số thứ tự và thời gian khám.  **Luồng sự kiện thay thế** 4a. Hệ thống  Không tìm thấy hồ sơ bệnh nhân thì thông báo bệnh nhân chưa có hồ sơ và cho phép Receptionist tạo hồ sơ mới.   5a. Hệ thống Phát hiện hồ sơ có thể trùng (cùng số điện thoại, hoặc cùng họ tên và ngày sinh) thì cảnh báo, cho Lễ tân chọn hồ sơ có sẵn hoặc tiếp tục tạo mới. Không chặn cứng vì người nhà có thể dùng chung số điện thoại.    6a. Hệ thống Thiếu trường bắt buộc hoặc sai định dạng thì thông báo nêu rõ trường nào sai và sai ở đâu, yêu cầu bổ sung hoặc chỉnh sửa.   8a. Hệ thống Không có lịch làm việc hoặc khung giờ phù hợp thì yêu cầu chọn chuyên khoa hoặc ngày khác.   9a. Hệ thống  Không có khung giờ khám còn trống thì thông báo và yêu cầu Receptionist lựa chọn ngày hoặc khung giờ khác.    9b. Hệ thống Thời điểm hiện tại đã quá 17:30 thì thông báo không thể tiếp nhận bệnh nhân trực tiếp hôm nay và hướng dẫn đặt lịch cho ngày khác.   11a. Hệ thống Khung giờ vừa được lựa chọn đã được bệnh nhân khác đăng ký thì thông báo không còn khả dụng và yêu cầu Receptionist chọn khung giờ khác.   12a. Hệ thống Thông tin tiếp nhận không đầy đủ hoặc không hợp lệ thì thông báo lỗi và yêu cầu Receptionist chỉnh sửa.   13a.  Lễ tân Hủy thao tác xác nhận thì hệ thống không tạo lượt tiếp nhận và không đưa bệnh nhân vào hàng chờ.   14a. Hệ thống Thời điểm xác nhận từ 17:31 trở đi thì từ chối, không tạo dữ liệu, thông báo đã quá giờ tiếp nhận. 17:30 vẫn được tiếp nhận.    15a. Hệ thống Không thể tạo hồ sơ hoặc lượt khám thì rollback, thông báo lỗi và không hoàn tất tiếp nhận .    17a. Hệ thống  Không thể đưa bệnh nhân vào hàng chờ thì rollback toàn bộ gồm cả hồ sơ và lượt khám vừa tạo, thông báo lỗi và không hoàn tất tiếp nhận.  18a. Hệ thống Không ghi được Audit Log thì rollback toàn bộ, thông báo lỗi.   **Tiếp nhận có lịch: Luồng sự kiện chính(thành công) STT Thực hiện bởi Hành động**   1\. Lễ tân Truy cập vào giao diện Quản lý tiếp nhận bệnh nhân.  2\. Hệ thống Hiển thị giao diện tiếp nhận và các tiêu chí tra cứu lịch hẹn gồm mã bệnh nhân, họ tên, số điện thoại hoặc mã lịch hẹn.  3\. Lễ tân Nhập thông tin tìm kiếm của bệnh nhân hoặc lịch hẹn.  4\. Hệ thống Tiếp nhận yêu cầu và thực hiện tìm kiếm hồ sơ bệnh nhân. 5\. Lễ tân  Chọn lịch hẹn cần tiếp nhận.  6\. Hệ thống  Hiển thị thông tin bệnh nhân và lịch hẹn để kiểm tra.  7\. Hệ thống  Kiểm tra lịch hẹn hợp lệ: ngày hẹn là ngày hiện tại, trạng thái là Đã xác nhận, bác sĩ còn hoạt động. Sau đó xác định trạng thái đến: Đến sớm (hơn 15 phút trước giờ hẹn), Đúng giờ (từ 15 phút trước đến 10 phút sau giờ hẹn), Trễ (hơn 10 phút sau giờ hẹn). 8\. Lễ tân  Xác nhận tiếp nhận bệnh nhân. 9\. Hệ thống Bắt đầu transaction. Cập nhật lịch hẹn thành Đã tiếp nhận.   10\. Hệ thống Đưa bệnh nhân vào hàng chờ của bác sĩ trong lịch hẹn và cấp số thứ tự theo dạng mã bác sĩ cộng số. Phân nhóm ưu tiên: Đúng giờ thuộc nhóm 1, Trễ thuộc nhóm 3\. Bệnh nhân Đến sớm chưa thuộc nhóm nào, hệ thống tự chuyển sang Đúng giờ và vào nhóm 1 khi đến thời điểm giờ hẹn trừ 15 phút, đồng thời cập nhật hàng chờ trên giao diện trong tối đa 5 giây.  11\. Hệ thống Ghi Audit Log và hoàn tất transaction.  **Luồng sự kiện thay thế** 4a. Hệ thống  Không tìm thấy lịch hẹn, thông báo và yêu cầu Lễ tân kiểm tra lại.   7a. Hệ thống Ngày hẹn khác ngày hiện tại thì thông báo đây không phải lịch hôm nay, không cho tiếp nhận.   7b. Hệ thống Lịch hẹn ở trạng thái Đã hủy, Đã tiếp nhận, Hoàn thành hoặc Chờ thì thông báo nêu rõ trạng thái hiện tại, không cho tiếp nhận.   7c. Hệ thống Bác sĩ của lịch hẹn đã bị vô hiệu hóa thì không cho tiếp nhận, hướng Lễ tân chuyển Admin xử lý theo UC11.   7d. Hệ thống Lịch hẹn ở trạng thái Vắng mặt thì cho tiếp nhận lại nếu thời điểm hiện tại không muộn hơn 17:30 và bệnh nhân chưa được tiếp nhận lại lần nào trong ngày. Bệnh nhân được tính là Trễ thuộc nhóm 3, nhận số thứ tự mới, số lần bỏ qua về 0\. Nếu đã tiếp nhận lại một lần hoặc quá 17:30 thì từ chối và hướng dẫn đặt lịch ngày khác.   8a. Lễ tân  Hủy xác nhận, không cập nhật lịch hẹn và không đưa vào hàng chờ.    9a. Hệ thống  Không thể cập nhật trạng thái, thông báo lỗi và không hoàn tất tiếp nhận.    10a. Hệ thống  Không thể đưa bệnh nhân vào hàng chờ thì rollback lịch hẹn về Đã xác nhận, không cấp số thứ tự, thông báo lỗi và không hoàn tất tiếp nhận.   11a. Hệ thống  Không ghi được Audit Log thì rollback toàn bộ, thông báo lỗi.    **Xem hàng chờ:  Luồng sự kiện chính(thành công) STT Thực hiện bởi Hành động**   1\. Lễ tân/Bác sĩ  Truy cập vào giao diện Quản lý hàng chờ.  2\. Hệ thống Hiển thị hàng chờ theo thứ tự gọi: bệnh nhân Bỏ qua lượt nằm ngay sau bệnh nhân đang khám, tiếp theo nhóm 1 (lịch hẹn Đúng giờ, xếp theo giờ hẹn rồi thời điểm check-in), nhóm 2 (walk-in theo thời điểm check-in), nhóm 3 (lịch hẹn Trễ và bệnh nhân tiếp nhận lại, theo thời điểm check-in). Bệnh nhân Đến sớm nằm sau nhóm 1\. Lễ tân xem được hàng chờ của mọi bác sĩ và lọc theo chuyên khoa hoặc bác sĩ. Bác sĩ chỉ xem hàng chờ của chính mình.  3\. Lễ tân/Bác sĩ  Chọn bệnh nhân trong danh sách hàng chờ để xem thông tin.  4\. Hệ thống Hiển thị thông tin bệnh nhân, lịch hẹn, chuyên khoa, bác sĩ, số thứ tự, trạng thái chờ khám và số lần đã bị bỏ qua.   **Luồng sự kiện thay thế** 2a. Hệ thống Thông báo nếu hiện tại không có bệnh nhân nào trong hàng chờ.   4a. Hệ thống Thông báo nếu không thể tải thông tin bệnh nhân do lỗi lấy dữ liệu.   **Cập nhật trạng thái hàng chờ:  Luồng sự kiện chính(thành công) STT Thực hiện bởi Hành động**   1\. Lễ tân/Bác sĩ  Truy cập vào giao diện Quản lý hàng chờ.   2\. Hệ thống Hiển thị danh sách bệnh nhân đang chờ hoặc đang được gọi.   3\. Lễ tân/Bác sĩ  Chọn bệnh nhân cần bỏ qua lượt.  4 Lễ tân/Bác sĩ  Yêu cầu bỏ qua lượt khám.  5 Hệ thống Kiểm tra bệnh nhân đã được gọi ít nhất 3 phút, rồi hiển thị yêu cầu xác nhận bỏ qua lượt.  6 Lễ tân/Bác sĩ  Xác nhận bỏ qua lượt khám.  7 Hệ thống  Tăng bộ đếm bỏ qua của bệnh nhân lên 1\. Với lần bỏ qua thứ 1 và thứ 2, cập nhật trạng thái thành Bỏ qua lượt và xếp bệnh nhân vào đầu danh sách chờ của bác sĩ, tức là bệnh nhân sẽ được gọi ngay khi bác sĩ khám xong bệnh nhân hiện tại. Bệnh nhân được xếp trước tất cả nhóm ưu tiên 1, 2 và 3\. Nếu đã có bệnh nhân Bỏ qua lượt khác, bệnh nhân vừa bị bỏ qua đứng sau những người đó, theo thứ tự thời điểm bị bỏ qua. Nếu bác sĩ đang không khám ai, hệ thống gọi bệnh nhân kế tiếp theo thứ tự thông thường và bệnh nhân vừa bị bỏ qua đứng ngay sau bệnh nhân đó. Số thứ tự không đổi.   8 Hệ thống  Thông báo bỏ qua lượt thành công và hiển thị hàng chờ mới.  **Luồng sự kiện thay thế** 2a. Hệ thống Thông báo nếu không có bệnh nhân trong hàng chờ.   5a. Hệ thống Bệnh nhân vừa được gọi chưa đủ 3 phút thì từ chối và thông báo còn bao nhiêu giây nữa mới được bỏ qua.   6a. Lễ tân/Bác sĩ  Hủy thao tác bỏ qua lượt.   7a. Hệ thống  Thông báo lỗi khi không thể cập nhật trạng thái bệnh nhân.   |  |  |  |
 | **Hậu điều kiện** | Hồ sơ bệnh nhân mới được tạo nếu bệnh nhân chưa có hồ sơ trên hệ thống. Thông tin tiếp nhận và yêu cầu khám được lưu vào hệ thống. Đối với Walk-in, lượt tiếp nhận khám trực tiếp được tạo với chuyên khoa, ngày và khung giờ đã chọn. Đối với bệnh nhân đặt trước, trạng thái lịch hẹn được cập nhật thành Đã tiếp nhận. Bệnh nhân được check-in vào hàng chờ và được cấp số thứ tự. Thông tin tiếp nhận được ghi nhận vào Audit Log. Hệ thống cập nhật thành công trạng thái và thứ tự của bệnh nhân trong hàng chờ. Bệnh nhân được gọi khám, bỏ qua lượt hoặc đưa trở lại hàng chờ theo thao tác của Lễ tân hoặc Bác sĩ. Danh sách hàng chờ được cập nhật và hiển thị theo trạng thái mới nhất.  Khi một bước trong quá trình tiếp nhận thất bại, toàn bộ thay đổi của lần đó được rollback, không để lại hồ sơ, lượt khám hoặc trạng thái lịch hẹn dở dang. Bệnh nhân bị bỏ qua lần thứ 3 có trạng thái Vắng mặt và không còn trong hàng chờ.  |  |  |
 
-###
+### 
 
 ### ***2.3.8 Đặc tả use case UC08 “Quản lý khám bệnh”***
 
@@ -743,7 +743,7 @@ Hệ thống được thiết kế xoay quanh 4 tác nhân chính, mỗi tác nh
 |  **Admin hủy lịch hẹn bị ảnh hưởng  Luồng sự kiện chính(thành công) STT Thực hiện bởi Hành động**   1 Admin  Chọn lịch hẹn không thể sắp xếp lại và chọn “Hủy lịch”  2 Admin  Nhập lý do hủy.  3 Hệ thống  Hiển thị thông tin lịch hẹn và yêu cầu xác nhận.  4 Admin  Xác nhận hủy lịch.  5 Hệ thống  Chuyển lịch hẹn sang trạng thái “Đã hủy”.  6 Hệ thống  Giải phóng khung giờ và xác định yêu cầu hoàn tiền nếu có.  7 Hệ thống  Gửi thông báo cho Patient và Doctor.  8 Hệ thống  Ghi lý do và kết quả xử lý vào Audit Log.  **Luồng sự kiện thay thế** 2a Hệ thống  Nếu chưa nhập lý do, không cho phép tiếp tục.   4a Admin  Hủy thao tác xác nhận; hệ thống giữ nguyên lịch hẹn.   5a Hệ thống  Nếu lịch hẹn đã hoàn thành hoặc đã hủy, từ chối thao tác.   6a Hệ thống  Nếu lịch đã thanh toán, tạo yêu cầu hoàn tiền để xử lý theo UC12  |  |  |  |
 | **Hậu điều kiện** | Lịch hẹn được đổi bác sĩ, chuyển lịch mới, hủy hoặc tiếp tục ở trạng thái “Chờ xử lý”. Khung giờ cũ được giải phóng khi lịch được đổi hoặc hủy. Patient, Doctor và nhân viên liên quan nhận được thông báo. Lịch đã thanh toán và bị hủy được chuyển sang quy trình hoàn tiền. Mọi thao tác xử lý ngoại lệ được ghi vào Audit Log. |  |  |
 
-##
+## 
 
 ## **2.4. Các yêu cầu phi chức năng** {#2.4.-các-yêu-cầu-phi-chức-năng}
 
@@ -839,7 +839,7 @@ AI Conversation Log (log hội thoại AI) chỉ Admin được truy cập, tác
 
 ### ***3.1.3 Biểu đồ tuần tự Gọi bệnh nhân ra khỏi hàng chờ*** {#3.1.3-biểu-đồ-tuần-tự-gọi-bệnh-nhân-ra-khỏi-hàng-chờ}
 
-#####
+##### 	
 
 ##### ***Hình 3.3: Biểu đồ tuần tự gọi bệnh nhân***  {#hình-3.3:-biểu-đồ-tuần-tự-gọi-bệnh-nhân}
 
@@ -849,9 +849,9 @@ AI Conversation Log (log hội thoại AI) chỉ Admin được truy cập, tác
 
 ##### ***Hình 3.5: Biểu đồ tuần tự Bệnh nhân đặt lịch khám***  {#hình-3.5:-biểu-đồ-tuần-tự-bệnh-nhân-đặt-lịch-khám}
 
-##
+## 
 
-###
+### 
 
 ### ***3.1.6 Biểu đồ tuần tự Đặt lịch thông qua trợ lý AI***  {#3.1.6-biểu-đồ-tuần-tự-đặt-lịch-thông-qua-trợ-lý-ai}
 
@@ -863,9 +863,9 @@ AI Conversation Log (log hội thoại AI) chỉ Admin được truy cập, tác
 
 ##### ***![][image22]Hình 3.8: Biểu đồ tuần tự Xử lý thay đổi thời gian, bác sĩ khám*** {#hình-3.8:-biểu-đồ-tuần-tự-xử-lý-thay-đổi-thời-gian,-bác-sĩ-khám}
 
-###
+### 
 
-###
+### 
 
 ### ***3.1.9 Biểu đồ tuần tự UC12 \- Thanh toán***  {#3.1.9-biểu-đồ-tuần-tự-uc12---thanh-toán}
 
@@ -881,31 +881,31 @@ AI Conversation Log (log hội thoại AI) chỉ Admin được truy cập, tác
 
 ##### ***Hình 3.11: Biểu đồ hoạt động Vô hiệu hóa Bác sĩ*** {#hình-3.11:-biểu-đồ-hoạt-động-vô-hiệu-hóa-bác-sĩ}
 
-###
+### 
 
-###
+### 
 
-###
+### 
 
-###
+### 
 
 ### ***3.2.3 Tiếp nhận bệnh nhân Walk-in*** {#3.2.3-tiếp-nhận-bệnh-nhân-walk-in}
 
 ##### ***Hình 3.12: Biểu đồ hoạt động Tiếp nhận bệnh nhân walk-in*** {#hình-3.12:-biểu-đồ-hoạt-động-tiếp-nhận-bệnh-nhân-walk-in}
 
-###
+### 
 
-###
+### 
 
-###
+### 
 
-###
+### 
 
-###
+### 
 
-###
+### 
 
-###
+### 
 
 ### ***3.2.4 Admin xếp lịch làm việc***  {#3.2.4-admin-xếp-lịch-làm-việc}
 
@@ -925,7 +925,7 @@ AI Conversation Log (log hội thoại AI) chỉ Admin được truy cập, tác
 
 ##### ***Hình 3.15: Biểu đồ hoạt động*** ***Gọi khám & Quản lý hàng chờ***  {#hình-3.15:-biểu-đồ-hoạt-động-gọi-khám-&-quản-lý-hàng-chờ}
 
-#####
+##### 
 
 ### ***3.2.7 Trợ lý AI Đặt lịch*** {#3.2.7-trợ-lý-ai-đặt-lịch}
 
@@ -933,7 +933,7 @@ AI Conversation Log (log hội thoại AI) chỉ Admin được truy cập, tác
 
 ##### ***Hình 3.16: Biểu đồ hoạt động Trợ lý AI Đặt lịch*** {#hình-3.16:-biểu-đồ-hoạt-động-trợ-lý-ai-đặt-lịch}
 
-##
+## 
 
 ### ***3.2.8 Tự động tạo và gửi thông báo***  {#3.2.8-tự-động-tạo-và-gửi-thông-báo}
 
@@ -949,7 +949,7 @@ AI Conversation Log (log hội thoại AI) chỉ Admin được truy cập, tác
 
 ### ***3.2.10 Xác nhận thanh toán qua webhook SePay*** {#3.2.10-xác-nhận-thanh-toán-qua-webhook-sepay}
 
-## ***![][image29]***
+## ***![][image29]*** 
 
 ##### ***Hình 3.19: Biểu đồ hoạt động xác nhận thanh toán qua webhook SePay***  {#hình-3.19:-biểu-đồ-hoạt-động-xác-nhận-thanh-toán-qua-webhook-sepay}
 
@@ -967,11 +967,11 @@ AI Conversation Log (log hội thoại AI) chỉ Admin được truy cập, tác
 
 #####  {#heading}
 
-###
+### 
 
-###
+### 
 
-###
+### 
 
 ### ***3.3.3 Miền Doctor & Specialty*** {#3.3.3-miền-doctor-&-specialty}
 
@@ -979,9 +979,9 @@ AI Conversation Log (log hội thoại AI) chỉ Admin được truy cập, tác
 
 ##### ***Hình 3.22: ERD Doctor & Specialty*** {#hình-3.22:-erd-doctor-&-specialty}
 
-#####
+##### 
 
-###
+### 
 
 ### ***3.3.4 Miền Scheduling*** {#3.3.4-miền-scheduling}
 
@@ -1005,7 +1005,7 @@ AI Conversation Log (log hội thoại AI) chỉ Admin được truy cập, tác
 
 ##### ***Hình 3.26: ERD Queue & Referral*** {#hình-3.26:-erd-queue-&-referral}
 
-#####
+##### 
 
 ### ***3.3.8 Miền Payment*** {#3.3.8-miền-payment}
 
