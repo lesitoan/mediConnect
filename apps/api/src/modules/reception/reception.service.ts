@@ -17,6 +17,7 @@ import {
   UserStatus,
 } from '../../generated/prisma/enums';
 import { PrismaService } from '../database/services/prisma.service';
+import { clinicDate, clinicDateString } from '../../common/utils/clinic-date';
 import { sqlTable } from '../database/utils/sql-table';
 import type { CurrentUserDto } from '../users/dto/responses/current-user.dto';
 import { RoleEnum } from '../users/constants/roles.constant';
@@ -92,39 +93,6 @@ const APPOINTMENT_INCLUDE = {
 type ReceptionAppointment = Prisma.AppointmentGetPayload<{
   include: typeof APPOINTMENT_INCLUDE;
 }>;
-
-function clinicDate(value?: string): Date {
-  const dateValue = value ?? clinicDateString(new Date());
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateValue))
-    throw new BadRequestException('Ngày không hợp lệ.');
-  const date = new Date(`${dateValue}T00:00:00+07:00`);
-  if (
-    !Number.isFinite(date.getTime()) ||
-    new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'Asia/Ho_Chi_Minh',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    }).format(date) !== dateValue
-  )
-    throw new BadRequestException('Ngày không hợp lệ.');
-  return date;
-}
-
-function clinicDateString(date: Date): string {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Asia/Ho_Chi_Minh',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(date);
-  const values = Object.fromEntries(
-    parts
-      .filter(({ type }) => type !== 'literal')
-      .map(({ type, value }) => [type, value]),
-  );
-  return `${values.year}-${values.month}-${values.day}`;
-}
 
 function timeText(date: Date): string {
   return new Intl.DateTimeFormat('vi-VN', {
@@ -519,7 +487,7 @@ export class ReceptionService {
   }
 
   async walkInSlots(query: ReceptionAppointmentsQueryDto) {
-    const date = query.date ?? clinicDateString(new Date());
+    const date = query.date ?? clinicDateString();
     const result = await this.schedules.availability({
       dateFrom: date,
       dateTo: date,
@@ -678,7 +646,7 @@ export class ReceptionService {
     });
     if (!role || role.status !== RoleStatusEnum.ACTIVE || role.deletedAt)
       throw new ConflictException('Patient role is unavailable');
-    const birthDate = new Date(`${input.birthYear}-01-01T00:00:00+07:00`);
+    const birthDate = clinicDate(`${input.birthYear}-01-01`);
     const user = await tx.user.create({
       data: {
         fullName: input.fullName!,

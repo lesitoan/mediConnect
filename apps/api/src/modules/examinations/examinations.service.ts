@@ -1481,7 +1481,7 @@ export class ExaminationsService {
     const lab = parseLabOrders(consultation?.labOrderNotes ?? null);
     const date = session.queueDate
       ? clinicDateString(session.queueDate)
-      : clinicDateString(new Date());
+      : clinicDateString();
     return {
       id: session.id,
       updatedAt:
@@ -1576,8 +1576,9 @@ export class ExaminationsService {
           .patientAdvice === 'string'
           ? this.readLabData(consultation?.labOrderNotes ?? null).patientAdvice
           : '',
-      followUpDate:
-        consultation?.followUpDate?.toISOString().slice(0, 10) ?? '',
+      followUpDate: consultation?.followUpDate
+        ? clinicDateString(consultation.followUpDate)
+        : '',
       transfer: consultation?.outgoingReferrals[0]?.reason ?? '',
       surgicalHistory:
         typeof this.readLabData(consultation?.labOrderNotes ?? null)

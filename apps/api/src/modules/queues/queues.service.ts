@@ -455,7 +455,7 @@ export class QueuesService {
   }
 
   async call(careSessionId: string, user: CurrentUserDto) {
-    const date = clinicDateString(new Date());
+    const date = clinicDateString();
     try {
       await this.prisma.$transaction(
         async (tx) => {
@@ -487,7 +487,7 @@ export class QueuesService {
   }
 
   async startConsultation(careSessionId: string, user: CurrentUserDto) {
-    const date = clinicDateString(new Date());
+    const date = clinicDateString();
     try {
       await this.prisma.$transaction(
         async (tx) => {
@@ -579,7 +579,7 @@ export class QueuesService {
   ) {
     if (!expectedUpdatedAt)
       throw new BadRequestException(['expectedUpdatedAt should not be empty']);
-    const date = clinicDateString(new Date());
+    const date = clinicDateString();
     try {
       await this.prisma.$transaction(
         async (tx) => {
@@ -700,7 +700,7 @@ export class QueuesService {
   }
 
   async skip(careSessionId: string, user: CurrentUserDto) {
-    const date = clinicDateString(new Date());
+    const date = clinicDateString();
     try {
       await this.prisma.$transaction(
         async (tx) => {
@@ -781,7 +781,7 @@ export class QueuesService {
   }
 
   async restore(careSessionId: string, user: CurrentUserDto) {
-    const date = clinicDateString(new Date());
+    const date = clinicDateString();
     try {
       await this.prisma.$transaction(
         async (tx) => {

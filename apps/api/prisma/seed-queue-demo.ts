@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../src/generated/prisma/client';
-import { clinicDate, clinicDateString } from '../src/common/utils/clinic-date';
+import { clinicDate } from '../src/common/utils/clinic-date';
 
 const DEMO_PATIENT_PREFIX = 'Q-DEMO-P-';
 const DEMO_APPOINTMENT_PREFIX = 'Q-DEMO-A-';
@@ -207,7 +207,7 @@ async function seed(prisma: PrismaClient): Promise<void> {
   });
   if (!patientRole) throw new Error('Không tìm thấy role bệnh nhân.');
   const now = new Date();
-  const queueDate = clinicDate(clinicDateString(now));
+  const queueDate = clinicDate();
   const queueNumbers = new Map<string, number>();
   const doctorsByCode = new Map(
     doctors.map((doctor) => [doctor.doctorCode, doctor]),
