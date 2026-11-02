@@ -21,6 +21,7 @@ import {
   UserRole,
 } from '../../generated/prisma/enums';
 import type { Prisma } from '../../generated/prisma/client';
+import { getCurrentTime } from '../../common/utils/e2e-clock';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import type { CurrentUserDto } from '../users/dto/responses/current-user.dto';
 import {
@@ -73,7 +74,7 @@ export class SchedulesService {
 
     await this.ensureDefaultDoctorSlots(from, until);
 
-    const now = new Date();
+    const now = getCurrentTime();
     const timeRanges: Record<string, [number, number]> = {
       MORNING: [0, 12],
       AFTERNOON: [12, 18],
@@ -121,7 +122,7 @@ export class SchedulesService {
 
   private async ensureDefaultDoctorSlots(from: Date, until: Date) {
     const doctors = await this.repository.findActiveDoctors();
-    const now = new Date();
+    const now = getCurrentTime();
     for (const doctor of doctors) {
       for (
         let day = new Date(from);
@@ -397,7 +398,7 @@ export class SchedulesService {
         where: { id },
         data: {
           status: StaffWorkScheduleStatus.PUBLISHED,
-          publishedAt: new Date(),
+          publishedAt: getCurrentTime(),
         },
       });
       if (
@@ -424,7 +425,9 @@ export class SchedulesService {
     const slotDurationMinutes = schedule.slotDurationMinutes;
     if (!slotDurationMinutes) return;
     const startDate = this.startOfDay(
-      schedule.effectiveFrom > new Date() ? schedule.effectiveFrom : new Date(),
+      schedule.effectiveFrom > getCurrentTime()
+        ? schedule.effectiveFrom
+        : getCurrentTime(),
     );
     const configuredEnd = schedule.effectiveTo
       ? this.startOfDay(schedule.effectiveTo)
@@ -441,7 +444,7 @@ export class SchedulesService {
 
       const startsAt = this.withTime(date, schedule.startsAt);
       const endsAt = this.withTime(date, schedule.endsAt);
-      if (endsAt <= new Date()) continue;
+      if (endsAt <= getCurrentTime()) continue;
 
       const existing = await this.repository.findDoctorSchedule(
         client,
@@ -461,7 +464,7 @@ export class SchedulesService {
           status: 'PUBLISHED',
           slotDurationMinutes,
           createdBy,
-          publishedAt: new Date(),
+          publishedAt: getCurrentTime(),
         },
       );
       const slots: import('../../generated/prisma/client').Prisma.AppointmentSlotCreateManyInput[] =
@@ -515,7 +518,7 @@ export class SchedulesService {
     await this.getWorkSchedule(id);
     return this.repository.updateWorkSchedule(id, {
       status: StaffWorkScheduleStatus.CANCELLED,
-      updatedAt: new Date(),
+      updatedAt: getCurrentTime(),
     });
   }
 
@@ -581,7 +584,7 @@ export class SchedulesService {
         'Khoảng nghỉ không giao với ca làm việc 08:00–12:00 hoặc 13:00–18:00.',
       );
     const noticeHours = Math.floor(
-      (startsAt.getTime() - Date.now()) / 3_600_000,
+      (startsAt.getTime() - getCurrentTime().getTime()) / 3_600_000,
     );
     if (
       input.requestType === LeaveRequestType.PLANNED_LEAVE &&
@@ -792,7 +795,7 @@ export class SchedulesService {
         status: LeaveRequestStatus.REJECTED,
         rejectionReason: input.rejectionReason.trim(),
         reviewedBy: admin.id,
-        reviewedAt: new Date(),
+        reviewedAt: getCurrentTime(),
       });
       await this.recordAudit(
         client,
@@ -886,7 +889,7 @@ export class SchedulesService {
         status: nextStatus,
         ...(affected.length
           ? {}
-          : { reviewedBy: admin.id, reviewedAt: new Date() }),
+          : { reviewedBy: admin.id, reviewedAt: getCurrentTime() }),
       });
       if (!affected.length && current.doctorId) {
         await this.repository.markDoctorSchedulesAbsent(
@@ -1085,7 +1088,7 @@ export class SchedulesService {
           toSlotId: replacementSlot.id,
           status: ScheduleReassignmentStatus.PROPOSED,
           proposedBy: admin.id,
-          proposedAt: new Date(),
+          proposedAt: getCurrentTime(),
           notes: reason,
         });
       } else {
@@ -1206,7 +1209,7 @@ export class SchedulesService {
               status: AppointmentStatus.CANCELLED,
               cancellationReason:
                 'Bệnh nhân xác nhận hủy do lịch bác sĩ thay đổi',
-              cancelledAt: new Date(),
+              cancelledAt: getCurrentTime(),
               cancelledBy: user.id,
             },
           });
@@ -1252,7 +1255,7 @@ export class SchedulesService {
         await this.repository.updateReassignment(client, reassignment.id, {
           status: ScheduleReassignmentStatus.CONFIRMED,
           confirmedBy: user.id,
-          confirmedAt: new Date(),
+          confirmedAt: getCurrentTime(),
         });
       }
 
@@ -1260,7 +1263,7 @@ export class SchedulesService {
         status: ScheduleExceptionStatus.RESOLVED,
         resolution: proposedResolution,
         resolvedBy: user.id,
-        resolvedAt: new Date(),
+        resolvedAt: getCurrentTime(),
       });
       const unresolvedAppointmentExceptions =
         await this.repository.countUnresolvedAppointmentExceptions(
@@ -1327,7 +1330,7 @@ export class SchedulesService {
     await this.repository.updateLeaveRequest(client, leaveRequestId, {
       status: LeaveRequestStatus.APPROVED,
       reviewedBy: actor.id,
-      reviewedAt: new Date(),
+      reviewedAt: getCurrentTime(),
     });
     if (leaveRequest.doctorId && leaveRequest.endsAt) {
       await this.repository.markDoctorSchedulesAbsent(

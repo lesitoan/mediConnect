@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../src/generated/prisma/client';
 import { RoleEnum } from '../src/modules/users/constants/roles.constant';
+import { getCurrentTime } from '../src/common/utils/e2e-clock';
 
 const DAYS_TO_SEED = 7;
 const SLOT_DURATION_MINUTES = 30;
@@ -117,8 +118,8 @@ async function main(): Promise<void> {
       select: { id: true },
     });
     const createdBy = admin?.id ?? doctors[0].userId;
-    const firstDate = getClinicDate(new Date());
-    const publishedAt = new Date();
+    const firstDate = getClinicDate(getCurrentTime());
+    const publishedAt = getCurrentTime();
     let createdSchedules = 0;
     let createdSlots = 0;
     let skippedSchedules = 0;
@@ -159,7 +160,11 @@ async function main(): Promise<void> {
               }));
             if (!existing) createdSchedules += 1;
 
-            const slots = [];
+            const slots: {
+              doctorScheduleId: string;
+              startsAt: Date;
+              endsAt: Date;
+            }[] = [];
             for (
               let slotMinutes = START_MINUTES;
               slotMinutes < END_MINUTES;

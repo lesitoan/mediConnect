@@ -86,11 +86,13 @@ export function CheckInModal({
       onSuccess(response);
     } catch (error) {
       const normalizedError = getReceptionError(error);
+      const isPendingResolution =
+        normalizedError.message === "Appointment is pending resolution";
       setErrorMessage(
-        normalizedError.status === 409
-          ? "Lịch hẹn đã được check-in hoặc STT vừa bị cấp, vui lòng tải lại."
-          : normalizedError.status === 400
-            ? normalizedError.message
+        isPendingResolution
+          ? "Lịch hẹn đang chờ xử lý và chưa thể check-in."
+          : normalizedError.status === 409
+            ? "Lịch hẹn đã được check-in hoặc STT vừa bị cấp, vui lòng tải lại."
             : normalizedError.message,
       );
       if (normalizedError.status === 409) await onRefetch();
