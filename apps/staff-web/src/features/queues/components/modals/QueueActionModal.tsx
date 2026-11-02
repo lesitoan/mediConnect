@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,8 +14,10 @@ import {
 import { QUEUE_ACTION_LABELS, QUEUE_ERROR_MESSAGES } from "../../constants";
 import {
   callQueueSession,
+  completeQueueSession,
   restoreQueueSession,
   skipQueueSession,
+  startQueueSession,
 } from "../../services/queuesService";
 import type {
   QueueAction,
@@ -30,10 +32,13 @@ interface QueueActionModalProps {
   onClose: () => void;
   onRefresh: () => Promise<void>;
   onSuccess: (response: QueueActionResponse) => void;
+  onStart?: (item: QueueItem) => Promise<QueueActionResponse>;
 }
 
 const ACTION_REQUESTS = {
   CALL: callQueueSession,
+  START: startQueueSession,
+  COMPLETE: completeQueueSession,
   SKIP: skipQueueSession,
   RESTORE: restoreQueueSession,
 };
@@ -44,17 +49,27 @@ export function QueueActionModal({
   onClose,
   onRefresh,
   onSuccess,
+  onStart,
 }: QueueActionModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const submitRef = useRef(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const isCallDisabled = action === "CALL" && !item.canCall;
+  const isActionDisabled =
+    (action === "CALL" && !item.canCall) ||
+    (action === "START" && !item.canStart) ||
+    (action === "COMPLETE" && !item.canComplete) ||
+    (action === "SKIP" && !item.canSkip) ||
+    (action === "RESTORE" && !item.canRestore);
 
   const handleConfirm = async () => {
-    if (isSubmitting || isCallDisabled) return;
+    if (submitRef.current || isActionDisabled) return;
+    submitRef.current = true;
     setIsSubmitting(true);
     setErrorMessage(null);
     try {
-      const response = await ACTION_REQUESTS[action](item.careSessionId);
+      const response = action === "START" && onStart
+        ? await onStart(item)
+        : await ACTION_REQUESTS[action](item.careSessionId);
       toast.success(`${QUEUE_ACTION_LABELS[action]} thành công`);
       onSuccess(response);
       onClose();
@@ -67,6 +82,7 @@ export function QueueActionModal({
       toast.error(message);
       void onRefresh();
     } finally {
+      submitRef.current = false;
       setIsSubmitting(false);
     }
   };
@@ -119,9 +135,17 @@ export function QueueActionModal({
               qua được giữ nguyên.
             </p>
           )}
-          {isCallDisabled && (
+          {isActionDisabled && (
             <p role="alert" className="text-caption text-danger">
-              {item.cannotCallReason}
+              {action === "CALL"
+                ? item.cannotCallReason
+                : action === "START"
+                  ? item.cannotStartReason
+                  : action === "COMPLETE"
+                    ? item.cannotCompleteReason
+                    : action === "SKIP"
+                      ? item.cannotSkipReason
+                      : item.cannotRestoreReason}
             </p>
           )}
           {errorMessage && (
@@ -144,7 +168,7 @@ export function QueueActionModal({
           </Button>
           <Button
             type="button"
-            disabled={isSubmitting || isCallDisabled}
+            disabled={isSubmitting || isActionDisabled}
             onClick={handleConfirm}
           >
             {isSubmitting ? "Đang xử lý..." : "Xác nhận"}

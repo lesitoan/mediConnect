@@ -19,17 +19,30 @@ export const QUEUE_COLUMNS: { key: string; label: string }[] = [
   { key: "SKIPPED", label: "Bỏ qua lượt" },
 ];
 
-export const QUEUE_STATUS_LABELS: Record<QueueStatus, string> = {
-  WAITING: "Đang chờ",
-  CHECKED_IN: "Đang chờ",
-  CALLED: "Đang gọi",
-  IN_CONSULTATION: "Đang khám",
-  SKIPPED: "Bỏ qua lượt",
-  NO_SHOW: "Vắng mặt",
+export const QUEUE_STATUS_PRESENTATION: Record<
+  QueueStatus,
+  { label: string; column: string }
+> = {
+  WAITING: { label: "Đang chờ", column: "WAITING" },
+  CHECKED_IN: { label: "Đang chờ", column: "WAITING" },
+  CALLED: { label: "Đang gọi", column: "CALLED" },
+  IN_CONSULTATION: { label: "Đang khám", column: "IN_CONSULTATION" },
+  SKIPPED: { label: "Bỏ qua lượt", column: "SKIPPED" },
+  NO_SHOW: { label: "Vắng mặt", column: "SKIPPED" },
 };
+
+export const QUEUE_STATUS_LABELS: Record<QueueStatus, string> =
+  Object.fromEntries(
+    Object.entries(QUEUE_STATUS_PRESENTATION).map(([status, value]) => [
+      status,
+      value.label,
+    ]),
+  ) as Record<QueueStatus, string>;
 
 export const QUEUE_ACTION_LABELS: Record<QueueAction, string> = {
   CALL: "Gọi khám",
+  START: "Bắt đầu khám",
+  COMPLETE: "Hoàn thành",
   SKIP: "Bỏ qua lượt",
   RESTORE: "Đưa trở lại",
 };

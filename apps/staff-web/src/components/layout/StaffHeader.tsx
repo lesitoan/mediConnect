@@ -33,6 +33,7 @@ export function StaffHeader({ onToggleSidebar }: StaffHeaderProps) {
     if (pathname.startsWith("/doctors")) return "Bác sĩ & Chuyên khoa";
     if (pathname.startsWith("/users")) return "Quản lý tài khoản";
     if (pathname.startsWith("/queues")) return "Hàng chờ khám";
+    if (pathname.startsWith("/schedules")) return "Lịch làm việc & Duyệt";
     if (pathname.startsWith("/consultations")) return "Khám bệnh ngoại trú";
     if (pathname.startsWith("/schedules")) {
       return currentUser?.role === "ADMIN"

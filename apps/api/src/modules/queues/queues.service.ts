@@ -6,11 +6,15 @@
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
+import { Optional } from '@nestjs/common';
 import type { Prisma } from '../../generated/prisma/client';
 import {
   CareSessionPriorityType,
   CareSessionStatus,
+  UserRole,
 } from '../../generated/prisma/enums';
+import { clinicDate, clinicDateString } from '../../common/utils/clinic-date';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { PrismaService } from '../database/services/prisma.service';
 import type { CurrentUserDto } from '../users/dto/responses/current-user.dto';
 import { QueueBoardQueryDto } from './dto/queue-board-query.dto';
@@ -33,12 +37,18 @@ const BOARD_STATUSES = [
   CareSessionStatus.NO_SHOW,
   CareSessionStatus.IN_CONSULTATION,
 ] as const;
+const DOCTOR_QUEUE_STATUSES = [
+  ...CALLABLE_STATUSES,
+  CareSessionStatus.CALLED,
+  CareSessionStatus.IN_CONSULTATION,
+] as const;
 const SKIP_WAIT_SECONDS = 180;
 const QUEUE_INCLUDE = {
   appointment: {
     select: {
       id: true,
       appointmentCode: true,
+      reason: true,
       patient: {
         select: {
           patientCode: true,
@@ -76,6 +86,7 @@ export interface QueueSortItem {
   checkedInAt: Date | null;
   queueNumber: number | null;
   skippedAt: Date | null;
+  calledAt?: Date | null;
 }
 
 export interface QueueCallability {
@@ -83,29 +94,16 @@ export interface QueueCallability {
   cannotCallReason: string | null;
 }
 
-function clinicDateString(value: Date): string {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Ho_Chi_Minh',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(value);
-  const values = Object.fromEntries(
-    parts
-      .filter(({ type }) => type !== 'literal')
-      .map(({ type, value: partValue }) => [type, partValue]),
-  );
-  return `${values.year}-${values.month}-${values.day}`;
-}
-
-function clinicDate(value?: string): Date {
-  const dateValue = value ?? clinicDateString(new Date());
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateValue))
-    throw new BadRequestException('NgÃ y hÃ ng chá» khÃ´ng há»£p lá»‡.');
-  const date = new Date(`${dateValue}T00:00:00+07:00`);
-  if (!Number.isFinite(date.getTime()) || clinicDateString(date) !== dateValue)
-    throw new BadRequestException('NgÃ y hÃ ng chá» khÃ´ng há»£p lá»‡.');
-  return date;
+export interface QueueActionability extends QueueCallability {
+  canAct: boolean;
+  canStart: boolean;
+  cannotStartReason: string | null;
+  canComplete: boolean;
+  cannotCompleteReason: string | null;
+  canSkip: boolean;
+  cannotSkipReason: string | null;
+  canRestore: boolean;
+  cannotRestoreReason: string | null;
 }
 
 function priorityGroup(priorityType: CareSessionPriorityType | null): number {
@@ -159,8 +157,11 @@ export function getQueueCallability(
   if (
     doctorQueue.some(
       (session) =>
-        session.status === CareSessionStatus.CALLED &&
-        session.id !== current.id,
+        [CareSessionStatus.CALLED, CareSessionStatus.IN_CONSULTATION].includes(
+          session.status as
+            | typeof CareSessionStatus.CALLED
+            | typeof CareSessionStatus.IN_CONSULTATION,
+        ) && session.id !== current.id,
     )
   )
     return {
@@ -182,6 +183,95 @@ export function getQueueCallability(
         'Ch\u01b0a \u0111\u1ebfn l\u01b0\u1ee3t: c\u00f2n b\u1ec7nh nh\u00e2n \u0111\u1ee9ng tr\u01b0\u1edbc',
     };
   return { canCall: true, cannotCallReason: null };
+}
+
+export function getQueueActionability(
+  current: QueueSortItem,
+  doctorQueue: readonly QueueSortItem[],
+  userRole: string,
+  isOwner: boolean,
+  now: Date,
+): QueueActionability {
+  if (userRole === 'RECEPTIONIST') {
+    return {
+      canAct: false,
+      canCall: false,
+      cannotCallReason: 'Chỉ xem',
+      canStart: false,
+      cannotStartReason: 'Chỉ xem',
+      canComplete: false,
+      cannotCompleteReason: 'Chỉ xem',
+      canSkip: false,
+      cannotSkipReason: 'Chỉ xem',
+      canRestore: false,
+      cannotRestoreReason: 'Chỉ xem',
+    };
+  }
+  if (!isOwner && userRole === 'DOCTOR') {
+    return {
+      canAct: false,
+      canCall: false,
+      cannotCallReason: 'Bác sĩ chỉ được thao tác hàng chờ của mình',
+      canStart: false,
+      cannotStartReason: 'Bác sĩ chỉ được thao tác hàng chờ của mình',
+      canComplete: false,
+      cannotCompleteReason: 'Bác sĩ chỉ được thao tác hàng chờ của mình',
+      canSkip: false,
+      cannotSkipReason: 'Bác sĩ chỉ được thao tác hàng chờ của mình',
+      canRestore: false,
+      cannotRestoreReason: 'Bác sĩ chỉ được thao tác hàng chờ của mình',
+    };
+  }
+  if (current.status === CareSessionStatus.NO_SHOW) {
+    return {
+      canAct: true,
+      canCall: false,
+      cannotCallReason: 'Bệnh nhân vắng mặt sau 3 lần bỏ qua',
+      canStart: false,
+      cannotStartReason: 'Bệnh nhân vắng mặt sau 3 lần bỏ qua',
+      canComplete: false,
+      cannotCompleteReason: 'Bệnh nhân vắng mặt sau 3 lần bỏ qua',
+      canSkip: false,
+      cannotSkipReason: 'Bệnh nhân vắng mặt sau 3 lần bỏ qua',
+      canRestore: false,
+      cannotRestoreReason: 'Bệnh nhân vắng mặt sau 3 lần bỏ qua',
+    };
+  }
+  const callability = getQueueCallability(current, doctorQueue);
+  const canStart =
+    current.status === CareSessionStatus.CALLED &&
+    !doctorQueue.some(
+      (session) => session.status === CareSessionStatus.IN_CONSULTATION,
+    );
+  const canComplete = current.status === CareSessionStatus.IN_CONSULTATION;
+  const canSkip =
+    current.status === CareSessionStatus.CALLED &&
+    skipAllowedInSeconds(current.calledAt ?? null, now) === 0;
+  const canRestore = current.status === CareSessionStatus.SKIPPED;
+  return {
+    canAct: true,
+    ...callability,
+    canStart,
+    cannotStartReason: canStart
+      ? null
+      : current.status !== CareSessionStatus.CALLED
+        ? 'Chỉ có thể bắt đầu lượt đang được gọi'
+        : 'Bác sĩ đang có phiên khám khác',
+    canComplete,
+    cannotCompleteReason: canComplete
+      ? null
+      : 'Chỉ có thể hoàn thành lượt đang khám',
+    canSkip,
+    cannotSkipReason: canSkip
+      ? null
+      : current.status !== CareSessionStatus.CALLED
+        ? 'Chỉ có thể bỏ qua lượt đang được gọi'
+        : `Bệnh nhân chưa được gọi đủ ba phút. Còn ${skipAllowedInSeconds(current.calledAt ?? null, now)} giây nữa.`,
+    canRestore,
+    cannotRestoreReason: canRestore
+      ? null
+      : 'Chỉ có thể đưa lượt đã bỏ qua trở lại',
+  };
 }
 
 export function assertQueueCanCall(
@@ -229,12 +319,19 @@ export function isDoctorAvailableForAutoCall(
 
 @Injectable()
 export class QueuesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly auditLogs?: AuditLogsService,
+  ) {}
 
   async board(query: QueueBoardQueryDto, user: CurrentUserDto) {
     return this.withDatabaseErrors(async () => {
       const { dateStart } = this.dateRange(query.date);
       const currentDoctorId = await this.currentDoctorId(user);
+      if (user.role === 'RECEPTIONIST' && !query.doctorId)
+        throw new BadRequestException(
+          'Lễ tân phải chọn bác sĩ để xem hàng chờ.',
+        );
       const doctorId = currentDoctorId ?? query.doctorId;
       const search = query.search?.trim();
       const numberSearch = search?.match(/\d+/)?.[0];
@@ -302,7 +399,7 @@ export class QueuesService {
                 where: {
                   queueDate: dateStart,
                   status: {
-                    in: [...CALLABLE_STATUSES, CareSessionStatus.CALLED],
+                    in: [...DOCTOR_QUEUE_STATUSES],
                   },
                   appointmentSlot: { doctorSchedule: { doctorId: id } },
                 },
@@ -317,7 +414,14 @@ export class QueuesService {
         return this.presentItem(
           session,
           now,
-          getQueueCallability(session, queueByDoctor.get(doctorId) ?? []),
+          getQueueActionability(
+            session,
+            queueByDoctor.get(doctorId) ?? [],
+            user.role,
+            user.role !== 'DOCTOR' ||
+              session.appointmentSlot.doctorSchedule.doctor.userId === user.id,
+            now,
+          ),
         );
       });
       return {
@@ -351,7 +455,7 @@ export class QueuesService {
   }
 
   async call(careSessionId: string, user: CurrentUserDto) {
-    const date = clinicDateString(new Date());
+    const date = clinicDateString();
     try {
       await this.prisma.$transaction(
         async (tx) => {
@@ -382,8 +486,221 @@ export class QueuesService {
     }
   }
 
+  async startConsultation(careSessionId: string, user: CurrentUserDto) {
+    const date = clinicDateString();
+    try {
+      await this.prisma.$transaction(
+        async (tx) => {
+          const target = await tx.careSession.findUnique({
+            where: { id: careSessionId },
+            select: {
+              appointmentSlot: {
+                select: {
+                  doctorSchedule: {
+                    select: { doctorId: true },
+                  },
+                },
+              },
+            },
+          });
+          if (!target) throw new NotFoundException('Không tìm thấy lượt khám.');
+          await this.lockDoctorQueue(
+            tx,
+            target.appointmentSlot.doctorSchedule.doctorId,
+          );
+          const session = await this.lockSession(tx, careSessionId);
+          const doctor = session.appointmentSlot.doctorSchedule.doctor;
+          this.assertDoctorAccess(user, doctor.userId);
+          const current = await this.readSession(tx, careSessionId);
+          if (current.status !== CareSessionStatus.CALLED)
+            throw new ConflictException(
+              'Chỉ có thể bắt đầu lượt đang được gọi.',
+            );
+          const active = await tx.careSession.findFirst({
+            where: {
+              queueDate: current.queueDate,
+              status: CareSessionStatus.IN_CONSULTATION,
+              appointmentSlot: { doctorSchedule: { doctorId: doctor.id } },
+              id: { not: current.id },
+            },
+            select: { id: true },
+          });
+          if (active)
+            throw new ConflictException('Bác sĩ đang có một phiên khám khác.');
+          const startedAt = new Date();
+          await tx.careSession.update({
+            where: { id: current.id },
+            data: { status: CareSessionStatus.IN_CONSULTATION },
+          });
+          await tx.consultation.upsert({
+            where: { careSessionId: current.id },
+            create: { careSessionId: current.id, startedAt },
+            update: { startedAt },
+          });
+          await this.auditLogs?.record(
+            {
+              actor: {
+                type: 'USER',
+                id: user.id,
+                name: user.name,
+                role: user.role as import('../../generated/prisma/enums').UserRole,
+              },
+              actionCode: 'QUEUE_START_CONSULTATION',
+              module: 'QUEUES',
+              targetType: 'CARE_SESSION',
+              targetId: current.id,
+              result: 'SUCCESS',
+              after: { status: CareSessionStatus.IN_CONSULTATION },
+            },
+            tx,
+          );
+        },
+        { isolationLevel: 'Serializable', timeout: 15000 },
+      );
+      return { board: await this.board({ date }, user) };
+    } catch (error) {
+      await this.throwTransitionError(
+        error,
+        careSessionId,
+        CareSessionStatus.IN_CONSULTATION,
+        'Lượt khám vừa được bắt đầu bởi yêu cầu khác.',
+      );
+    }
+  }
+
+  async start(careSessionId: string, user: CurrentUserDto) {
+    return this.startConsultation(careSessionId, user);
+  }
+
+  async complete(
+    careSessionId: string,
+    user: CurrentUserDto,
+    expectedUpdatedAt: string,
+  ) {
+    if (!expectedUpdatedAt)
+      throw new BadRequestException(['expectedUpdatedAt should not be empty']);
+    const date = clinicDateString();
+    try {
+      await this.prisma.$transaction(
+        async (tx) => {
+          const target = await tx.careSession.findUnique({
+            where: { id: careSessionId },
+            select: {
+              appointmentSlot: {
+                select: {
+                  doctorSchedule: {
+                    select: { doctorId: true },
+                  },
+                },
+              },
+            },
+          });
+          if (!target) throw new NotFoundException('Không tìm thấy lượt khám.');
+          await this.lockDoctorQueue(
+            tx,
+            target.appointmentSlot.doctorSchedule.doctorId,
+          );
+          const session = await this.lockSession(tx, careSessionId);
+          const doctor = session.appointmentSlot.doctorSchedule.doctor;
+          this.assertDoctorAccess(user, doctor.userId);
+          const current = await this.readSession(tx, careSessionId);
+          if (current.status !== CareSessionStatus.IN_CONSULTATION)
+            throw new ConflictException(
+              'Chỉ có thể hoàn thành lượt đang khám.',
+            );
+          const consultation = await tx.consultation.findUnique({
+            where: { careSessionId: current.id },
+            include: { diagnoses: true },
+          });
+          if (consultation?.updatedAt.toISOString() !== expectedUpdatedAt)
+            throw new ConflictException(
+              'Consultation was updated. Reload before completing.',
+            );
+          const missingFields = [
+            ...(current.appointment.reason?.trim() ? [] : ['complaint']),
+            ...(consultation?.clinicalNotes?.trim() ? [] : ['clinicalNotes']),
+            ...(consultation?.diagnoses.some((diagnosis) => diagnosis.isPrimary)
+              ? []
+              : ['diagnosis']),
+          ];
+          if (missingFields.length)
+            throw new BadRequestException(
+              missingFields.map((field) => `${field} is required`),
+            );
+          const completedAt = new Date();
+          await tx.careSession.update({
+            where: { id: current.id },
+            data: { status: CareSessionStatus.COMPLETED },
+          });
+          await tx.consultation.upsert({
+            where: { careSessionId: current.id },
+            create: {
+              careSessionId: current.id,
+              completedAt,
+              lockedAt: completedAt,
+            },
+            update: { completedAt, lockedAt: completedAt },
+          });
+          await this.auditLogs?.record(
+            {
+              actor: {
+                type: 'USER',
+                id: user.id,
+                name: user.name,
+                role: user.role as import('../../generated/prisma/enums').UserRole,
+              },
+              actionCode: 'QUEUE_COMPLETE_CONSULTATION',
+              module: 'QUEUES',
+              targetType: 'CARE_SESSION',
+              targetId: current.id,
+              result: 'SUCCESS',
+              after: { status: CareSessionStatus.COMPLETED },
+            },
+            tx,
+          );
+        },
+        { isolationLevel: 'Serializable', timeout: 15000 },
+      );
+      return { board: await this.board({ date }, user) };
+    } catch (error) {
+      await this.throwTransitionError(
+        error,
+        careSessionId,
+        CareSessionStatus.COMPLETED,
+        'Lượt khám vừa được hoàn thành bởi yêu cầu khác.',
+      );
+    }
+  }
+
+  async assertCanAccessSession(
+    careSessionId: string,
+    user: CurrentUserDto,
+    tx: Prisma.TransactionClient = this.prisma,
+  ) {
+    const session = await tx.careSession.findUnique({
+      where: { id: careSessionId },
+      select: {
+        appointmentSlot: {
+          select: {
+            doctorSchedule: {
+              select: { doctor: { select: { userId: true } } },
+            },
+          },
+        },
+      },
+    });
+    if (!session) throw new NotFoundException('Không tìm thấy lượt khám.');
+    if (
+      user.role !== UserRole.ADMIN &&
+      session.appointmentSlot.doctorSchedule.doctor.userId !== user.id
+    )
+      throw new ForbiddenException(
+        'Bạn không có quyền truy cập lượt khám này.',
+      );
+  }
+
   async skip(careSessionId: string, user: CurrentUserDto) {
-    const date = clinicDateString(new Date());
+    const date = clinicDateString();
     try {
       await this.prisma.$transaction(
         async (tx) => {
@@ -464,7 +781,7 @@ export class QueuesService {
   }
 
   async restore(careSessionId: string, user: CurrentUserDto) {
-    const date = clinicDateString(new Date());
+    const date = clinicDateString();
     try {
       await this.prisma.$transaction(
         async (tx) => {
@@ -510,7 +827,7 @@ export class QueuesService {
       const doctorQueue = await this.prisma.careSession.findMany({
         where: {
           queueDate: session.queueDate,
-          status: { in: [...CALLABLE_STATUSES, CareSessionStatus.CALLED] },
+          status: { in: [...DOCTOR_QUEUE_STATUSES] },
           appointmentSlot: {
             doctorSchedule: {
               doctorId: session.appointmentSlot.doctorSchedule.doctor.id,
@@ -523,7 +840,14 @@ export class QueuesService {
         ...this.presentItem(
           session,
           now,
-          getQueueCallability(session, doctorQueue),
+          getQueueActionability(
+            session,
+            doctorQueue,
+            user.role,
+            user.role !== 'DOCTOR' ||
+              session.appointmentSlot.doctorSchedule.doctor.userId === user.id,
+            now,
+          ),
         ),
         date: clinicDateString(clinicDate(dateValue)),
       };
@@ -538,7 +862,7 @@ export class QueuesService {
     return tx.careSession.findMany({
       where: {
         queueDate,
-        status: { in: [...CALLABLE_STATUSES, CareSessionStatus.CALLED] },
+        status: { in: [...DOCTOR_QUEUE_STATUSES] },
         appointmentSlot: { doctorSchedule: { doctorId } },
       },
       include: QUEUE_INCLUDE,
@@ -611,7 +935,19 @@ export class QueuesService {
   private presentItem(
     session: QueueSession,
     now: Date,
-    callability: QueueCallability = { canCall: false, cannotCallReason: null },
+    actionability: QueueActionability = {
+      canAct: false,
+      canCall: false,
+      cannotCallReason: null,
+      canStart: false,
+      cannotStartReason: null,
+      canComplete: false,
+      cannotCompleteReason: null,
+      canSkip: false,
+      cannotSkipReason: null,
+      canRestore: false,
+      cannotRestoreReason: null,
+    },
   ) {
     const doctor = session.appointmentSlot.doctorSchedule.doctor;
     const startsAt = session.appointmentSlot.startsAt;
@@ -643,7 +979,7 @@ export class QueuesService {
       status: session.status,
       skipCount: session.skipCount,
       nextSkipCount: session.skipCount + 1,
-      ...callability,
+      ...actionability,
       calledAt: session.calledAt,
       skippedAt: session.skippedAt,
       isNoShow: session.status === CareSessionStatus.NO_SHOW,
@@ -662,6 +998,28 @@ export class QueuesService {
     }
   }
 
+  private async throwTransitionError(
+    error: unknown,
+    careSessionId: string,
+    completedStatus: CareSessionStatus,
+    conflictMessage: string,
+  ): Promise<never> {
+    if (
+      error instanceof BadRequestException ||
+      error instanceof ConflictException ||
+      error instanceof ForbiddenException ||
+      error instanceof NotFoundException
+    )
+      this.throwQueueError(error);
+    const current = await this.prisma.careSession.findUnique({
+      where: { id: careSessionId },
+      select: { status: true },
+    });
+    if (current?.status === completedStatus)
+      throw new ConflictException(conflictMessage);
+    this.throwQueueError(error);
+  }
+
   private throwQueueError(error: unknown): never {
     if (
       error instanceof BadRequestException ||
@@ -670,11 +1028,15 @@ export class QueuesService {
       error instanceof NotFoundException
     )
       throw error;
-    if (error instanceof Error && 'code' in error) {
-      const code = (error as Error & { code?: string }).code;
-      if (code === 'P2034')
+    if (typeof error === 'object' && error !== null && 'code' in error) {
+      const code = (error as { code?: unknown }).code;
+      if (code === 'P2034' || code === 'P2028')
         throw new ConflictException(
           'HÃ ng chá» vá»«a Ä‘Æ°á»£c cáº­p nháº­t. Vui lÃ²ng táº£i láº¡i rá»“i thá»­ láº¡i.',
+        );
+      if (code === 'P2002')
+        throw new ConflictException(
+          'Phiên khám vừa được cập nhật. Vui lòng tải lại rồi thử lại.',
         );
       if (code === 'P2025')
         throw new NotFoundException('KhÃ´ng tÃ¬m tháº¥y lÆ°á»£t khÃ¡m.');

@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import {
   AlertTriangle,
@@ -31,7 +31,8 @@ import {
   DialogFooter,
 } from "@/components/ui/Dialog";
 import { canCompleteExamination } from "../examinationUtils";
-import { ALLERGY_DETAILS } from "../constants";
+import { searchReceptionSpecialties, listReceptionProviders } from "@/features/reception/services/receptionService";
+import type { SpecialtyOption, ReceptionProvider } from "@/features/reception/types/receptionTypes";
 import type {
   Examination,
   ExaminationAction,
@@ -60,89 +61,111 @@ export function ExaminationActionDialog({
   item,
   onClose,
   onUpdate,
+  onComplete,
+  onIncomplete,
 }: {
   action: ModalAction;
   item: Examination;
   onClose: () => void;
-  onUpdate: (changes: Partial<Examination>) => void;
+  onUpdate: (changes: Partial<Examination>) => Promise<unknown>;
+  onComplete: () => Promise<unknown>;
+  onIncomplete: (reason: string, plan: string) => Promise<unknown>;
 }) {
   const [conditions, setConditions] = useState<HistoryCondition[]>(
-    item.historyConditions ?? [
-      {
-        name: "Tăng huyết áp vô căn",
-        note: "Phát hiện 04/2023. Đang điều trị thường quy.",
-        isConfirmed: false,
-      },
-      {
-        name: "Rối loạn lipid máu nhẹ",
-        note: "Ghi nhận 11/2025 · Cholesterol TP: 5.8 mmol/L.",
-        isConfirmed: true,
-      },
-    ],
+    item.historyConditions ?? [],
   );
   const [editing, setEditing] = useState<number | null>(null);
   const [editingMeds, setEditingMeds] = useState(false);
   const [editingSurgery, setEditingSurgery] = useState(false);
-  const [specialty, setSpecialty] = useState("ENDOCRINOLOGY");
+  const [specialty, setSpecialty] = useState("");
   const [doctor, setDoctor] = useState("");
+  const [specialties, setSpecialties] = useState<SpecialtyOption[]>([]);
+  const [doctors, setDoctors] = useState<ReceptionProvider[]>([]);
   const [error, setError] = useState("");
   const [followUpDate, setFollowUpDate] = useState(item.followUpDate);
   const [isDateOpen, setIsDateOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const isSubmitting = useRef(false);
   const [surgery, setSurgery] = useState(item.surgicalHistory ?? "");
-  const [medications, setMedications] = useState(
-    item.currentMedications ??
-      "Amlodipine 5mg | 1 viên uống mỗi sáng (8h)\nAtorvastatin 10mg | 1 viên uống mỗi tối (20h)",
-  );
-  const [risk, setRisk] = useState(
-    item.riskFactors ??
-      "Không hút thuốc lá, không sử dụng rượu bia. Ít vận động thể lực (< 2 buổi/tuần). Chế độ ăn giảm muối đang được hướng dẫn.",
-  );
-  const submit = (event: React.FormEvent<HTMLFormElement>) => {
+  const [medications, setMedications] = useState(item.currentMedications ?? "");
+  const [risk, setRisk] = useState(item.riskFactors ?? "");
+  useEffect(() => {
+    if (action !== "TRANSFER") return;
+    void searchReceptionSpecialties().then((values) => {
+      setSpecialties(values);
+      if (values[0]) setSpecialty(values[0].id);
+    }).catch((error: unknown) => toast.error(error instanceof Error ? error.message : "Không thể tải chuyên khoa"));
+  }, [action]);
+  useEffect(() => {
+    if (action !== "TRANSFER" || !specialty) return;
+    void listReceptionProviders(specialty).then(setDoctors).catch((error: unknown) => toast.error(error instanceof Error ? error.message : "Không thể tải bác sĩ"));
+  }, [action, specialty]);
+  const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (isSubmitting.current) return;
     const data = new FormData(event.currentTarget);
+    let changes: Partial<Examination> = {};
     if (action === "HISTORY") {
       if (conditions.some((value) => !value.name.trim())) {
         setError("Nhập tên bệnh lý trước khi lưu.");
         return;
       }
-      onUpdate({
+      changes = {
         historyConditions: conditions,
         history: conditions.map((value) => value.name).join(" · "),
         surgicalHistory: surgery,
         currentMedications: medications,
         riskFactors: risk,
-      });
+      };
     } else if (action === "TRANSFER") {
       const reason = String(data.get("reason") ?? "").trim();
+      if (!specialty || !specialties.some((value) => value.id === specialty)) {
+        setError("Vui lòng chọn chuyên khoa tiếp nhận.");
+        return;
+      }
       if (!reason) {
         setError("Vui lòng nhập lý do chuyển chuyên khoa.");
         return;
       }
-      onUpdate({
-        transfer: `${specialty === "ENDOCRINOLOGY" ? "Khoa Nội tiết & Chuyển hóa" : "Khoa Tim mạch"}${doctor ? ` · ${doctor}` : ""} · ${data.get("priority") === "URGENT" ? "Khẩn cấp" : "Thông thường"}: ${reason}`,
-        status: "PAUSED",
-      });
+      changes = {
+        transfer: `${specialties.find((value) => value.id === specialty)?.name ?? ""}: ${reason}`,
+        referralSpecialty: specialties.find((value) => value.id === specialty)?.name,
+        referralReason: reason,
+        referralPriority: String(data.get("priority") ?? "NORMAL") === "URGENT" ? "URGENT" : "NORMAL",
+        referralDoctorId: doctor || undefined,
+      };
     } else if (action === "FOLLOW_UP") {
       if (!followUpDate || followUpDate < item.date) {
         setError("Vui lòng chọn ngày tái khám từ ngày khám trở đi.");
         return;
       }
-      onUpdate({
+      changes = {
         followUpDate: String(data.get("date") ?? ""),
         followUpReason: String(data.get("reason") ?? ""),
         patientAdvice: String(data.get("advice") ?? ""),
-      });
+      };
     } else if (action === "WAIT_RESULTS")
-      onUpdate({ status: "WAITING_RESULTS" });
+      changes = { status: "WAITING_RESULTS" };
     else {
       if (!canCompleteExamination(item)) {
         setError("Cần có ghi chú lâm sàng, chẩn đoán và trạng thái đang khám.");
         return;
       }
-      onUpdate({ status: "COMPLETED" });
+      changes = { status: "COMPLETED" };
     }
-    toast.success("Đã cập nhật bản xem thử.");
-    onClose();
+    setIsSaving(true);
+    isSubmitting.current = true;
+    try {
+      if (action === "COMPLETE") await onComplete();
+      else await onUpdate(changes);
+      toast.success(`${LABELS[action]} thành công.`);
+      onClose();
+    } catch {
+      return;
+    } finally {
+      isSubmitting.current = false;
+      setIsSaving(false);
+    }
   };
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -177,7 +200,7 @@ export function ExaminationActionDialog({
                   </div>
                   <p className="mt-2 text-body font-bold">{item.allergy}</p>
                   <p className="mt-2 text-caption text-muted">
-                    {ALLERGY_DETAILS.split(" Tuyệt đối")[0]}
+                    {item.allergyDetails ?? ""}
                   </p>
                   <div className="mt-3 flex justify-between gap-2 border-t border-error-border pt-2 text-label text-muted">
                     <span>Đã xác nhận bởi BS. CKII Vũ Đình Trọng</span>
@@ -409,10 +432,7 @@ export function ExaminationActionDialog({
                       setDoctor("");
                     }}
                   >
-                    <option value="ENDOCRINOLOGY">
-                      Khoa Nội tiết & Chuyển hóa
-                    </option>
-                    <option value="CARDIOLOGY">Khoa Tim mạch</option>
+                    {specialties.map((value) => <option key={value.id} value={value.id}>{value.name}</option>)}
                   </Select>
                 </div>
                 <div>
@@ -431,12 +451,7 @@ export function ExaminationActionDialog({
                     onChange={(event) => setDoctor(event.target.value)}
                   >
                     <option value="">Chọn bác sĩ (không bắt buộc)</option>
-                    <option value="BS. CKII Vũ Đình Trọng">
-                      BS. CKII Vũ Đình Trọng
-                    </option>
-                    <option value="TS.BS Lê Quang Huy">
-                      TS.BS Lê Quang Huy
-                    </option>
+                    {doctors.filter((value) => value.specialty.id === specialty).map((value) => <option key={value.id} value={value.id}>{value.academicTitle ? `${value.academicTitle} ` : ""}{value.user.fullName}</option>)}
                   </Select>
                 </div>
                 <fieldset>
@@ -479,7 +494,7 @@ export function ExaminationActionDialog({
                     rows={4}
                     required
                     maxLength={1000}
-                    defaultValue="Bệnh nhân có tiền sử rối loạn lipid máu, huyết áp tăng nhẹ. Cần khám chuyên khoa Nội tiết để đánh giá toàn diện và phối hợp điều chỉnh phác đồ điều trị."
+                    defaultValue=""
                   />
                 </div>
                 <div className="rounded-app-lg border border-border bg-surface-hover p-3">
@@ -700,21 +715,43 @@ export function ExaminationActionDialog({
             {action === "COMPLETE" && (
               <button
                 type="button"
-                disabled
+                disabled={isSaving || !item.complaint.trim() || !(item.patientAdvice ?? item.clinicalNotes).trim()}
+                onClick={async () => {
+                  if (isSubmitting.current || !item.complaint.trim()) return;
+                  const plan = item.patientAdvice?.trim() || item.clinicalNotes.trim();
+                  if (!plan) return;
+                  isSubmitting.current = true;
+                  setIsSaving(true);
+                  try {
+                    await onIncomplete(item.complaint.trim(), plan);
+                    toast.success("Đã đánh dấu phiên khám chưa hoàn chỉnh.");
+                    onClose();
+                  } catch {
+                    return;
+                  } finally {
+                    isSubmitting.current = false;
+                    setIsSaving(false);
+                  }
+                }}
                 title="Chưa có nghiệp vụ kết thúc chưa hoàn chỉnh trong bản xem thử"
                 className="mr-auto text-label text-muted underline"
               >
                 Kết thúc chưa hoàn chỉnh
               </button>
             )}
-            <Button type="button" variant="outline" onClick={onClose}>
+            <Button type="button" variant="outline" disabled={isSaving} onClick={onClose}>
               {["WAIT_RESULTS", "COMPLETE"].includes(action)
                 ? "Quay lại"
                 : "Hủy bỏ"}
             </Button>
             <Button
               type="submit"
-              disabled={action === "COMPLETE" && !canCompleteExamination(item)}
+              disabled={
+                isSaving ||
+                (action === "COMPLETE" && !canCompleteExamination(item)) ||
+                (action === "WAIT_RESULTS" &&
+                  (item.status !== "IN_PROGRESS" || !item.labOrders.trim()))
+              }
             >
               {LABELS[action]}
             </Button>

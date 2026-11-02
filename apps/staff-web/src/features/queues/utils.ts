@@ -5,11 +5,10 @@ import type {
   QueueItem,
   QueueStatus,
 } from "./types/queueTypes";
+import { QUEUE_STATUS_PRESENTATION } from "./constants";
 
 export function getQueueColumnKey(status: QueueStatus): string {
-  if (status === "CHECKED_IN") return "WAITING";
-  if (status === "NO_SHOW") return "SKIPPED";
-  return status;
+  return QUEUE_STATUS_PRESENTATION[status].column;
 }
 
 export function filterQueueItems(
@@ -47,9 +46,11 @@ export function getQueueDoctorOptions(
 }
 
 export function getQueueAction(item: QueueItem): QueueAction[] {
+  if (!item.canAct) return [];
   if (item.status === "WAITING" || item.status === "CHECKED_IN")
     return ["CALL"];
-  if (item.status === "CALLED") return ["SKIP"];
+  if (item.status === "CALLED") return ["START", "SKIP"];
+  if (item.status === "IN_CONSULTATION") return ["COMPLETE"];
   if (item.status === "SKIPPED") return ["CALL", "RESTORE"];
   return [];
 }
@@ -66,11 +67,9 @@ export function getQueueSubtitle(item: QueueItem): string {
 }
 
 export function getQueueStatusLabel(status: QueueStatus): string {
-  return status === "NO_SHOW"
-    ? "Vắng mặt"
-    : status === "SKIPPED"
-      ? "Đã bỏ qua"
-      : status;
+  return status === "SKIPPED"
+    ? "Đã bỏ qua"
+    : QUEUE_STATUS_PRESENTATION[status].label;
 }
 
 export function getQueueErrorMessage(error: unknown, fallback: string): string {

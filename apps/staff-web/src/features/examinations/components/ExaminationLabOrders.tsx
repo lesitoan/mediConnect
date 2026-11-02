@@ -13,7 +13,7 @@ import type { Examination } from "../types/examinationTypes";
 
 interface Props {
   item: Examination;
-  onSave: (changes: Partial<Examination>) => void;
+  onSave: (changes: Partial<Examination>) => Promise<unknown>;
   onBack: () => void;
 }
 
@@ -23,7 +23,11 @@ interface LabFormValues {
 }
 
 export function ExaminationLabOrders({ item, onSave, onBack }: Props) {
+  const isReadOnly =
+    item.status !== "IN_PROGRESS" ||
+    item.isLocked === true;
   const [search, setSearch] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
   const [category, setCategory] = useState("LAB");
   const {
     register,
@@ -31,20 +35,12 @@ export function ExaminationLabOrders({ item, onSave, onBack }: Props) {
     formState: { errors },
   } = useForm<LabFormValues>({
     defaultValues: {
-      reason:
-        item.labReason ??
-        "Theo dõi hội chứng vành cấp trên nền tăng huyết áp, đau ngực trái từng cơn",
-      notes:
-        item.labNotes ??
-        "Bệnh nhân có tiền sử dị ứng Penicillin. Đo ECG tại giường, lấy máu xét nghiệm ngay.",
+      reason: item.labReason ?? "",
+      notes: item.labNotes ?? "",
     },
   });
   const [selected, setSelected] = useState(
-    item.labOrders
-      ? item.labOrders.split("; ")
-      : [LAB_CATALOG[2], LAB_CATALOG[0], LAB_CATALOG[1]].map(
-          (service) => service.name,
-        ),
+    item.labOrders ? item.labOrders.split("; ") : [],
   );
   const services = LAB_CATALOG.filter(
     (service) =>
@@ -56,13 +52,18 @@ export function ExaminationLabOrders({ item, onSave, onBack }: Props) {
   return (
     <form
       id="lab-orders-form"
-      onSubmit={handleSubmit((values) => {
-        if (!selected.length || item.status === "COMPLETED") return;
-        onSave({
-          labOrders: selected.join("; "),
-          labReason: values.reason.trim(),
-          labNotes: values.notes,
-        });
+      onSubmit={handleSubmit(async (values) => {
+        if (!selected.length || isReadOnly) return;
+        setIsSaving(true);
+        try {
+          await onSave({
+            labOrders: selected.join("; "),
+            labReason: values.reason.trim(),
+            labNotes: values.notes,
+          });
+        } finally {
+          setIsSaving(false);
+        }
       })}
       className="space-y-4"
     >
@@ -80,6 +81,7 @@ export function ExaminationLabOrders({ item, onSave, onBack }: Props) {
             className="pl-9"
             aria-label="Tìm dịch vụ CLS"
             placeholder="Tìm tên hoặc mã dịch vụ..."
+            disabled={isReadOnly}
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
@@ -100,6 +102,7 @@ export function ExaminationLabOrders({ item, onSave, onBack }: Props) {
               <TabsTrigger
                 key={tab.value}
                 value={tab.value}
+                disabled={isReadOnly}
                 className="rounded-none border-b-2 border-transparent px-0 py-3 text-caption data-[active]:border-primary data-[active]:bg-transparent data-[active]:shadow-none"
               >
                 {tab.label}
@@ -120,7 +123,7 @@ export function ExaminationLabOrders({ item, onSave, onBack }: Props) {
                 size="sm"
                 className="text-primary"
                 disabled={
-                  selected.includes(service.name) || item.status === "COMPLETED"
+                  selected.includes(service.name) || isReadOnly
                 }
                 onClick={() => setSelected([...selected, service.name])}
               >
@@ -152,6 +155,7 @@ export function ExaminationLabOrders({ item, onSave, onBack }: Props) {
                 type="button"
                 variant="ghost"
                 size="icon-xs"
+                disabled={isReadOnly}
                 aria-label={`Xóa chỉ định ${name}`}
                 onClick={() =>
                   setSelected(selected.filter((value) => value !== name))
@@ -191,6 +195,7 @@ export function ExaminationLabOrders({ item, onSave, onBack }: Props) {
           </label>
           <Textarea
             id="lab-reason"
+            disabled={isReadOnly}
             {...register("reason", {
               required: "Vui lòng nhập lý do chỉ định.",
               validate: (value) =>
@@ -221,6 +226,7 @@ export function ExaminationLabOrders({ item, onSave, onBack }: Props) {
           </label>
           <Textarea
             id="lab-notes"
+            disabled={isReadOnly}
             {...register("notes")}
             rows={3}
             maxLength={1000}
@@ -237,7 +243,7 @@ export function ExaminationLabOrders({ item, onSave, onBack }: Props) {
           </Button>
           <Button
             type="submit"
-            disabled={!selected.length || item.status === "COMPLETED"}
+            disabled={!selected.length || isReadOnly || isSaving}
           >
             Lưu & Chờ kết quả CLS
           </Button>

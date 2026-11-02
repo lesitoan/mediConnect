@@ -1,16 +1,12 @@
 import 'dotenv/config';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../src/generated/prisma/client';
+import { clinicDate } from '../src/common/utils/clinic-date';
 
 const DEMO_PATIENT_PREFIX = 'Q-DEMO-P-';
 const DEMO_APPOINTMENT_PREFIX = 'Q-DEMO-A-';
 const DEMO_USER_EMAIL_PREFIX = 'q-demo-p-';
-const LEGACY_DEMO_USER_EMAIL_PREFIX = 'queue-demo-patient-';
-const DEMO_DOCTOR_CODES = [
-  'SEED-GEN-01',
-  'SEED-GEN-02',
-  'SEED-SUR-01',
-] as const;
+const DEMO_DOCTOR_CODES = ['SEED-GEN-01', 'SEED-GEN-02'] as const;
 const DEMO_QUEUE = [
   {
     doctorCode: 'SEED-GEN-01',
@@ -19,8 +15,8 @@ const DEMO_QUEUE = [
   },
   {
     doctorCode: 'SEED-GEN-01',
-    status: 'CHECKED_IN',
-    priorityType: 'REFERRAL',
+    status: 'WAITING',
+    priorityType: 'WALK_IN',
   },
   {
     doctorCode: 'SEED-GEN-01',
@@ -28,44 +24,45 @@ const DEMO_QUEUE = [
     priorityType: 'RETURNING_LAB',
   },
   {
-    doctorCode: 'SEED-GEN-02',
+    doctorCode: 'SEED-GEN-01',
+    status: 'WAITING',
+    priorityType: 'APPOINTMENT_LATE',
+  },
+  {
+    doctorCode: 'SEED-GEN-01',
+    status: 'WAITING',
+    priorityType: 'REFERRAL',
+  },
+  {
+    doctorCode: 'SEED-GEN-01',
     status: 'CALLED',
     priorityType: 'WALK_IN',
     calledAgoSeconds: 60,
   },
   {
     doctorCode: 'SEED-GEN-01',
-    status: 'SKIPPED',
-    priorityType: 'APPOINTMENT_LATE',
-    skippedAgoSeconds: 300,
-  },
-  {
-    doctorCode: 'SEED-SUR-01',
     status: 'IN_CONSULTATION',
     priorityType: 'APPOINTMENT_ON_TIME',
   },
   {
-    doctorCode: 'SEED-SUR-01',
-    status: 'CALLED',
-    priorityType: 'RETURNING_LAB',
-    calledAgoSeconds: 240,
-  },
-  {
-    doctorCode: 'SEED-SUR-01',
-    status: 'WAITING',
+    doctorCode: 'SEED-GEN-01',
+    status: 'PAUSED',
     priorityType: 'APPOINTMENT_ON_TIME',
   },
   {
-    doctorCode: 'SEED-SUR-01',
-    status: 'CHECKED_IN',
-    priorityType: 'REFERRAL',
+    doctorCode: 'SEED-GEN-01',
+    status: 'WAITING_LAB',
+    priorityType: 'APPOINTMENT_ON_TIME',
+  },
+  {
+    doctorCode: 'SEED-GEN-01',
+    status: 'COMPLETED',
+    priorityType: 'APPOINTMENT_ON_TIME',
   },
   {
     doctorCode: 'SEED-GEN-02',
-    status: 'CALLED',
-    priorityType: 'WALK_IN',
-    calledAgoSeconds: 240,
-    skipCount: 2,
+    status: 'WAITING',
+    priorityType: 'APPOINTMENT_ON_TIME',
   },
 ] as const;
 
@@ -93,20 +90,67 @@ async function cleanup(prisma: PrismaClient): Promise<void> {
   const slotIds = appointments.flatMap(({ careSessions }) =>
     careSessions.map(({ appointmentSlotId }) => appointmentSlotId),
   );
-  const patients = await prisma.patient.findMany({
-    where: { patientCode: { startsWith: DEMO_PATIENT_PREFIX } },
-    select: { id: true, userId: true },
-  });
-  const orphanedDemoUsers = await prisma.user.findMany({
-    where: {
-      OR: [
-        { email: { startsWith: DEMO_USER_EMAIL_PREFIX } },
-        { email: { startsWith: LEGACY_DEMO_USER_EMAIL_PREFIX } },
-      ],
-    },
+  const consultations = await prisma.consultation.findMany({
+    where: { careSessionId: { in: sessionIds } },
     select: { id: true },
   });
+  const consultationIds = consultations.map(({ id }) => id);
+  const referrals = await prisma.internalReferral.findMany({
+    where: { sourceConsultationId: { in: consultationIds } },
+    include: {
+      targetCareSession: {
+        select: {
+          appointment: { select: { appointmentCode: true } },
+        },
+      },
+    },
+  });
+  if (
+    referrals.some(
+      ({ targetCareSession }) =>
+        targetCareSession &&
+        !targetCareSession.appointment.appointmentCode.startsWith(
+          DEMO_APPOINTMENT_PREFIX,
+        ),
+    )
+  )
+    throw new Error(
+      'Q-DEMO referrals target non-demo sessions; cleanup stopped to preserve external visits.',
+    );
   await prisma.$transaction(async (tx) => {
+    if (sessionIds.length)
+      await tx.careSession.updateMany({
+        where: { id: { in: sessionIds } },
+        data: { incomingReferralId: null },
+      });
+    if (consultationIds.length)
+      await tx.patientMedicalRecord.deleteMany({
+        where: { confirmedInConsultationId: { in: consultationIds } },
+      });
+    if (consultationIds.length)
+      await tx.internalReferral.deleteMany({
+        where: { sourceConsultationId: { in: consultationIds } },
+      });
+    if (consultationIds.length)
+      await tx.diagnosis.deleteMany({
+        where: { consultationId: { in: consultationIds } },
+      });
+    if (consultationIds.length)
+      await tx.review.deleteMany({
+        where: { consultationId: { in: consultationIds } },
+      });
+    if (consultationIds.length)
+      await tx.invoice.deleteMany({
+        where: { consultationId: { in: consultationIds } },
+      });
+    if (appointmentIds.length)
+      await tx.invoice.deleteMany({
+        where: { appointmentId: { in: appointmentIds } },
+      });
+    if (sessionIds.length)
+      await tx.consultation.deleteMany({
+        where: { careSessionId: { in: sessionIds } },
+      });
     if (sessionIds.length)
       await tx.careSession.deleteMany({ where: { id: { in: sessionIds } } });
     if (appointmentIds.length)
@@ -115,18 +159,6 @@ async function cleanup(prisma: PrismaClient): Promise<void> {
       });
     if (slotIds.length)
       await tx.appointmentSlot.deleteMany({ where: { id: { in: slotIds } } });
-    if (patients.length)
-      await tx.patient.deleteMany({
-        where: { id: { in: patients.map(({ id }) => id) } },
-      });
-    const userIds = Array.from(
-      new Set([
-        ...patients.flatMap(({ userId }) => (userId ? [userId] : [])),
-        ...orphanedDemoUsers.map(({ id }) => id),
-      ]),
-    );
-    if (userIds.length)
-      await tx.user.deleteMany({ where: { id: { in: userIds } } });
   });
 }
 
@@ -151,7 +183,6 @@ async function seed(prisma: PrismaClient): Promise<void> {
       schedules: { some: { status: 'PUBLISHED' } },
     },
     orderBy: { doctorCode: 'asc' },
-    take: 3,
     select: {
       id: true,
       doctorCode: true,
@@ -169,21 +200,14 @@ async function seed(prisma: PrismaClient): Promise<void> {
     doctors.some((doctor) => !doctor.schedules[0])
   )
     throw new Error(
-      'Cần ba bác sĩ có lịch đã công bố để tạo dữ liệu demo hợp lệ.',
+      'Seed-gen-01 and seed-gen-02 must have published schedules.',
     );
   const patientRole = await prisma.role.findUnique({
     where: { name: 'PATIENT' },
   });
   if (!patientRole) throw new Error('Không tìm thấy role bệnh nhân.');
   const now = new Date();
-  const queueDate = new Date(
-    `${new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'Asia/Ho_Chi_Minh',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    }).format(now)}T00:00:00+07:00`,
-  );
+  const queueDate = clinicDate();
   const queueNumbers = new Map<string, number>();
   const doctorsByCode = new Map(
     doctors.map((doctor) => [doctor.doctorCode, doctor]),
@@ -191,7 +215,10 @@ async function seed(prisma: PrismaClient): Promise<void> {
   for (const doctor of doctors) {
     if (queueNumbers.has(doctor.specialtyId)) continue;
     const maximum = await prisma.careSession.aggregate({
-      where: { specialtyId: doctor.specialtyId, queueDate },
+      where: {
+        specialtyId: doctor.specialtyId,
+        queueDate,
+      },
       _max: { queueNumber: true },
     });
     queueNumbers.set(doctor.specialtyId, (maximum._max.queueNumber ?? 0) + 1);
@@ -241,10 +268,11 @@ async function seed(prisma: PrismaClient): Promise<void> {
         bookingSource: 'RECEPTIONIST',
         status: 'CONFIRMED',
         createdBy: admin.id,
+        reason: `Q-DEMO complaint ${String(index + 1).padStart(2, '0')}`,
       },
       select: { id: true },
     });
-    await prisma.careSession.create({
+    const careSession = await prisma.careSession.create({
       data: {
         appointmentId: appointment.id,
         appointmentSlotId: appointmentSlot.id,
@@ -256,22 +284,70 @@ async function seed(prisma: PrismaClient): Promise<void> {
         queueNumber,
         queuePosition: queueNumber,
         priorityType: item.priorityType,
-        skipCount:
-          'skipCount' in item
-            ? item.skipCount
-            : item.status === 'SKIPPED'
-              ? 1
-              : 0,
+        skipCount: 0,
         calledAt:
           'calledAgoSeconds' in item
             ? new Date(now.getTime() - item.calledAgoSeconds * 1000)
             : null,
-        skippedAt:
-          'skippedAgoSeconds' in item
-            ? new Date(now.getTime() - item.skippedAgoSeconds * 1000)
-            : null,
+        skippedAt: null,
       },
     });
+    const hasConsultation =
+      item.status === 'IN_CONSULTATION' ||
+      item.status === 'PAUSED' ||
+      item.status === 'WAITING_LAB' ||
+      item.status === 'COMPLETED';
+    if (hasConsultation) {
+      const isCompleted = item.status === 'COMPLETED';
+      const completedAt = isCompleted
+        ? new Date(now.getTime() - 5 * 60_000)
+        : null;
+      await prisma.consultation.create({
+        data: {
+          careSessionId: careSession.id,
+          startedAt: isCompleted ? new Date(now.getTime() - 30 * 60_000) : now,
+          completedAt,
+          lockedAt: completedAt,
+          clinicalNotes: `Q-DEMO clinical note ${String(index + 1).padStart(2, '0')}`,
+          prescription: [],
+          labOrderNotes:
+            item.status === 'WAITING_LAB'
+              ? JSON.stringify({
+                  orders: [
+                    {
+                      service: 'Q-DEMO CBC',
+                      purpose: 'Q-DEMO test',
+                      instructions: 'Q-DEMO instruction',
+                    },
+                  ],
+                  reason: 'Q-DEMO test',
+                  notes: '',
+                  results: [],
+                  orderedAt: now.toISOString(),
+                })
+              : item.status === 'PAUSED'
+                ? JSON.stringify({
+                    pauseEvents: [
+                      {
+                        action: 'PAUSED',
+                        reason: 'Q-DEMO seeded pause',
+                        occurredAt: now.toISOString(),
+                        actorId: admin.id,
+                      },
+                    ],
+                  })
+                : null,
+          diagnoses: {
+            create: {
+              diagnosisCode: 'Z00',
+              diagnosisName: 'Q-DEMO general assessment',
+              isPrimary: true,
+              notes: 'Q-DEMO seeded primary diagnosis',
+            },
+          },
+        },
+      });
+    }
     queueNumbers.set(doctor.specialtyId, queueNumber + 1);
   }
 }
