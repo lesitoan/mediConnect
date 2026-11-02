@@ -5,6 +5,7 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Query,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { HttpResponseBodySuccessDto as ApiResponseDto } from '../../common/dto/http-response-body-success.dto';
@@ -16,6 +17,8 @@ import { RoleEnum } from '../users/constants/roles.constant';
 import type { CurrentUserDto } from '../users/dto/responses/current-user.dto';
 import { SchedulesService } from './schedules.service';
 import { CreateLeaveRequestDto } from './dto/staff/create-leave-request.dto';
+import { LeaveImpactQueryDto } from './dto/staff/leave-impact-query.dto';
+import { WorkScheduleMatrixQueryDto } from './dto/staff/work-schedule-matrix-query.dto';
 
 @ApiTags('Staff schedules')
 @Controller('me/work-schedules')
@@ -28,6 +31,16 @@ export class StaffSchedulesController {
   async list(@CurrentUser() user: CurrentUserDto) {
     return new ApiResponseDto(
       await this.schedulesService.listOwnWorkSchedules(user),
+    );
+  }
+
+  @Get('matrix')
+  async matrix(
+    @Query() query: WorkScheduleMatrixQueryDto,
+    @CurrentUser() user: CurrentUserDto,
+  ) {
+    return new ApiResponseDto(
+      await this.schedulesService.getOwnWorkScheduleMatrix(query, user),
     );
   }
 }
@@ -46,6 +59,16 @@ export class StaffLeaveRequestsController {
   async list(@CurrentUser() user: CurrentUserDto) {
     return new ApiResponseDto(
       await this.schedulesService.listOwnLeaveRequests(user),
+    );
+  }
+
+  @Get('impact')
+  async impact(
+    @Query() query: LeaveImpactQueryDto,
+    @CurrentUser() user: CurrentUserDto,
+  ) {
+    return new ApiResponseDto(
+      await this.schedulesService.previewOwnLeaveImpact(query, user),
     );
   }
 

@@ -57,9 +57,10 @@ export class SchedulesRepository {
     });
   }
 
-  findActiveClinicStaff() {
+  findActiveClinicStaff(staffUserId?: string) {
     return this.prisma.user.findMany({
       where: {
+        ...(staffUserId ? { id: staffUserId } : {}),
         status: 'ACTIVE',
         deletedAt: null,
         role: { name: { in: ['DOCTOR', 'RECEPTIONIST'] } },
@@ -227,7 +228,7 @@ export class SchedulesRepository {
     });
   }
 
-  findActiveLeaveRequests(
+  findApprovedLeaveRequests(
     staffUserIds: string[],
     doctorIds: string[],
     startsAt: Date,
@@ -239,9 +240,7 @@ export class SchedulesRepository {
           { staffUserId: { in: staffUserIds } },
           { doctorId: { in: doctorIds } },
         ],
-        status: {
-          in: [LeaveRequestStatus.RESOLVING, LeaveRequestStatus.APPROVED],
-        },
+        status: LeaveRequestStatus.APPROVED,
         startsAt: { lt: endsAt },
         endsAt: { gt: startsAt },
       },
