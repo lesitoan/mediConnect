@@ -20,10 +20,14 @@ import PaymentScreen from '../screens/payment/PaymentScreen';
 import InvoiceDetailScreen from '../screens/invoices/InvoiceDetailScreen';
 import InvoiceListScreen from '../screens/invoices/InvoiceListScreen';
 import DoctorSearchScreen from '../screens/search/DoctorSearchScreen';
+import DoctorDetailScreen from '../screens/search/DoctorDetailScreen';
+import PersonalInfoScreen from '../screens/users/PersonalInfoScreen';
+import ChangePasswordScreen from '../screens/users/ChangePasswordScreen';
 import AuthNavigator from './AuthNavigator';
 import MainTabNavigator from './MainTabNavigator';
 import { ROOT_ROUTES } from './routes';
 import type { RootStackParamList } from './types';
+
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -35,7 +39,9 @@ export default function RootNavigator() {
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {isSignedIn ? (
           <>
-            <Stack.Screen name={ROOT_ROUTES.MAIN} component={MainTabNavigator} />
+            <Stack.Screen name={ROOT_ROUTES.MAIN}>
+              {() => <MainTabNavigator onSignOut={() => setIsSignedIn(false)} />}
+            </Stack.Screen>
             
             <Stack.Screen name={ROOT_ROUTES.AI_CHAT}>
               {({ navigation }) => (
@@ -63,6 +69,7 @@ export default function RootNavigator() {
                 />
               )}
             </Stack.Screen>
+
             <Stack.Screen name={ROOT_ROUTES.AI_CANCEL}>
               {({ navigation }) => (
                 <AICancelScreen
@@ -89,11 +96,13 @@ export default function RootNavigator() {
                 />
               )}
             </Stack.Screen>
+
             <Stack.Screen name={ROOT_ROUTES.HEALTH_RECORD}>
               {({ navigation }) => (
                 <HealthRecordScreen onPressBack={() => navigation.goBack()} />
               )}
             </Stack.Screen>
+
             <Stack.Screen name={ROOT_ROUTES.CREATE_PROFILE}>
               {({ navigation }) => (
                 <CreateProfileScreen
@@ -102,6 +111,7 @@ export default function RootNavigator() {
                 />
               )}
             </Stack.Screen>
+
             <Stack.Screen name={ROOT_ROUTES.RATING}>
               {({ navigation }) => (
                 <RatingScreen
@@ -280,6 +290,36 @@ export default function RootNavigator() {
                   onPressBack={() => navigation.goBack()}
                   onPressBook={() => navigation.navigate(ROOT_ROUTES.BOOKING_PROFILE)}
                   onPressAskAI={() => navigation.navigate(ROOT_ROUTES.AI_CHAT)}
+                  onPressViewDetail={(doctor) =>
+                    navigation.navigate(ROOT_ROUTES.DOCTOR_DETAIL, { doctorId: doctor.id })
+                  }
+                />
+              )}
+            </Stack.Screen>
+
+            <Stack.Screen name={ROOT_ROUTES.DOCTOR_DETAIL}>
+              {({ navigation, route }) => (
+                <DoctorDetailScreen
+                  doctorId={route.params.doctorId}
+                  onPressBack={() => navigation.goBack()}
+                  onPressBook={() => navigation.navigate(ROOT_ROUTES.BOOKING_PROFILE)}
+                  onPressChat={() => navigation.navigate(ROOT_ROUTES.AI_CHAT)}
+                />
+              )}
+            </Stack.Screen>
+            
+            <Stack.Screen name={ROOT_ROUTES.PERSONAL_INFO}>
+              {({ navigation }) => (
+                <PersonalInfoScreen
+                  onPressBack={() => navigation.goBack()}
+                />
+              )}
+            </Stack.Screen>
+
+            <Stack.Screen name={ROOT_ROUTES.CHANGE_PASSWORD}>
+              {({ navigation }) => (
+                <ChangePasswordScreen
+                  onPressBack={() => navigation.goBack()}
                 />
               )}
             </Stack.Screen>

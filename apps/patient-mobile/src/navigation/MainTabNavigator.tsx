@@ -1,8 +1,13 @@
-import { StyleSheet, View } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { StyleSheet, Text as RNText, View } from 'react-native';
+import { useNavigation, type CompositeNavigationProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import {
+  createBottomTabNavigator,
+  type BottomTabNavigationProp,
+} from '@react-navigation/bottom-tabs';
 import HomeScreen from '../screens/home/HomeScreen';
+import HealthRecordScreen from '../screens/records/HealthRecordScreen';
+import ProfileScreen from '../screens/users/ProfileScreen';
 import PlaceholderScreen from '../components/PlaceholderScreen';
 import {
   BellIcon,
@@ -15,38 +20,50 @@ import { COLORS, FONTS } from '../constants/theme';
 import { MAIN_TABS, ROOT_ROUTES } from './routes';
 import type { MainTabParamList, RootStackParamList } from './types';
 
-const HAS_UNREAD_NOTIFICATIONS = true;
+const UNREAD_NOTIFICATION_COUNT = 9;
+const MAX_BADGE_COUNT = 9;
 
 const FEATURE_ROUTES = {
   booking: ROOT_ROUTES.BOOKING_PROFILE,
   'booking-history': ROOT_ROUTES.APPOINTMENT_HISTORY,
   chatbot: ROOT_ROUTES.AI_CHAT,
-  'health-record': ROOT_ROUTES.HEALTH_RECORD,
+  'health-record': MAIN_TABS.HEALTH_RECORD,
   rating: ROOT_ROUTES.RATING,
   payment: ROOT_ROUTES.PAYMENT,
   invoice: ROOT_ROUTES.INVOICE_LIST,
   search: ROOT_ROUTES.SEARCH,
 } as const;
 
+type TabNavigation = CompositeNavigationProp<
+  BottomTabNavigationProp<MainTabParamList>,
+  NativeStackNavigationProp<RootStackParamList>
+>;
+
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
 type TabIconProps = {
   Icon: IconComponent;
   color: string;
-  showDot?: boolean;
+  badgeCount?: number;
 };
 
-function TabIcon({ Icon, color, showDot }: TabIconProps) {
+function TabIcon({ Icon, color, badgeCount }: TabIconProps) {
   return (
     <View>
       <Icon size={24} color={color} strokeWidth={1.8} />
-      {showDot && <View style={styles.dot} />}
+      {badgeCount ? (
+        <View style={styles.badge}>
+          <RNText allowFontScaling={false} style={styles.badgeText}>
+            {badgeCount > MAX_BADGE_COUNT ? `${MAX_BADGE_COUNT}+` : badgeCount}
+          </RNText>
+        </View>
+      ) : null}
     </View>
   );
 }
 
 function HomeTab() {
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const navigation = useNavigation<TabNavigation>();
 
   const handlePressFeature = (key: string) => {
     const route = FEATURE_ROUTES[key as keyof typeof FEATURE_ROUTES];
@@ -59,10 +76,34 @@ function HomeTab() {
     navigation.navigate(ROOT_ROUTES.SEARCH as never);
   };
 
-  return <HomeScreen onPressFeature={handlePressFeature} onPressSearch={handlePressSearch} />;
+  const handlePressAiChat = () => {
+    navigation.navigate(ROOT_ROUTES.AI_CHAT as never);
+  };
+
+  return <HomeScreen onPressFeature={handlePressFeature} onPressSearch={handlePressSearch} onPressAiChat={handlePressAiChat} />;
 }
 
-export default function MainTabNavigator() {
+type ProfileTabProps = {
+  onSignOut?: () => void;
+};
+
+function ProfileTab({ onSignOut }: ProfileTabProps) {
+  const navigation = useNavigation<TabNavigation>();
+
+  return (
+    <ProfileScreen
+      onPressPersonalInfo={() => navigation.navigate(ROOT_ROUTES.PERSONAL_INFO as never)}
+      onPressChangePassword={() => navigation.navigate(ROOT_ROUTES.CHANGE_PASSWORD as never) } 
+      onSignOut={onSignOut}
+    />
+  );
+}
+
+type MainTabNavigatorProps = {
+  onSignOut?: () => void;
+};
+
+export default function MainTabNavigator({ onSignOut }: MainTabNavigatorProps) {
   return (
     <Tab.Navigator
       initialRouteName={MAIN_TABS.HOME}
@@ -91,7 +132,7 @@ export default function MainTabNavigator() {
         options={{
           tabBarLabel: 'Thông báo',
           tabBarIcon: ({ color }) => (
-            <TabIcon Icon={BellIcon} color={color} showDot={HAS_UNREAD_NOTIFICATIONS} />
+            <TabIcon Icon={BellIcon} color={color} badgeCount={UNREAD_NOTIFICATION_COUNT} />
           ),
         }}
       >
@@ -115,7 +156,13 @@ export default function MainTabNavigator() {
           tabBarIcon: ({ color }) => <TabIcon Icon={UserIcon} color={color} />,
         }}
       >
-        {() => <PlaceholderScreen title="Cá nhân" />}
+        {() => <ProfileTab onSignOut={onSignOut} />}
+      </Tab.Screen>
+
+      <Tab.Screen name={MAIN_TABS.HEALTH_RECORD} options={{ tabBarItemStyle: styles.hiddenTab }}>
+        {({ navigation }) => (
+          <HealthRecordScreen onPressBack={() => navigation.navigate(MAIN_TABS.HOME)} />
+        )}
       </Tab.Screen>
     </Tab.Navigator>
   );
@@ -128,15 +175,20 @@ const styles = StyleSheet.create({
     borderTopColor: COLORS.BORDER,
   },
   tabLabel: { fontFamily: FONTS.SEMI_BOLD, fontSize: 11 },
-  dot: {
+  hiddenTab: { display: 'none' },
+  badge: {
     position: 'absolute',
-    top: -2,
-    right: -3,
-    width: 9,
-    height: 9,
-    borderRadius: 5,
+    top: -6,
+    right: -9,
+    minWidth: 17,
+    height: 17,
+    paddingHorizontal: 4,
+    borderRadius: 9,
     backgroundColor: COLORS.BADGE_RED,
     borderWidth: 1.5,
     borderColor: COLORS.SURFACE,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
+  badgeText: { fontFamily: FONTS.BOLD, fontSize: 10, lineHeight: 13, color: COLORS.SURFACE },
 });

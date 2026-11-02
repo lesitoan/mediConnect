@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import ScreenContainer from '../../components/ScreenContainer';
+import FloatingAiButton from '../../components/FloatingAiButton';
 import {
   BadgePercentIcon,
   BookHeartIcon,
@@ -105,6 +106,7 @@ type HomeScreenProps = {
   onPressMoreNews?: () => void;
   onPressSearch?: () => void;
   onPressFilter?: () => void;
+  onPressAiChat?: () => void;
 };
 
 type FeatureGridProps = {
@@ -157,6 +159,7 @@ export default function HomeScreen({
   onPressMoreNews,
   onPressSearch,
   onPressFilter,
+  onPressAiChat,
 }: HomeScreenProps) {
   const { width } = useWindowDimensions();
   const pageWidth = width - SCREEN_PADDING * 2;
@@ -297,6 +300,7 @@ export default function HomeScreen({
           </View>
         </ScrollView>
       </ScreenContainer>
+      <FloatingAiButton onPress={onPressAiChat} />
     </LinearGradient>
   );
 }
