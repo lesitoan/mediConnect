@@ -2,7 +2,6 @@
 import { AlertTriangle, Pencil } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/button";
-import { ALLERGY_DETAILS } from "../constants";
 import type { Examination } from "../types/examinationTypes";
 export function ExaminationPatientSummary({
   item,
@@ -21,10 +20,10 @@ export function ExaminationPatientSummary({
           {item.patientCode} · {item.demographics}
         </p>
         <div className="mt-3 border-t border-border pt-3 text-caption leading-relaxed text-muted">
-          <p className="mb-1 text-body text-foreground">Hẹn 09:00–09:30</p>
+          <p className="mb-1 text-body text-foreground">{item.appointmentTime || "-"}</p>
           <p>
-            Điện thoại: 0912.345.678 · CCCD: 001194002819 · BHYT:
-            GD-4-01-01-203819
+            Điện thoại: {item.phone || "-"} · CCCD: {item.nationalId || "-"} · BHYT:
+            ?
           </p>
         </div>
       </Card>
@@ -39,7 +38,7 @@ export function ExaminationPatientSummary({
         <p className="mt-2 text-caption leading-relaxed text-muted">
           {item.allergy === "Chưa ghi nhận"
             ? "Xác nhận thông tin dị ứng theo hồ sơ."
-            : ALLERGY_DETAILS}
+            : item.allergyDetails || ""}
         </p>
         {item.allergy !== "Chưa ghi nhận" && (
           <span className="mt-3 inline-block rounded-app-sm bg-danger-bg px-2 py-1 text-label font-bold text-danger">
@@ -54,7 +53,7 @@ export function ExaminationPatientSummary({
             variant="ghost"
             size="icon-xs"
             aria-label="Cập nhật tiền sử"
-            disabled={item.status === "COMPLETED"}
+            disabled={item.status !== "IN_PROGRESS" || item.isLocked === true}
             onClick={onHistory}
           >
             <Pencil className="size-3 text-muted" />
@@ -69,7 +68,7 @@ export function ExaminationPatientSummary({
             variant="ghost"
             size="sm"
             className="h-auto px-0 text-caption font-medium text-primary"
-            disabled={item.status === "COMPLETED"}
+            disabled={item.status !== "IN_PROGRESS" || item.isLocked === true}
             onClick={onHistory}
           >
             Cập nhật / Xác nhận tiền sử →

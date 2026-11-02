@@ -1,12 +1,97 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsArray,
+  ArrayMaxSize,
+  IsBoolean,
   IsDateString,
+  IsIn,
   IsJSON,
+  IsNotEmpty,
   IsOptional,
   IsString,
   MaxLength,
+  ValidateIf,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
+
+export class ExaminationDiagnosisDto {
+  @ApiProperty({ maxLength: 30 })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(30)
+  code!: string;
+
+  @ApiProperty({ maxLength: 500 })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(500)
+  name!: string;
+}
+
+export class ExaminationPrescriptionItemDto {
+  @ApiProperty({ maxLength: 36 })
+  @IsString()
+  @MaxLength(36)
+  id!: string;
+
+  @ApiProperty({ maxLength: 150 })
+  name!: string;
+
+  @ApiProperty({ maxLength: 150 })
+  strength!: string;
+
+  @ApiProperty({ maxLength: 150 })
+  dose!: string;
+
+  @ApiProperty({ maxLength: 100 })
+  route!: string;
+
+  @ApiProperty({ maxLength: 150 })
+  frequency!: string;
+
+  @ApiProperty({ minimum: 1, maximum: 10000 })
+  days!: number;
+
+  @ApiProperty({ minimum: 1, maximum: 10000 })
+  quantity!: number;
+
+  @ApiProperty({ maxLength: 2000 })
+  instructions!: string;
+}
+
+export class LabOrderDto {
+  @ApiProperty({ maxLength: 150 })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(150)
+  service!: string;
+
+  @ApiProperty({ maxLength: 1000 })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(1000)
+  purpose!: string;
+
+  @ApiProperty({ maxLength: 1000 })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(1000)
+  instructions!: string;
+}
+
+export class HistoryConditionDto {
+  @IsString()
+  @MaxLength(255)
+  name!: string;
+
+  @IsString()
+  @MaxLength(2000)
+  note!: string;
+
+  @IsBoolean()
+  isConfirmed!: boolean;
+}
 
 export class UpdateExaminationDto {
   @ApiPropertyOptional()
@@ -21,10 +106,10 @@ export class UpdateExaminationDto {
   @MaxLength(20000)
   clinicalNotes?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ maxLength: 533 })
   @IsOptional()
   @IsString()
-  @MaxLength(500)
+  @MaxLength(533)
   diagnosis?: string;
 
   @ApiPropertyOptional()
@@ -60,11 +145,9 @@ export class UpdateExaminationDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsArray()
-  historyConditions?: Array<{
-    name: string;
-    note: string;
-    isConfirmed: boolean;
-  }>;
+  @ValidateNested({ each: true })
+  @Type(() => HistoryConditionDto)
+  historyConditions?: HistoryConditionDto[];
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -78,16 +161,29 @@ export class UpdateExaminationDto {
   @MaxLength(5000)
   followUpReason?: string;
 
+  @ApiPropertyOptional({ maxLength: 100 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  referralSpecialty?: string;
+
+  @ApiPropertyOptional({ maxLength: 5000 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(5000)
+  pauseReason?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   @MaxLength(5000)
   patientAdvice?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ type: [ExaminationDiagnosisDto], maxItems: 20 })
   @IsOptional()
   @IsArray()
-  secondaryDiagnoses?: Array<{ code: string; name: string }>;
+  @ArrayMaxSize(20)
+  secondaryDiagnoses?: ExaminationDiagnosisDto[];
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -98,13 +194,29 @@ export class UpdateExaminationDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsJSON()
+  @MaxLength(20000)
   prescriptionJson?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ type: [ExaminationPrescriptionItemDto], maxItems: 50 })
   @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  prescriptionItems?: ExaminationPrescriptionItemDto[];
+
+  @ApiPropertyOptional({ format: 'date-time' })
+  @IsOptional()
+  @IsDateString()
+  expectedUpdatedAt?: string;
+
+  @ApiPropertyOptional({ type: [LabOrderDto] })
+  @IsOptional()
+  @ValidateIf((_, value) => typeof value === 'string')
   @IsString()
-  @MaxLength(10000)
-  labOrders?: string;
+  @ValidateIf((_, value) => Array.isArray(value))
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => LabOrderDto)
+  labOrders?: string | LabOrderDto[];
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -127,6 +239,6 @@ export class UpdateExaminationDto {
     enum: ['IN_PROGRESS', 'WAITING_RESULTS', 'PAUSED', 'COMPLETED'],
   })
   @IsOptional()
-  @IsString()
+  @IsIn(['IN_PROGRESS', 'WAITING_RESULTS', 'PAUSED', 'COMPLETED'])
   status?: 'IN_PROGRESS' | 'WAITING_RESULTS' | 'PAUSED' | 'COMPLETED';
 }

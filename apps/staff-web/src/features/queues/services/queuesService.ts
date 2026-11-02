@@ -80,10 +80,12 @@ export async function getQueueBoard(
 async function postQueueAction(
   careSessionId: string,
   action: "call" | "start" | "complete" | "skip" | "restore",
+  payload?: { expectedUpdatedAt: string },
 ): Promise<QueueActionResponse> {
   try {
     const response = await axiosClient.post<ApiSuccess<QueueActionResponse>>(
       `/queues/${careSessionId}/${action}`,
+      payload,
     );
     return unwrap(response);
   } catch (error) {
@@ -112,7 +114,16 @@ export function startQueueSession(
 export function completeQueueSession(
   careSessionId: string,
 ): Promise<QueueActionResponse> {
-  return postQueueAction(careSessionId, "complete");
+  return axiosClient
+    .get<ApiSuccess<{ updatedAt?: string }>>(`/examinations/${careSessionId}`)
+    .then((response) => {
+      const expectedUpdatedAt = unwrap(response).updatedAt;
+      if (!expectedUpdatedAt) throw new QueueApiError("Không có phiên bản mới nhất của lượt khám");
+      return postQueueAction(careSessionId, "complete", { expectedUpdatedAt });
+    })
+    .catch((error: unknown) => {
+      throw toQueueApiError(error);
+    });
 }
 
 export function restoreQueueSession(

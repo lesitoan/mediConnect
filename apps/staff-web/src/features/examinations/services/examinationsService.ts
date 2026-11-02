@@ -1,6 +1,10 @@
 import axios from "axios";
 import { axiosClient } from "@/lib/api/axiosClient";
-import type { Examination } from "../types/examinationTypes";
+import type {
+  Examination,
+  ExaminationHistory,
+  LabResult,
+} from "../types/examinationTypes";
 
 interface ApiSuccess<T> {
   success: boolean;
@@ -38,16 +42,27 @@ interface ApiExamination {
   diagnosisNotes?: string | null;
   followUpReason?: string | null;
   patientAdvice?: string | null;
+  pauseReason?: string | null;
   isLocked?: boolean;
+  updatedAt?: string;
+  labResults?: LabResult[];
+  historyRecords?: Examination["historyRecords"];
+  allergyDetails?: string;
+  allergySeverity?: string;
+  phone?: string;
+  nationalId?: string;
+  appointmentTime?: string;
 }
 
 export class ExaminationApiError extends Error {
   status?: number;
+  fields: string[];
 
-  constructor(message: string, status?: number) {
+  constructor(message: string, status?: number, fields: string[] = []) {
     super(message);
     this.name = "ExaminationApiError";
     this.status = status;
+    this.fields = fields;
   }
 }
 
@@ -87,6 +102,16 @@ export function mapExamination(item: ApiExamination): Examination {
     diagnosisNotes: item.diagnosisNotes ?? "",
     followUpReason: item.followUpReason ?? "",
     patientAdvice: item.patientAdvice ?? "",
+    pauseReason: item.pauseReason ?? "",
+    updatedAt: item.updatedAt,
+    referralSpecialty: undefined,
+    labResults: item.labResults ?? [],
+    historyRecords: item.historyRecords ?? [],
+    allergyDetails: item.allergyDetails ?? "",
+    allergySeverity: item.allergySeverity ?? "",
+    phone: item.phone ?? "",
+    nationalId: item.nationalId ?? "",
+    appointmentTime: item.appointmentTime ?? "",
   };
 }
 
@@ -112,6 +137,7 @@ function toError(error: unknown) {
                   ? "Không thể kết nối máy chủ"
                   : "Không thể cập nhật phiên khám"),
       status,
+      Array.isArray(body?.message) ? body.message : [],
     );
   }
   return new ExaminationApiError(
@@ -138,14 +164,34 @@ export async function updateExamination(
   id: string,
   changes: Partial<Examination>,
 ): Promise<Examination> {
+  if (!changes.updatedAt)
+    throw new ExaminationApiError("expectedUpdatedAt is required", 400, ["expectedUpdatedAt"]);
   try {
     const response = await axiosClient.patch<ApiSuccess<ApiExamination>>(
       `/examinations/${id}`,
       {
-        ...changes,
-        prescriptionJson: changes.prescriptionItems
-          ? JSON.stringify(changes.prescriptionItems)
-          : undefined,
+        complaint: changes.complaint,
+        clinicalNotes: changes.clinicalNotes,
+        diagnosis: changes.diagnosis === undefined
+          ? undefined
+          : changes.diagnosis.split(" — ").map((part) => part.trim()).join(" — "),
+        diagnosisNotes: changes.diagnosisNotes,
+        secondaryDiagnoses: changes.secondaryDiagnoses?.map(({ code, name }) => ({
+          code: code.trim(),
+          name: name.trim(),
+        })),
+        prescriptionItems: changes.prescriptionItems,
+        labOrders: changes.labOrders,
+        labReason: changes.labReason,
+        labNotes: changes.labNotes,
+        followUpDate: changes.followUpDate,
+        followUpReason: changes.followUpReason,
+        patientAdvice: changes.patientAdvice,
+        referralSpecialty: changes.referralSpecialty,
+        status: changes.status,
+        transfer: changes.transfer,
+        pauseReason: changes.pauseReason,
+        expectedUpdatedAt: changes.updatedAt,
       },
     );
     return mapExamination(unwrap(response));
@@ -154,12 +200,87 @@ export async function updateExamination(
   }
 }
 
-export async function openExamination(id: string): Promise<Examination> {
+export async function recordExaminationLabResult(
+  id: string,
+  orderRef: string,
+  result: string,
+  source: string,
+  expectedUpdatedAt: string,
+): Promise<Examination> {
+  try {
+    const response = await axiosClient.post<ApiSuccess<ApiExamination>>(
+      `/examinations/${id}/lab-results`,
+      { orderRef, result, source, expectedUpdatedAt },
+    );
+    return mapExamination(unwrap(response));
+  } catch (error) {
+    throw toError(error);
+  }
+}
+
+export async function getExaminationHistory(
+  id: string,
+): Promise<ExaminationHistory[]> {
+  try {
+    const response = await axiosClient.get<ApiSuccess<ExaminationHistory[]>>(
+      `/examinations/${id}/history`,
+    );
+    return unwrap(response);
+  } catch (error) {
+    throw toError(error);
+  }
+}
+
+export async function getExamination(id: string): Promise<Examination> {
+  try {
+    const response = await axiosClient.get<ApiSuccess<ApiExamination>>(`/examinations/${id}`);
+    return mapExamination(unwrap(response));
+  } catch (error) {
+    throw toError(error);
+  }
+}
+
+export async function openExamination(id: string, expectedUpdatedAt: string): Promise<Examination> {
   try {
     const response = await axiosClient.post<ApiSuccess<ApiExamination>>(
       `/examinations/${id}/open`,
+      { expectedUpdatedAt },
     );
     return mapExamination(unwrap(response));
+  } catch (error) {
+    throw toError(error);
+  }
+}
+
+async function postExaminationTransition(id: string, action: string, body: Record<string, string | undefined>): Promise<Examination> {
+  try {
+    const response = await axiosClient.post<ApiSuccess<ApiExamination>>(`/examinations/${id}/${action}`, body);
+    return mapExamination(unwrap(response));
+  } catch (error) {
+    throw toError(error);
+  }
+}
+
+export function pauseExamination(id: string, reason: string, expectedUpdatedAt: string) {
+  return postExaminationTransition(id, "pause", { reason, expectedUpdatedAt });
+}
+
+export function resumeExamination(id: string, expectedUpdatedAt: string) {
+  return postExaminationTransition(id, "resume", { expectedUpdatedAt });
+}
+
+export function referExamination(id: string, body: { targetSpecialtyName: string; reason: string; priority: "NORMAL" | "URGENT"; requestedDoctorId?: string; expectedUpdatedAt: string }) {
+  return postExaminationTransition(id, "referrals", body);
+}
+
+export function markExaminationIncomplete(id: string, reason: string, plan: string, expectedUpdatedAt: string) {
+  return postExaminationTransition(id, "incomplete", { reason, plan, expectedUpdatedAt });
+}
+
+export async function completeExamination(id: string, expectedUpdatedAt: string): Promise<Examination> {
+  try {
+    await axiosClient.post<ApiSuccess<unknown>>(`/queues/${id}/complete`, { expectedUpdatedAt });
+    return getExamination(id);
   } catch (error) {
     throw toError(error);
   }

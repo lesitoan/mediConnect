@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,6 +32,7 @@ interface QueueActionModalProps {
   onClose: () => void;
   onRefresh: () => Promise<void>;
   onSuccess: (response: QueueActionResponse) => void;
+  onStart?: (item: QueueItem) => Promise<QueueActionResponse>;
 }
 
 const ACTION_REQUESTS = {
@@ -48,8 +49,10 @@ export function QueueActionModal({
   onClose,
   onRefresh,
   onSuccess,
+  onStart,
 }: QueueActionModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const submitRef = useRef(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const isActionDisabled =
     (action === "CALL" && !item.canCall) ||
@@ -59,11 +62,14 @@ export function QueueActionModal({
     (action === "RESTORE" && !item.canRestore);
 
   const handleConfirm = async () => {
-    if (isSubmitting || isActionDisabled) return;
+    if (submitRef.current || isActionDisabled) return;
+    submitRef.current = true;
     setIsSubmitting(true);
     setErrorMessage(null);
     try {
-      const response = await ACTION_REQUESTS[action](item.careSessionId);
+      const response = action === "START" && onStart
+        ? await onStart(item)
+        : await ACTION_REQUESTS[action](item.careSessionId);
       toast.success(`${QUEUE_ACTION_LABELS[action]} thành công`);
       onSuccess(response);
       onClose();
@@ -76,6 +82,7 @@ export function QueueActionModal({
       toast.error(message);
       void onRefresh();
     } finally {
+      submitRef.current = false;
       setIsSubmitting(false);
     }
   };

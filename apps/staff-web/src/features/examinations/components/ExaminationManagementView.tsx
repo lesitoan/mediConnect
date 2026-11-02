@@ -6,6 +6,7 @@ import {
   PopoverContent,
 } from "@/components/ui/Popover";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/Input";
 import { Empty } from "@/components/ui/Empty";
@@ -25,13 +26,20 @@ import { EXAMINATION_FILTERS, EXAMINATION_STATUS } from "../constants";
 import { filterExaminations } from "../examinationUtils";
 import { ExaminationSession } from "./ExaminationSession";
 export function ExaminationManagementView() {
+  const router = useRouter();
   const { filters, setFilter, resetFilters } = useTableFilters(
     EXAMINATION_FILTERS,
     "replace",
   );
-  const { items, open, update } = useExaminations(Boolean(filters.visit));
-  const setSelectedId = (id: string | null) => {
-    if (id) open(id);
+  const { items, open, update, transition, refetch } = useExaminations(Boolean(filters.visit));
+  const setSelectedId = async (id: string | null) => {
+    const item = items.find((value) => value.id === id);
+    if (
+      id &&
+      item &&
+      ["CALLED", "WAITING_RESULTS"].includes(item.status) &&
+      !(await open(id))
+    ) return;
     setFilter("visit", id ?? "");
   };
   const selected = items.find((item) => item.id === filters.visit);
@@ -51,6 +59,11 @@ export function ExaminationManagementView() {
           item={selected}
           onBack={() => setSelectedId(null)}
           onUpdate={(changes) => update(selected.id, changes)}
+          onTransition={(action, values) => transition(selected.id, action, values)}
+          onCompleted={() => {
+            router.push("/examinations");
+            refetch(true);
+          }}
         />
       ) : (
         <>

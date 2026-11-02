@@ -1,5 +1,6 @@
 import {
   Controller,
+  Body,
   Get,
   Param,
   ParseUUIDPipe,
@@ -20,6 +21,7 @@ import { RoleEnum } from '../users/constants/roles.constant';
 import type { CurrentUserDto } from '../users/dto/responses/current-user.dto';
 import { QueueBoardQueryDto } from './dto/queue-board-query.dto';
 import { QueuesService } from './queues.service';
+import { CompleteQueueDto } from './dto/complete-queue.dto';
 
 @ApiTags('Queues')
 @AuthRole(RoleEnum.RECEPTIONIST, RoleEnum.ADMIN, RoleEnum.DOCTOR)
@@ -109,9 +111,10 @@ export class QueuesController {
     @Param('careSessionId', new ParseUUIDPipe({ version: '4' }))
     careSessionId: string,
     @CurrentUser() user: CurrentUserDto,
+    @Body() dto: CompleteQueueDto,
   ) {
     return new HttpResponseBodySuccessDto(
-      await this.queues.complete(careSessionId, user),
+      await this.queues.complete(careSessionId, user, dto.expectedUpdatedAt),
     );
   }
 

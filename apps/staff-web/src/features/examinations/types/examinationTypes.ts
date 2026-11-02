@@ -3,6 +3,7 @@ export type ExaminationStatus =
   | "IN_PROGRESS"
   | "WAITING_RESULTS"
   | "PAUSED"
+  | "INCOMPLETE"
   | "COMPLETED";
 export interface Diagnosis {
   code: string;
@@ -24,8 +25,22 @@ export interface HistoryCondition {
   note: string;
   isConfirmed: boolean;
 }
+export interface LabOrder {
+  service: string;
+  purpose: string;
+  instructions: string;
+}
+export interface LabResult {
+  orderRef: string;
+  result: string;
+  source: string;
+  returnedAt: string;
+  recordedBy: string;
+}
 export interface Examination {
   id: string;
+  updatedAt?: string;
+  historyRecords?: ExaminationHistory[];
   careSessionId?: string;
   isQueueOnly?: boolean;
   patientName: string;
@@ -36,6 +51,7 @@ export interface Examination {
   date: string;
   shift: string;
   status: ExaminationStatus;
+  isLocked?: boolean;
   allergy: string;
   history: string;
   complaint: string;
@@ -55,7 +71,27 @@ export interface Examination {
   labNotes?: string;
   followUpReason?: string;
   patientAdvice?: string;
+  referralSpecialty?: string;
+  referralReason?: string;
+  referralPriority?: "NORMAL" | "URGENT";
+  referralDoctorId?: string;
+  pauseReason?: string;
+  allergyDetails?: string;
+  allergySeverity?: string;
+  phone?: string;
+  nationalId?: string;
+  appointmentTime?: string;
+  labResults?: LabResult[];
   prescriptionItems?: PrescriptionItem[];
+}
+export interface ExaminationHistory {
+  date: string;
+  name: string;
+  doctor: string;
+  diagnosis: string;
+  clinicalNotes: string;
+  prescription: string;
+  labResults: string;
 }
 export type ExaminationAction =
   | "HISTORY"

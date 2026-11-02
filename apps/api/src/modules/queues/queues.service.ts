@@ -48,6 +48,7 @@ const QUEUE_INCLUDE = {
     select: {
       id: true,
       appointmentCode: true,
+      reason: true,
       patient: {
         select: {
           patientCode: true,
@@ -571,7 +572,13 @@ export class QueuesService {
     return this.startConsultation(careSessionId, user);
   }
 
-  async complete(careSessionId: string, user: CurrentUserDto) {
+  async complete(
+    careSessionId: string,
+    user: CurrentUserDto,
+    expectedUpdatedAt: string,
+  ) {
+    if (!expectedUpdatedAt)
+      throw new BadRequestException(['expectedUpdatedAt should not be empty']);
     const date = clinicDateString(new Date());
     try {
       await this.prisma.$transaction(
@@ -600,6 +607,25 @@ export class QueuesService {
           if (current.status !== CareSessionStatus.IN_CONSULTATION)
             throw new ConflictException(
               'Chỉ có thể hoàn thành lượt đang khám.',
+            );
+          const consultation = await tx.consultation.findUnique({
+            where: { careSessionId: current.id },
+            include: { diagnoses: true },
+          });
+          if (consultation?.updatedAt.toISOString() !== expectedUpdatedAt)
+            throw new ConflictException(
+              'Consultation was updated. Reload before completing.',
+            );
+          const missingFields = [
+            ...(current.appointment.reason?.trim() ? [] : ['complaint']),
+            ...(consultation?.clinicalNotes?.trim() ? [] : ['clinicalNotes']),
+            ...(consultation?.diagnoses.some((diagnosis) => diagnosis.isPrimary)
+              ? []
+              : ['diagnosis']),
+          ];
+          if (missingFields.length)
+            throw new BadRequestException(
+              missingFields.map((field) => `${field} is required`),
             );
           const completedAt = new Date();
           await tx.careSession.update({

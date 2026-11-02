@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import toast from "react-hot-toast";
 import { useForm } from "react-hook-form";
 import { ClipboardPlus, PlusCircle, List, Trash2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -19,17 +20,24 @@ import type { Examination, PrescriptionItem } from "../types/examinationTypes";
 
 interface Props {
   item: Examination;
-  onUpdate: (changes: Partial<Examination>) => void;
+  onUpdate: (changes: Partial<Examination>) => Promise<Examination>;
   onBack: () => void;
 }
 
 type PrescriptionFormValues = Omit<PrescriptionItem, "id">;
 
 export function ExaminationPrescription({ item, onUpdate, onBack }: Props) {
+  const isReadOnly = item.status !== "IN_PROGRESS" || item.isLocked === true;
   const [rows, setRows] = useState<PrescriptionItem[]>(
     item.prescriptionItems ?? [],
   );
-  const [isSaved, setIsSaved] = useState(false);
+  const [hasLocalChanges, setHasLocalChanges] = useState(false);
+  useEffect(() => {
+    if (hasLocalChanges) return;
+    const timer = window.setTimeout(() => setRows(item.prescriptionItems ?? []), 0);
+    return () => window.clearTimeout(timer);
+  }, [hasLocalChanges, item.updatedAt, item.prescriptionItems]);
+  const [isSaving, setIsSaving] = useState(false);
   const {
     register,
     handleSubmit,
@@ -42,7 +50,6 @@ export function ExaminationPrescription({ item, onUpdate, onBack }: Props) {
       ...previous,
       { ...values, id: crypto.randomUUID(), name: values.name.trim() },
     ]);
-    setIsSaved(false);
     reset();
   };
 
@@ -55,14 +62,14 @@ export function ExaminationPrescription({ item, onUpdate, onBack }: Props) {
         <div className="flex-1">
           <h2 className="text-heading font-bold">Kê đơn thuốc</h2>
           <p className="mt-1 text-caption text-muted">
-            Đơn thuốc minh họa cho phiên khám hiện tại, chưa phát hành đơn thật.
+            Đơn thuốc của phiên khám hiện tại.
           </p>
         </div>
         <span
           role="status"
           className="rounded-full bg-primary-light px-2 py-1 text-label text-primary"
         >
-          • {isSaved ? "Đã lưu bản xem thử" : "Theo dữ liệu đã lưu"}
+          • Theo dữ liệu đã lưu
         </span>
       </Card>
       <Card className="p-5 shadow-none">
@@ -70,7 +77,10 @@ export function ExaminationPrescription({ item, onUpdate, onBack }: Props) {
           <PlusCircle className="size-4 text-primary" />
           Thêm thuốc vào đơn
         </h3>
-        <form onSubmit={handleSubmit(add)} className="space-y-4">
+        <form onSubmit={handleSubmit((values) => {
+          setHasLocalChanges(true);
+          add(values);
+        })} className="space-y-4">
           <div>
             <label
               htmlFor="drug-name"
@@ -80,6 +90,7 @@ export function ExaminationPrescription({ item, onUpdate, onBack }: Props) {
             </label>
             <Input
               id="drug-name"
+              disabled={isReadOnly}
               {...register("name", {
                 required: "Vui lòng nhập tên thuốc.",
                 validate: (value) =>
@@ -125,6 +136,7 @@ export function ExaminationPrescription({ item, onUpdate, onBack }: Props) {
                 </label>
                 <Input
                   id={`drug-${field.name}`}
+                  disabled={isReadOnly}
                   {...register(field.name, {
                     required: "Vui lòng nhập thông tin thuốc.",
                     ...(field.type === "number"
@@ -150,6 +162,7 @@ export function ExaminationPrescription({ item, onUpdate, onBack }: Props) {
               Hướng dẫn sử dụng
             </label>
             <Textarea
+              disabled={isReadOnly}
               id="drug-instructions"
               {...register("instructions")}
               rows={2}
@@ -158,7 +171,7 @@ export function ExaminationPrescription({ item, onUpdate, onBack }: Props) {
             />
           </div>
           <div className="flex justify-end">
-            <Button type="submit" disabled={item.status === "COMPLETED"}>
+            <Button type="submit" disabled={isReadOnly}>
               <Plus className="size-4" />
               Thêm thuốc
             </Button>
@@ -209,10 +222,11 @@ export function ExaminationPrescription({ item, onUpdate, onBack }: Props) {
                   <Button
                     variant="ghost"
                     size="icon-xs"
+                    disabled={isReadOnly}
                     aria-label={`Xóa thuốc ${row.name}`}
                     onClick={() => {
+                      setHasLocalChanges(true);
                       setRows(rows.filter((value) => value.id !== row.id));
-                      setIsSaved(false);
                     }}
                   >
                     <Trash2 className="size-3.5 text-muted" />
@@ -243,18 +257,21 @@ export function ExaminationPrescription({ item, onUpdate, onBack }: Props) {
             Quay lại
           </Button>
           <Button
-            disabled={item.status === "COMPLETED"}
-            onClick={() => {
-              onUpdate({
-                prescriptionItems: rows,
-                prescription: rows
-                  .map(
-                    (row) =>
-                      `${row.name} ${row.strength}: ${row.dose}, ${row.frequency}, ${row.days} ngày`,
-                  )
-                  .join("\n"),
-              });
-              setIsSaved(true);
+            disabled={isSaving || isReadOnly}
+            onClick={async () => {
+              setIsSaving(true);
+              try {
+                const saved = await onUpdate({
+                  prescriptionItems: rows,
+                });
+                setRows(saved.prescriptionItems ?? []);
+                setHasLocalChanges(false);
+                toast.success("Đã lưu đơn thuốc.");
+              } catch {
+                return;
+              } finally {
+                setIsSaving(false);
+              }
             }}
           >
             Lưu đơn thuốc

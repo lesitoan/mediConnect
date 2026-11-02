@@ -6,8 +6,7 @@ import { clinicDate, clinicDateString } from '../src/common/utils/clinic-date';
 const DEMO_PATIENT_PREFIX = 'Q-DEMO-P-';
 const DEMO_APPOINTMENT_PREFIX = 'Q-DEMO-A-';
 const DEMO_USER_EMAIL_PREFIX = 'q-demo-p-';
-const LEGACY_DEMO_USER_EMAIL_PREFIX = 'queue-demo-patient-';
-const DEMO_DOCTOR_CODES = ['SEED-GEN-01'] as const;
+const DEMO_DOCTOR_CODES = ['SEED-GEN-01', 'SEED-GEN-02'] as const;
 const DEMO_QUEUE = [
   {
     doctorCode: 'SEED-GEN-01',
@@ -16,8 +15,8 @@ const DEMO_QUEUE = [
   },
   {
     doctorCode: 'SEED-GEN-01',
-    status: 'CHECKED_IN',
-    priorityType: 'REFERRAL',
+    status: 'WAITING',
+    priorityType: 'WALK_IN',
   },
   {
     doctorCode: 'SEED-GEN-01',
@@ -26,9 +25,13 @@ const DEMO_QUEUE = [
   },
   {
     doctorCode: 'SEED-GEN-01',
-    status: 'SKIPPED',
+    status: 'WAITING',
     priorityType: 'APPOINTMENT_LATE',
-    skippedAgoSeconds: 300,
+  },
+  {
+    doctorCode: 'SEED-GEN-01',
+    status: 'WAITING',
+    priorityType: 'REFERRAL',
   },
   {
     doctorCode: 'SEED-GEN-01',
@@ -43,15 +46,23 @@ const DEMO_QUEUE = [
   },
   {
     doctorCode: 'SEED-GEN-01',
-    status: 'COMPLETED',
+    status: 'PAUSED',
     priorityType: 'APPOINTMENT_ON_TIME',
   },
   {
     doctorCode: 'SEED-GEN-01',
-    status: 'NO_SHOW',
+    status: 'WAITING_LAB',
     priorityType: 'APPOINTMENT_ON_TIME',
-    skipCount: 3,
-    skippedAgoSeconds: 600,
+  },
+  {
+    doctorCode: 'SEED-GEN-01',
+    status: 'COMPLETED',
+    priorityType: 'APPOINTMENT_ON_TIME',
+  },
+  {
+    doctorCode: 'SEED-GEN-02',
+    status: 'WAITING',
+    priorityType: 'APPOINTMENT_ON_TIME',
   },
 ] as const;
 
@@ -79,21 +90,63 @@ async function cleanup(prisma: PrismaClient): Promise<void> {
   const slotIds = appointments.flatMap(({ careSessions }) =>
     careSessions.map(({ appointmentSlotId }) => appointmentSlotId),
   );
-  const patients: Array<{ id: string; userId: string | null }> =
-    await prisma.patient.findMany({
-      where: { patientCode: { startsWith: DEMO_PATIENT_PREFIX } },
-      select: { id: true, userId: true },
-    });
-  const orphanedDemoUsers: Array<{ id: string }> = await prisma.user.findMany({
-    where: {
-      OR: [
-        { email: { startsWith: DEMO_USER_EMAIL_PREFIX } },
-        { email: { startsWith: LEGACY_DEMO_USER_EMAIL_PREFIX } },
-      ],
-    },
+  const consultations = await prisma.consultation.findMany({
+    where: { careSessionId: { in: sessionIds } },
     select: { id: true },
   });
+  const consultationIds = consultations.map(({ id }) => id);
+  const referrals = await prisma.internalReferral.findMany({
+    where: { sourceConsultationId: { in: consultationIds } },
+    include: {
+      targetCareSession: {
+        select: {
+          appointment: { select: { appointmentCode: true } },
+        },
+      },
+    },
+  });
+  if (
+    referrals.some(
+      ({ targetCareSession }) =>
+        targetCareSession &&
+        !targetCareSession.appointment.appointmentCode.startsWith(
+          DEMO_APPOINTMENT_PREFIX,
+        ),
+    )
+  )
+    throw new Error(
+      'Q-DEMO referrals target non-demo sessions; cleanup stopped to preserve external visits.',
+    );
   await prisma.$transaction(async (tx) => {
+    if (sessionIds.length)
+      await tx.careSession.updateMany({
+        where: { id: { in: sessionIds } },
+        data: { incomingReferralId: null },
+      });
+    if (consultationIds.length)
+      await tx.patientMedicalRecord.deleteMany({
+        where: { confirmedInConsultationId: { in: consultationIds } },
+      });
+    if (consultationIds.length)
+      await tx.internalReferral.deleteMany({
+        where: { sourceConsultationId: { in: consultationIds } },
+      });
+    if (consultationIds.length)
+      await tx.diagnosis.deleteMany({
+        where: { consultationId: { in: consultationIds } },
+      });
+    if (consultationIds.length)
+      await tx.review.deleteMany({
+        where: { consultationId: { in: consultationIds } },
+      });
+    if (consultationIds.length)
+      await tx.invoice.deleteMany({
+        where: { consultationId: { in: consultationIds } },
+      });
+    if (appointmentIds.length)
+      await tx.invoice.deleteMany({
+        where: { appointmentId: { in: appointmentIds } },
+      });
     if (sessionIds.length)
       await tx.consultation.deleteMany({
         where: { careSessionId: { in: sessionIds } },
@@ -106,18 +159,6 @@ async function cleanup(prisma: PrismaClient): Promise<void> {
       });
     if (slotIds.length)
       await tx.appointmentSlot.deleteMany({ where: { id: { in: slotIds } } });
-    if (patients.length)
-      await tx.patient.deleteMany({
-        where: { id: { in: patients.map(({ id }) => id) } },
-      });
-    const userIds = Array.from(
-      new Set([
-        ...patients.flatMap(({ userId }) => (userId ? [userId] : [])),
-        ...orphanedDemoUsers.map(({ id }) => id),
-      ]),
-    );
-    if (userIds.length)
-      await tx.user.deleteMany({ where: { id: { in: userIds } } });
   });
 }
 
@@ -142,7 +183,6 @@ async function seed(prisma: PrismaClient): Promise<void> {
       schedules: { some: { status: 'PUBLISHED' } },
     },
     orderBy: { doctorCode: 'asc' },
-    take: 3,
     select: {
       id: true,
       doctorCode: true,
@@ -160,7 +200,7 @@ async function seed(prisma: PrismaClient): Promise<void> {
     doctors.some((doctor) => !doctor.schedules[0])
   )
     throw new Error(
-      'Cần ba bác sĩ có lịch đã công bố để tạo dữ liệu demo hợp lệ.',
+      'Seed-gen-01 and seed-gen-02 must have published schedules.',
     );
   const patientRole = await prisma.role.findUnique({
     where: { name: 'PATIENT' },
@@ -173,21 +213,21 @@ async function seed(prisma: PrismaClient): Promise<void> {
     doctors.map((doctor) => [doctor.doctorCode, doctor]),
   );
   for (const doctor of doctors) {
-    if (queueNumbers.has(doctor.id)) continue;
+    if (queueNumbers.has(doctor.specialtyId)) continue;
     const maximum = await prisma.careSession.aggregate({
       where: {
-        appointmentSlot: { doctorSchedule: { doctorId: doctor.id } },
+        specialtyId: doctor.specialtyId,
         queueDate,
       },
       _max: { queueNumber: true },
     });
-    queueNumbers.set(doctor.id, (maximum._max.queueNumber ?? 0) + 1);
+    queueNumbers.set(doctor.specialtyId, (maximum._max.queueNumber ?? 0) + 1);
   }
   for (const [index, item] of DEMO_QUEUE.entries()) {
     const doctor = doctorsByCode.get(item.doctorCode);
     if (!doctor || !doctor.schedules[0])
       throw new Error('Không tìm thấy lịch bác sĩ để tạo lượt demo.');
-    const queueNumber = queueNumbers.get(doctor.id);
+    const queueNumber = queueNumbers.get(doctor.specialtyId);
     if (queueNumber === undefined)
       throw new Error('Không thể cấp STT demo theo chuyên khoa.');
     const patientCode = `${DEMO_PATIENT_PREFIX}${String(index + 1).padStart(2, '0')}`;
@@ -228,6 +268,7 @@ async function seed(prisma: PrismaClient): Promise<void> {
         bookingSource: 'RECEPTIONIST',
         status: 'CONFIRMED',
         createdBy: admin.id,
+        reason: `Q-DEMO complaint ${String(index + 1).padStart(2, '0')}`,
       },
       select: { id: true },
     });
@@ -243,42 +284,71 @@ async function seed(prisma: PrismaClient): Promise<void> {
         queueNumber,
         queuePosition: queueNumber,
         priorityType: item.priorityType,
-        skipCount:
-          'skipCount' in item
-            ? item.skipCount
-            : item.status === 'SKIPPED'
-              ? 1
-              : 0,
+        skipCount: 0,
         calledAt:
           'calledAgoSeconds' in item
             ? new Date(now.getTime() - item.calledAgoSeconds * 1000)
             : null,
-        skippedAt:
-          'skippedAgoSeconds' in item
-            ? new Date(now.getTime() - item.skippedAgoSeconds * 1000)
-            : null,
+        skippedAt: null,
       },
     });
-    if (item.status === 'IN_CONSULTATION')
+    const hasConsultation =
+      item.status === 'IN_CONSULTATION' ||
+      item.status === 'PAUSED' ||
+      item.status === 'WAITING_LAB' ||
+      item.status === 'COMPLETED';
+    if (hasConsultation) {
+      const isCompleted = item.status === 'COMPLETED';
+      const completedAt = isCompleted
+        ? new Date(now.getTime() - 5 * 60_000)
+        : null;
       await prisma.consultation.create({
         data: {
           careSessionId: careSession.id,
-          startedAt: now,
-          clinicalNotes: 'Bản nháp khám lâm sàng demo.',
+          startedAt: isCompleted ? new Date(now.getTime() - 30 * 60_000) : now,
+          completedAt,
+          lockedAt: completedAt,
+          clinicalNotes: `Q-DEMO clinical note ${String(index + 1).padStart(2, '0')}`,
           prescription: [],
+          labOrderNotes:
+            item.status === 'WAITING_LAB'
+              ? JSON.stringify({
+                  orders: [
+                    {
+                      service: 'Q-DEMO CBC',
+                      purpose: 'Q-DEMO test',
+                      instructions: 'Q-DEMO instruction',
+                    },
+                  ],
+                  reason: 'Q-DEMO test',
+                  notes: '',
+                  results: [],
+                  orderedAt: now.toISOString(),
+                })
+              : item.status === 'PAUSED'
+                ? JSON.stringify({
+                    pauseEvents: [
+                      {
+                        action: 'PAUSED',
+                        reason: 'Q-DEMO seeded pause',
+                        occurredAt: now.toISOString(),
+                        actorId: admin.id,
+                      },
+                    ],
+                  })
+                : null,
+          diagnoses: {
+            create: {
+              diagnosisCode: 'Z00',
+              diagnosisName: 'Q-DEMO general assessment',
+              isPrimary: true,
+              notes: 'Q-DEMO seeded primary diagnosis',
+            },
+          },
         },
       });
-    if (item.status === 'COMPLETED')
-      await prisma.consultation.create({
-        data: {
-          careSessionId: careSession.id,
-          startedAt: new Date(now.getTime() - 30 * 60_000),
-          completedAt: new Date(now.getTime() - 5 * 60_000),
-          lockedAt: new Date(now.getTime() - 5 * 60_000),
-          clinicalNotes: 'Phiên khám demo đã hoàn tất.',
-        },
-      });
-    queueNumbers.set(doctor.id, queueNumber + 1);
+    }
+    queueNumbers.set(doctor.specialtyId, queueNumber + 1);
   }
 }
 

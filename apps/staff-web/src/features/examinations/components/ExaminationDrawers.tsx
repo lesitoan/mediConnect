@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import toast from "react-hot-toast";
 import { X, Search, Pencil, AlertTriangle, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/Input";
@@ -13,7 +14,7 @@ import {
   DrawerDescription,
   DrawerFooter,
 } from "@/components/ui/Drawer";
-import { DIAGNOSIS_CATALOG, ALLERGY_DETAILS } from "../constants";
+import { DIAGNOSIS_CATALOG } from "../constants";
 import type { Examination, Diagnosis } from "../types/examinationTypes";
 export function ExaminationDrawers({
   mode,
@@ -24,23 +25,25 @@ export function ExaminationDrawers({
   mode: "DIAGNOSIS" | "RECORDS";
   item: Examination;
   onClose: () => void;
-  onUpdate: (value: Partial<Examination>) => void;
+  onUpdate: (value: Partial<Examination>) => Promise<unknown>;
 }) {
+  const [isSaving, setIsSaving] = useState(false);
   const initialPrimary = DIAGNOSIS_CATALOG.find((diagnosis) =>
-    item.diagnosis.startsWith(diagnosis.code),
-  ) ?? { code: "", name: item.diagnosis };
+    item.diagnosis.startsWith(`${diagnosis.code} —`),
+  ) ?? (() => {
+    const [code = "", ...nameParts] = item.diagnosis.split(" — ");
+    return { code: code.trim(), name: nameParts.join(" — ").trim() };
+  })();
   const [primary, setPrimary] = useState(initialPrimary);
   const [secondary, setSecondary] = useState<Diagnosis[]>(
-    item.secondaryDiagnoses ??
-      DIAGNOSIS_CATALOG.filter((diagnosis) =>
-        ["I10", "E78.0"].includes(diagnosis.code),
-      ),
+    item.secondaryDiagnoses ?? [],
   );
-  const [search, setSearch] = useState("I20.9");
+  const [search, setSearch] = useState("");
   const [notes, setNotes] = useState(
-    item.diagnosisNotes ??
-      "Nghi ngờ Cơn đau thắt ngực không ổn định (CCS II) trên nền Tăng huyết áp độ 1. Đang kiểm soát tốt bằng Amlodipine 5mg hằng ngày.",
+    item.diagnosisNotes ?? "",
   );
+  const isReadOnly =
+    item.status !== "IN_PROGRESS" || item.isLocked === true;
   const results = DIAGNOSIS_CATALOG.filter((diagnosis) =>
     `${diagnosis.code} ${diagnosis.name}`
       .toLocaleLowerCase("vi")
@@ -84,7 +87,7 @@ export function ExaminationDrawers({
                   <AlertTriangle className="size-4" />
                 </p>
                 <p className="mt-2 text-caption leading-relaxed text-muted">
-                  Xem chi tiết dị ứng đã ghi nhận trong hồ sơ ({ALLERGY_DETAILS}
+                  Xem chi tiết dị ứng đã ghi nhận trong hồ sơ ({item.allergyDetails ?? ""}
                   )
                 </p>
               </div>
@@ -94,23 +97,7 @@ export function ExaminationDrawers({
                 <h3 className="text-body font-semibold">Các lần khám trước</h3>
                 <span className="text-caption text-muted">Mới nhất trước</span>
               </div>
-              {[
-                {
-                  date: "15/09/2026",
-                  name: "Khám Tim mạch",
-                  doctor: "TS.BS Lê Quang Huy",
-                },
-                {
-                  date: "20/06/2026",
-                  name: "Khám Nội tiết",
-                  doctor: "BS. CKII Vũ Đình Trọng",
-                },
-                {
-                  date: "12/11/2025",
-                  name: "Khám sức khỏe tổng quát",
-                  doctor: "PGS.TS Trần Mai Loan",
-                },
-              ].map((visit, index) => (
+              {(item.historyRecords ?? []).map((visit, index) => (
                 <details
                   key={visit.date}
                   open={index === 0}
@@ -129,34 +116,21 @@ export function ExaminationDrawers({
                       chọn:
                     </p>
                     <div className="rounded-app-md bg-primary-light p-3">
-                      <p className="font-semibold text-primary">
-                        Chẩn đoán lâm sàng:
-                      </p>
-                      <p>• Tăng huyết áp vô căn (Giai đoạn 1) – ICD-10: I10</p>
-                      <p>• Rối loạn lipid máu nhẹ – ICD-10: E78</p>
+                      <p className="text-caption text-primary">{visit.diagnosis}</p>
                     </div>
                     <div>
                       <p className="font-semibold">Ghi chú lâm sàng:</p>
-                      <p className="text-muted">
-                        Tăng huyết áp dao động, đau tức ngực nhẹ khi gắng sức.
-                        Sinh hiệu: HA 140/90 mmHg. Mạch 84 l/p.
-                      </p>
+                      <p className="text-muted">{visit.clinicalNotes}</p>
                     </div>
                     <div>
                       <p className="font-semibold">
                         Đơn thuốc đã cấp (30 ngày):
                       </p>
-                      <p className="text-muted">
-                        • Amlodipine 5mg: 1 viên/ngày (sáng sau ăn)
-                        <br />• Atorvastatin 10mg: 1 viên/ngày (tối trước ngủ)
-                      </p>
+                      <p className="text-muted">{visit.prescription}</p>
                     </div>
                     <div>
                       <p className="font-semibold">Kết quả cận lâm sàng:</p>
-                      <p className="text-muted">
-                        • ECG: Nhịp xoang 82 ck/p, không thiếu máu cục bộ cấp
-                        <br />• Cholesterol TP: 5.8 mmol/L (tăng nhẹ)
-                      </p>
+                      <p className="text-muted">{visit.labResults}</p>
                     </div>
                   </div>
                 </details>
@@ -184,7 +158,7 @@ export function ExaminationDrawers({
                     <span className="rounded-app-sm bg-primary-light px-2 py-1 font-semibold text-primary">
                       • Chẩn đoán chính
                     </span>{" "}
-                    CCS II, khởi phát gắng sức
+                    {item.diagnosisNotes}
                   </p>
                   <div className="mt-4 space-y-2 border-t border-border pt-3">
                     {secondary.map((diagnosis) => (
@@ -199,6 +173,7 @@ export function ExaminationDrawers({
                         <Button
                           variant="ghost"
                           className="h-auto p-0 text-label text-muted"
+                          disabled={isReadOnly || isSaving}
                           onClick={() => {
                             setSecondary([
                               ...secondary.filter(
@@ -214,6 +189,7 @@ export function ExaminationDrawers({
                         <Button
                           variant="ghost"
                           size="icon-xs"
+                          disabled={isReadOnly || isSaving}
                           aria-label={`Xóa ${diagnosis.code}`}
                           onClick={() =>
                             setSecondary(
@@ -241,6 +217,7 @@ export function ExaminationDrawers({
                   <Input
                     id="diagnosis-search"
                     value={search}
+                    disabled={isReadOnly || isSaving}
                     onChange={(event) => setSearch(event.target.value)}
                     placeholder="Tìm mã hoặc tên chẩn đoán..."
                   />
@@ -262,6 +239,9 @@ export function ExaminationDrawers({
                       size="sm"
                       className="bg-primary-light text-primary"
                       disabled={
+                        isReadOnly ||
+                        isSaving ||
+                        secondary.length >= 20 ||
                         primary.code === diagnosis.code ||
                         secondary.some((value) => value.code === diagnosis.code)
                       }
@@ -291,6 +271,7 @@ export function ExaminationDrawers({
                   id="diagnosis-notes"
                   rows={4}
                   value={notes}
+                  disabled={isReadOnly || isSaving}
                   onChange={(event) => setNotes(event.target.value)}
                 />
               </section>
@@ -300,14 +281,39 @@ export function ExaminationDrawers({
                 Hủy bỏ
               </Button>
               <Button
-                disabled={!primary.name.trim() || item.status === "COMPLETED"}
-                onClick={() => {
-                  onUpdate({
-                    diagnosis: `${primary.code} — ${primary.name}`,
-                    secondaryDiagnoses: secondary,
-                    diagnosisNotes: notes,
-                  });
-                  onClose();
+                disabled={isReadOnly || isSaving || !primary.name.trim()}
+                onClick={async () => {
+                  const code = primary.code.trim();
+                  const name = primary.name.trim();
+                  if (!code) {
+                    toast.error("Cần nhập mã chẩn đoán");
+                    return;
+                  }
+                  const secondaryDiagnoses = secondary.map((diagnosis) => ({
+                    code: diagnosis.code.trim(),
+                    name: diagnosis.name.trim(),
+                  }));
+                  if (secondaryDiagnoses.some((diagnosis) => Boolean(diagnosis.code) !== Boolean(diagnosis.name))) {
+                    toast.error("Chẩn đoán phụ cần đủ mã và tên");
+                    return;
+                  }
+                  const validSecondaryDiagnoses = secondaryDiagnoses.filter(
+                    (diagnosis) => diagnosis.code && diagnosis.name,
+                  );
+                  setIsSaving(true);
+                  try {
+                    await onUpdate({
+                      diagnosis: `${code} — ${name}`,
+                      secondaryDiagnoses: validSecondaryDiagnoses,
+                      diagnosisNotes: notes,
+                      updatedAt: item.updatedAt,
+                    });
+                    onClose();
+                  } catch {
+                    return;
+                  } finally {
+                    setIsSaving(false);
+                  }
                 }}
               >
                 Lưu chẩn đoán

@@ -26,6 +26,7 @@ import {
   getQueueSubtitle,
 } from "@/features/queues/utils";
 import { QueueActionModal } from "@/features/queues/components/modals/QueueActionModal";
+import { getExamination, openExamination } from "../services/examinationsService";
 
 const COLUMNS = [
   ["WAITING", "Đang chờ", "bg-warning"],
@@ -359,6 +360,13 @@ export function DoctorQueueView() {
           action={actionState.action}
           onClose={() => setActionState(null)}
           onRefresh={() => refreshBoard()}
+          onStart={async (queueItem) => {
+            const latest = await getExamination(queueItem.careSessionId);
+            if (!latest.updatedAt) throw new Error("Không có phiên bản mới nhất của lượt khám");
+            await openExamination(queueItem.careSessionId, latest.updatedAt);
+            const nextBoard = await getQueueBoard({ date: getClinicDate() });
+            return { board: nextBoard };
+          }}
           onSuccess={(response) => {
             setBoard(response.board);
             setServerTime(Date.now());
