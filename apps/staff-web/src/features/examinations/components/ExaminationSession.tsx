@@ -13,6 +13,8 @@ import { ExaminationPatientSummary } from "./ExaminationPatientSummary";
 import { ExaminationDrawers } from "./ExaminationDrawers";
 import { ExaminationLabOrders } from "./ExaminationLabOrders";
 import { ExaminationPrescription } from "./ExaminationPrescription";
+import { DiagnosticResultsPanel } from "@/features/diagnostic-results/components/DiagnosticResultsPanel";
+import { useRegisterDiagnosticExamination } from "@/features/diagnostic-results/hooks/useDiagnosticPreview";
 import { getExaminationHistory } from "../services/examinationsService";
 export function ExaminationSession({
   item,
@@ -27,6 +29,7 @@ export function ExaminationSession({
   onTransition: (action: "pause" | "resume" | "complete" | "referral" | "incomplete", values: { reason?: string; plan?: string; targetSpecialtyName?: string; priority?: "NORMAL" | "URGENT"; requestedDoctorId?: string; expectedUpdatedAt?: string }) => Promise<Examination>;
   onCompleted: () => void;
 }) {
+  useRegisterDiagnosticExamination(item);
   const action = useModal<ExaminationAction>();
   const [screen, setScreen] = useState<"CLINICAL" | "LABS" | "PRESCRIPTION">(
     "CLINICAL",
@@ -190,6 +193,7 @@ export function ExaminationSession({
                   />
                 </div>
               </Card>
+              {Boolean(currentItem.labOrders.trim() || currentItem.labResults?.length) && <DiagnosticResultsPanel careSessionId={item.careSessionId ?? item.id} serverResults={item.labResults} />}
               <Card className="flex items-center gap-3 p-4 shadow-none">
                 <div className="flex-1">
                   <h2 className="text-body font-bold">Chẩn đoán</h2>
