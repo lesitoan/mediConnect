@@ -75,6 +75,11 @@ export const NAV_ITEMS: NavItem[] = [
     icon: Clock,
   },
   {
+    label: "Trả kết quả CLS",
+    href: "/diagnostic-results",
+    icon: Stethoscope,
+  },
+  {
     label: "Lịch làm việc & Duyệt",
     href: "/schedules",
     icon: CalendarCheck,

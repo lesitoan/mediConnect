@@ -17,8 +17,9 @@ const STAFF_PATHS: Record<StaffRole, string[]> = {
     "/exceptions",
     "/audit-logs",
     "/settings",
+    "/diagnostic-results",
   ],
-  DOCTOR: ["/examinations", "/schedules/calendar"],
+  DOCTOR: ["/examinations", "/schedules/calendar", "/diagnostic-results"],
   RECEPTIONIST: ["/reception", "/queues", "/schedules/calendar", "/exceptions"],
 };
 
