@@ -1,7 +1,7 @@
 import type { NavigatorScreenParams } from '@react-navigation/native';
 import { AUTH_ROUTES, MAIN_TABS, ROOT_ROUTES } from './routes';
 import type { Profile } from '../services/profileService';
-import type { Specialty, SpecialtyService } from '../services/specialtyService';
+import type { Specialty } from '../services/specialtyService';
 import type { Doctor, ScheduleDay, TimeSlot } from '../services/scheduleService';
 type OtpChallengeParams = {
   challengeId: string;
@@ -38,19 +38,16 @@ export type RootStackParamList = {
   [ROOT_ROUTES.SELECT_DOCTOR]: {
     profile: Profile;
     specialty: Specialty;
-    service: SpecialtyService;
   };
   [ROOT_ROUTES.SELECT_TIME_SLOT]: {
     profile: Profile;
     specialty: Specialty;
-    service: SpecialtyService;
     doctor: Doctor;
     day: ScheduleDay;
   };
   [ROOT_ROUTES.CONFIRM_BOOKING]: {
     profile: Profile;
     specialty: Specialty;
-    service: SpecialtyService;
     doctor: Doctor;
     day: ScheduleDay;
     slot: TimeSlot;

@@ -112,6 +112,11 @@ const getRules = (password: string, confirm: string) => [
   { key: 'upper', label: 'Chứa ít nhất 1 chữ hoa', isMet: /[A-Z]/.test(password) },
   { key: 'digit', label: 'Chứa ít nhất 1 chữ số', isMet: /\d/.test(password) },
   {
+    key: 'special',
+    label: 'Chứa ít nhất 1 ký tự đặc biệt',
+    isMet: /[^a-zA-Z0-9]/.test(password),
+  },
+  {
     key: 'match',
     label: 'Xác nhận mật khẩu trùng khớp',
     isMet: confirm.length > 0 && password === confirm,

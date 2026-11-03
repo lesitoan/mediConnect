@@ -5,6 +5,12 @@ type ApiEnvelope<T> = {
   success: boolean;
   data: T;
   message?: string | string[];
+  pagination?: {
+    totalItems: number;
+    itemsPerPage: number;
+    currentPage: number;
+    totalPages: number;
+  };
 };
 
 export type PatientSession = {
@@ -45,7 +51,7 @@ function getErrorMessage(payload: unknown, status: number): string {
   return `Yêu cầu API thất bại (${status}).`;
 }
 
-async function parseResponse<T>(response: Response): Promise<T> {
+async function parseEnvelope<T>(response: Response): Promise<ApiEnvelope<T>> {
   let payload: unknown;
   try {
     payload = await response.json();
@@ -68,7 +74,12 @@ async function parseResponse<T>(response: Response): Promise<T> {
   ) {
     throw new Error('API không xác nhận yêu cầu thành công.');
   }
-  return (payload as ApiEnvelope<T>).data;
+  return payload as ApiEnvelope<T>;
+}
+
+async function parseResponse<T>(response: Response): Promise<T> {
+  const envelope = await parseEnvelope<T>(response);
+  return envelope.data;
 }
 
 async function fetchApi(
@@ -203,19 +214,58 @@ export async function getPublicApiItems<T>(
       limit: '100',
     });
     const separator = path.includes('?') ? '&' : '?';
-    const response = await requestApi<{
-      items: T[];
-      pagination: { totalPages: number };
-    }>(`${path}${separator}${query}`, { signal });
+    const response = await parseEnvelope<T[]>(
+      await fetchApi(`${path}${separator}${query}`, { signal }),
+    );
     if (
-      !Array.isArray(response.items) ||
-      !Number.isInteger(response.pagination?.totalPages) ||
-      response.pagination.totalPages < 0
+      !Array.isArray(response.data) ||
+      !response.pagination ||
+      !Number.isInteger(response.pagination.totalPages) ||
+      response.pagination.totalPages < 0 ||
+      !Number.isInteger(response.pagination.currentPage) ||
+      response.pagination.currentPage < 1
     ) {
       throw new Error('API trả về danh sách không hợp lệ.');
     }
+    items.push(...response.data);
+    totalPages = response.pagination.totalPages;
+  }
+  return items;
+}
+
+export async function getPublicAvailability<T>(
+  query: URLSearchParams,
+  signal?: AbortSignal,
+): Promise<T[]> {
+  const items: T[] = [];
+  let currentPage = 1;
+  let totalItems: number | null = null;
+  const PAGE_SIZE = 50;
+
+  while (totalItems === null || items.length < totalItems) {
+    query.set('page', String(currentPage));
+    query.set('limit', String(PAGE_SIZE));
+    const response = await requestApi<{
+      items: T[];
+      total: number;
+      page: number;
+      limit: number;
+    }>(`/appointments/availability?${query}`, { signal });
+    if (
+      !Array.isArray(response.items) ||
+      !Number.isInteger(response.total) ||
+      response.total < 0 ||
+      response.page !== currentPage ||
+      response.limit !== PAGE_SIZE
+    ) {
+      throw new Error('API trả về lịch trống không hợp lệ.');
+    }
     items.push(...response.items);
-    totalPages = Math.max(page, response.pagination.totalPages);
+    totalItems = response.total;
+    if (response.items.length === 0 && items.length < totalItems) {
+      throw new Error('API trả về lịch trống không đầy đủ.');
+    }
+    currentPage += 1;
   }
   return items;
 }

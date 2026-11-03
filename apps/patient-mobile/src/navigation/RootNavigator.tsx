@@ -190,11 +190,10 @@ export default function RootNavigator() {
                   onPressBack={() => navigation.goBack()}
                   onPressHome={() => navigation.popToTop()}
                   onPressChangeProfile={() => navigation.goBack()}
-                  onContinue={({ specialty, service }) =>
+                  onContinue={({ specialty }) =>
                     navigation.navigate(ROOT_ROUTES.SELECT_DOCTOR, {
                       profile: route.params.profile,
                       specialty,
-                      service,
                     })
                   }
                 />
@@ -206,14 +205,12 @@ export default function RootNavigator() {
                 <SelectDoctorScreen
                   profile={route.params.profile}
                   specialty={route.params.specialty}
-                  service={route.params.service}
                   onPressBack={() => navigation.goBack()}
                   onPressHome={() => navigation.popToTop()}
                   onContinue={({ day, doctor }) =>
                     navigation.navigate(ROOT_ROUTES.SELECT_TIME_SLOT, {
                       profile: route.params.profile,
                       specialty: route.params.specialty,
-                      service: route.params.service,
                       doctor,
                       day,
                     })
@@ -227,7 +224,6 @@ export default function RootNavigator() {
                 <SelectTimeSlotScreen
                   profile={route.params.profile}
                   specialty={route.params.specialty}
-                  service={route.params.service}
                   doctor={route.params.doctor}
                   day={route.params.day}
                   onPressBack={() => navigation.goBack()}
@@ -237,7 +233,6 @@ export default function RootNavigator() {
                     navigation.navigate(ROOT_ROUTES.CONFIRM_BOOKING, {
                       profile: route.params.profile,
                       specialty: route.params.specialty,
-                      service: route.params.service,
                       doctor: route.params.doctor,
                       day: route.params.day,
                       slot,
@@ -252,7 +247,6 @@ export default function RootNavigator() {
                 <ConfirmBookingScreen
                   profile={route.params.profile}
                   specialty={route.params.specialty}
-                  service={route.params.service}
                   doctor={route.params.doctor}
                   day={route.params.day}
                   slot={route.params.slot}

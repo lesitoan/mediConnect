@@ -22,9 +22,7 @@ import {
   CheckIcon,
   ClockIcon,
   MedicalSquareIcon,
-  ShieldCheckIcon,
   SPECIALTY_ICONS,
-  StarIcon,
   UsersIcon,
 } from '../../components/bookingIcons';
 import { COLORS, FONTS } from '../../constants/theme';
@@ -35,7 +33,7 @@ import {
   type Doctor,
   type ScheduleDay,
 } from '../../services/scheduleService';
-import type { Specialty, SpecialtyService } from '../../services/specialtyService';
+import type { Specialty } from '../../services/specialtyService';
 
 function Text(props: TextProps) {
   return <RNText allowFontScaling={false} {...props} />;
@@ -49,7 +47,6 @@ const FOOTER_GRADIENT = ['#17709A', '#0B3E63'] as const;
 const NAVY = '#12395C';
 const MUTED_TEXT = '#8A96A8';
 const DANGER_TEXT = '#E5484D';
-const RATING_COLOR = '#F5A524';
 const CARD_BUTTON_COLOR = '#5AB3E3';
 
 const pad = (value: number) => String(value).padStart(2, '0');
@@ -65,7 +62,6 @@ export type DoctorSelection = {
 type SelectDoctorScreenProps = {
   profile: Profile;
   specialty: Specialty;
-  service: SpecialtyService;
   onPressBack?: () => void;
   onPressHome?: () => void;
   onContinue?: (selection: DoctorSelection) => void;
@@ -73,7 +69,7 @@ type SelectDoctorScreenProps = {
 
 export default function SelectDoctorScreen({
   profile,
-  service,
+  specialty,
   onPressBack,
   onPressHome,
   onContinue,
@@ -84,6 +80,7 @@ export default function SelectDoctorScreen({
 
   const [days, setDays] = useState<ScheduleDay[]>([]);
   const [isLoadingDays, setIsLoadingDays] = useState(true);
+  const [dayLoadError, setDayLoadError] = useState('');
   const [isDaysExpanded, setIsDaysExpanded] = useState(false);
   const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
@@ -93,9 +90,16 @@ export default function SelectDoctorScreen({
 
   useEffect(() => {
     let isActive = true;
-    getScheduleDays(service.id)
+    getScheduleDays(specialty.id)
       .then((data) => {
         if (isActive) setDays(data);
+      })
+      .catch((error: unknown) => {
+        if (isActive) {
+          setDayLoadError(
+            error instanceof Error ? error.message : 'Không thể tải lịch khám.',
+          );
+        }
       })
       .finally(() => {
         if (isActive) setIsLoadingDays(false);
@@ -103,7 +107,7 @@ export default function SelectDoctorScreen({
     return () => {
       isActive = false;
     };
-  }, [service.id]);
+  }, [specialty.id]);
 
   useEffect(() => {
     if (!selectedDateKey) {
@@ -113,7 +117,7 @@ export default function SelectDoctorScreen({
     let isActive = true;
     setIsLoadingDoctors(true);
     setDoctorLoadError('');
-    getAvailableDoctors(service.id)
+    getAvailableDoctors(specialty.id, selectedDateKey)
       .then((data) => {
         if (isActive) setDoctors(data);
       })
@@ -131,12 +135,12 @@ export default function SelectDoctorScreen({
     return () => {
       isActive = false;
     };
-  }, [service.id, selectedDateKey]);
+  }, [specialty.id, selectedDateKey]);
 
   const selectedDay = days.find((item) => item.dateKey === selectedDateKey);
   const selectedDoctor = doctors.find((item) => item.id === selectedDoctorId);
   const canContinue = !!selectedDay && !!selectedDoctor;
-  const ServiceIcon = SPECIALTY_ICONS[service.iconKey];
+  const SpecialtyIcon = SPECIALTY_ICONS[specialty.iconKey];
 
   const handleSelectDay = (day: ScheduleDay) => {
     if (day.isFullyBooked) return;
@@ -208,22 +212,19 @@ export default function SelectDoctorScreen({
         )}
 
         <View style={styles.flex}>
-          <View style={styles.doctorNameRow}>
-            <Text style={styles.doctorName}>{doctor.fullName.toUpperCase()}</Text>
-            {doctor.rating !== undefined ? (
-              <View style={styles.ratingRow}>
-                <StarIcon size={13} color={RATING_COLOR} />
-                <Text style={styles.ratingText}>{doctor.rating.toFixed(1)}</Text>
-              </View>
-            ) : null}
-          </View>
+          <Text style={styles.doctorName}>{doctor.fullName}</Text>
 
           <Text style={styles.doctorInfo}>
-            Chuyên môn:{' '}
+            Học hàm:{' '}
             <Text style={styles.doctorInfoValue}>
               {doctor.academicTitle ?? 'Chưa cập nhật'}
             </Text>
           </Text>
+          {doctor.position ? (
+            <Text style={styles.doctorInfo} numberOfLines={2}>
+              Chuyên môn: <Text style={styles.doctorInfoValue}>{doctor.position}</Text>
+            </Text>
+          ) : null}
 
           <TouchableOpacity
             style={[styles.pickButton, isSelected && styles.pickButtonSelected]}
@@ -273,7 +274,7 @@ export default function SelectDoctorScreen({
               onPress={() => {
                 setIsLoadingDoctors(true);
                 setDoctorLoadError('');
-                getAvailableDoctors(service.id)
+                getAvailableDoctors(specialty.id, selectedDateKey)
                   .then(setDoctors)
                   .catch((error: unknown) => {
                     setDoctors([]);
@@ -290,16 +291,10 @@ export default function SelectDoctorScreen({
             </TouchableOpacity>
           </View>
         ) : doctors.length === 0 ? (
-          <Text style={styles.emptyText}>Không có bác sĩ còn lịch trong ngày này.</Text>
+          <Text style={styles.emptyText}>Không có khung giờ còn trống cho ngày này.</Text>
         ) : (
           <>
             {doctors.map(renderDoctorCard)}
-            <View style={styles.noteCard}>
-              <ShieldCheckIcon size={18} color={COLORS.PRIMARY_LIGHT} />
-              <Text style={styles.noteText}>
-                Bệnh nhân được đặt số thứ tự khám ưu tiên, miễn phí hủy hoặc đổi lịch khám trước 02 giờ.
-              </Text>
-            </View>
           </>
         )}
       </View>
@@ -317,9 +312,9 @@ export default function SelectDoctorScreen({
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.contextBar}>
-          <ServiceIcon size={16} color={COLORS.PRIMARY_LIGHT} />
+          <SpecialtyIcon size={16} color={COLORS.PRIMARY_LIGHT} />
           <Text style={styles.contextLabel} numberOfLines={1}>
-            Chuyên khoa: <Text style={styles.contextValue}>{service.name}</Text>
+            Chuyên khoa: <Text style={styles.contextValue}>{specialty.name}</Text>
           </Text>
           <View style={styles.contextDivider} />
           <UserIcon size={14} color={COLORS.PRIMARY_LIGHT} />
@@ -333,14 +328,36 @@ export default function SelectDoctorScreen({
             <CalendarIcon size={22} color={COLORS.PRIMARY} />
             <Text style={styles.sectionTitle}>1. Chọn ngày khám</Text>
           </View>
-          <TouchableOpacity onPress={() => setIsDaysExpanded(!isDaysExpanded)}>
-            <Text style={styles.sectionLink}>{isDaysExpanded ? 'Thu gọn' : 'Xem tất cả >'}</Text>
-          </TouchableOpacity>
+          {!dayLoadError && (
+            <TouchableOpacity onPress={() => setIsDaysExpanded(!isDaysExpanded)}>
+              <Text style={styles.sectionLink}>{isDaysExpanded ? 'Thu gọn' : 'Xem tất cả >'}</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {isLoadingDays ? (
           <View style={styles.loadingBox}>
             <ActivityIndicator color={COLORS.PRIMARY_LIGHT} />
+          </View>
+        ) : dayLoadError ? (
+          <View style={styles.loadingBox}>
+            <Text style={styles.emptyText}>{dayLoadError}</Text>
+            <TouchableOpacity
+              onPress={() => {
+                setIsLoadingDays(true);
+                setDayLoadError('');
+                getScheduleDays(specialty.id)
+                  .then(setDays)
+                  .catch((error: unknown) => {
+                    setDayLoadError(
+                      error instanceof Error ? error.message : 'Không thể tải lịch khám.',
+                    );
+                  })
+                  .finally(() => setIsLoadingDays(false));
+              }}
+            >
+              <Text style={styles.sectionLink}>Thử lại</Text>
+            </TouchableOpacity>
           </View>
         ) : isDaysExpanded ? (
           <View style={styles.dayGrid}>{days.map(renderDayCard)}</View>
@@ -376,7 +393,7 @@ export default function SelectDoctorScreen({
           <View style={styles.summaryDivider} />
           <View style={styles.summaryPrice}>
             <Text style={styles.priceLabel}>TẠM TÍNH</Text>
-            <Text style={styles.priceValue}>{formatFee(service.minFee)}</Text>
+            <Text style={styles.priceValue}>{formatFee(specialty.consultationFee)}</Text>
           </View>
         </View>
 
