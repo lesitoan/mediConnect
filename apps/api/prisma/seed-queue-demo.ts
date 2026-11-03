@@ -657,7 +657,7 @@ async function seed(
         appointmentId: appointment.id,
         appointmentSlotId: appointmentSlot.id,
         specialtyId: doctor.specialtyId,
-        status: item.status,
+        status: item.status as CareSessionStatus,
         checkedInAt: isScheduled ? null : now,
         checkedInBy: isScheduled ? null : admin.id,
         queueDate: isScheduled ? null : sessionQueueDate,

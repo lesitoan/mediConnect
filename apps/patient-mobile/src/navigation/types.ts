@@ -15,6 +15,7 @@ export type MainTabParamList = {
   [MAIN_TABS.NOTIFICATIONS]: undefined;
   [MAIN_TABS.FUNCTIONS]: undefined;
   [MAIN_TABS.PROFILE]: undefined;
+  [MAIN_TABS.HEALTH_RECORD]: undefined;
 };
 
 export type RootStackParamList = {
@@ -55,4 +56,7 @@ export type RootStackParamList = {
   [ROOT_ROUTES.INVOICE_LIST]: undefined;
   [ROOT_ROUTES.INVOICE_DETAIL]: { invoiceId: string };
   [ROOT_ROUTES.SEARCH]: undefined;
+  [ROOT_ROUTES.DOCTOR_DETAIL]: { doctorId: string };
+  [ROOT_ROUTES.PERSONAL_INFO]: undefined;
+  [ROOT_ROUTES.CHANGE_PASSWORD]: undefined;
 };

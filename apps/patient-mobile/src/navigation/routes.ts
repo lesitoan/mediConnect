@@ -10,6 +10,7 @@ export const MAIN_TABS = {
   NOTIFICATIONS: 'Notifications',
   FUNCTIONS: 'Functions',
   PROFILE: 'Profile',
+  HEALTH_RECORD: 'HealthRecord',
 } as const;
 
 export const ROOT_ROUTES = {
@@ -33,4 +34,7 @@ export const ROOT_ROUTES = {
   INVOICE_LIST: 'InvoiceList',
   INVOICE_DETAIL: 'InvoiceDetail',
   SEARCH: 'Search',
+  DOCTOR_DETAIL: 'DoctorDetail',
+  PERSONAL_INFO: 'PersonalInfo',
+  CHANGE_PASSWORD: 'ChangePassword',
 } as const;

@@ -250,118 +250,6 @@ export const UserCheckIcon = createIcon(() => (
   </>
 ));
 
-export const ArrowLeftIcon = createIcon(() => (
-  <>
-    <Path d="M19 12H5M12 19l-7-7 7-7" />
-  </>
-));
-
-export const ChevronRightIcon = createIcon(() => (
-  <Path d="m9 18 6-6-6-6" />
-));
-
-export const ChevronDownIcon = createIcon(() => (
-  <Path d="m6 9 6 6 6-6" />
-));
-
-export const AlertTriangleIcon = createIcon(() => (
-  <>
-    <Path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
-    <Path d="M12 9v4M12 17h.01" />
-  </>
-));
-
-export const BookUserIcon = createIcon(() => (
-  <>
-    <Path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" />
-    <Circle cx="12" cy="8" r="2" />
-    <Path d="M9 13a3 3 0 0 1 6 0" />
-  </>
-));
-
-export const ClinicCardIcon = createIcon(() => (
-  <>
-    <Rect x="3" y="5" width="18" height="14" rx="2" />
-    <Path d="M12 9v6M9 12h6" />
-  </>
-));
-
-export const DownloadIcon = createIcon(() => (
-  <>
-    <Path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
-  </>
-));
-
-export const EyeIcon = createIcon(() => (
-  <>
-    <Path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />
-    <Circle cx="12" cy="12" r="3" />
-  </>
-));
-
-export const FileTextIcon = createIcon(() => (
-  <>
-    <Path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
-    <Path d="M14 2v4a2 2 0 0 0 2 2h4M10 9H8M16 13H8M16 17H8" />
-  </>
-));
-
-export const FlaskIcon = createIcon(() => (
-  <>
-    <Path d="M10 2v7.527a2 2 0 0 1-.211.896L4.72 20.55a1 1 0 0 0 .9 1.45h12.76a1 1 0 0 0 .9-1.45l-5.069-10.127A2 2 0 0 1 14 9.527V2" />
-    <Path d="M8.5 2h7M7 16h10" />
-  </>
-));
-
-export const HelpCircleIcon = createIcon(() => (
-  <>
-    <Circle cx="12" cy="12" r="10" />
-    <Path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3M12 17h.01" />
-  </>
-));
-
-export const PillIcon = createIcon(() => (
-  <>
-    <Path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z" />
-    <Path d="m8.5 8.5 7 7" />
-  </>
-));
-
-export const QrCodeIcon = createIcon(() => (
-  <>
-    <Rect x="3" y="3" width="7" height="7" rx="1" />
-    <Rect x="14" y="3" width="7" height="7" rx="1" />
-    <Rect x="14" y="14" width="7" height="7" rx="1" />
-    <Rect x="3" y="14" width="7" height="7" rx="1" />
-  </>
-));
-
-export const ScanIcon = createIcon(() => (
-  <>
-    <Path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2" />
-    <Path d="M7 12h10" />
-  </>
-));
-
-export const ShareIcon = createIcon(() => (
-  <>
-    <Path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13" />
-  </>
-));
-
-export const SyringeIcon = createIcon(() => (
-  <>
-    <Path d="m18 2 4 4M17 7l3-3M19 9 8.7 19.3c-1 1-2.5 1-3.4 0l-.6-.6c-1-1-1-2.5 0-3.4L15 5M9 11l4 4M5 19l-3 3M14 4l6 6" />
-  </>
-));
-
-export const DownloadCircleIcon = createIcon(() => (
-  <>
-    <Circle cx="12" cy="12" r="10" />
-    <Path d="M12 8v8M8 12l4 4 4-4" />
-  </>
-));
-
 export function ShieldFilledIcon({ size = 20, color = '#005B8D' }: BookingIconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
@@ -395,3 +283,121 @@ export function InfoFilledIcon({ size = 20, color = '#E8A317' }: BookingIconProp
     </Svg>
   );
 }
+
+export const ArrowLeftIcon = createIcon(() => <Path d="M19 12H5M12 19l-7-7 7-7" />);
+export const ChevronDownIcon = createIcon(() => <Path d="m6 9 6 6 6-6" />);
+export const ChevronRightIcon = createIcon(() => <Path d="m9 6 6 6-6 6" />);
+
+export const ShareIcon = createIcon(() => (
+  <>
+    <Circle cx="18" cy="5" r="3" />
+    <Circle cx="6" cy="12" r="3" />
+    <Circle cx="18" cy="19" r="3" />
+    <Path d="m8.59 13.51 6.83 3.98M15.41 6.51l-6.82 3.98" />
+  </>
+));
+
+export const HelpCircleIcon = createIcon(() => (
+  <>
+    <Circle cx="12" cy="12" r="10" />
+    <Path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01" />
+  </>
+));
+
+export const QrCodeIcon = createIcon(() => (
+  <>
+    <Rect x="3" y="3" width="5" height="5" rx="1" />
+    <Rect x="16" y="3" width="5" height="5" rx="1" />
+    <Rect x="3" y="16" width="5" height="5" rx="1" />
+    <Path d="M21 16h-3a2 2 0 0 0-2 2v3M21 21v.01M12 7v3a2 2 0 0 1-2 2H7M3 12h.01M12 3h.01M12 16v.01M16 12h1M21 12v.01M12 21v-1" />
+  </>
+));
+
+export const EyeIcon = createIcon(() => (
+  <>
+    <Path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />
+    <Circle cx="12" cy="12" r="3" />
+  </>
+));
+
+export const DownloadIcon = createIcon(() => (
+  <Path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+));
+
+export const BookUserIcon = createIcon(() => (
+  <>
+    <Path d="M15 13a3 3 0 1 0-6 0M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20" />
+    <Circle cx="12" cy="8" r="2" />
+  </>
+));
+
+export const ClinicCardIcon = createIcon(() => (
+  <>
+    <Rect x="3" y="4" width="18" height="16" rx="2" />
+    <Circle cx="9" cy="10" r="2" />
+    <Path d="M6 16c.5-1.5 1.8-2 3-2s2.5.5 3 2M15 9h3M16.5 7.5v3" />
+  </>
+));
+
+export const FileTextIcon = createIcon(() => (
+  <Path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7zM14 2v4a2 2 0 0 0 2 2h4M10 13H8M16 17H8M16 9H8" />
+));
+
+export const FlaskIcon = createIcon(() => (
+  <Path d="M10 2v7.5a2 2 0 0 1-.2.9L4.7 20.5a1 1 0 0 0 .9 1.5h12.8a1 1 0 0 0 .9-1.5l-5.1-10.1a2 2 0 0 1-.2-.9V2M8.5 2h7M7 16h10" />
+));
+
+export const ScanIcon = createIcon(() => (
+  <Path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 12h10" />
+));
+
+export const PillIcon = createIcon(() => (
+  <Path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7zM8.5 8.5l7 7" />
+));
+
+export const SyringeIcon = createIcon(() => (
+  <Path d="m18 2 4 4M17 7l3-3M19 9 8.7 19.3c-1 1-2.5 1-3.4 0l-.6-.6c-1-.9-1-2.4 0-3.4L15 5M9 11l4 4M5 19l-3 3M14 4l6 6" />
+));
+
+export const AlertTriangleIcon = createIcon(() => (
+  <Path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3M12 9v4M12 17h.01" />
+));
+
+export const DownloadCircleIcon = createIcon(() => (
+  <>
+    <Circle cx="12" cy="12" r="10" />
+    <Path d="M12 8v8M8 12l4 4 4-4" />
+  </>
+));
+
+export const KeyIcon = createIcon(() => (
+  <>
+    <Circle cx="7.5" cy="15.5" r="5.5" />
+    <Path d="m21 2-9.6 9.6M15.5 7.5l3 3L22 7l-3-3" />
+  </>
+));
+
+export const LockIcon = createIcon(() => (
+  <>
+    <Rect x="3" y="11" width="18" height="11" rx="2" />
+    <Path d="M7 11V7a5 5 0 0 1 10 0v4" />
+  </>
+));
+
+export const BookOpenIcon = createIcon(() => (
+  <Path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+));
+
+export const FileCheckIcon = createIcon(() => (
+  <Path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7zM14 2v4a2 2 0 0 0 2 2h4M9 15l2 2 4-4" />
+));
+
+export const LogOutIcon = createIcon(() => (
+  <Path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
+));
+
+export const EyeOffIcon = createIcon(() => (
+  <Path d="M9.9 9.9a3 3 0 1 0 4.2 4.2M10.7 5.1A10.4 10.4 0 0 1 12 5c7 0 10 7 10 7a13 13 0 0 1-1.7 2.7M6.6 6.6A13.5 13.5 0 0 0 2 12s3 7 10 7a9.7 9.7 0 0 0 5.4-1.6M2 2l20 20" />
+));
+
+export const CloseIcon = createIcon(() => <Path d="M18 6 6 18M6 6l12 12" />);
