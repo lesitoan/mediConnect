@@ -1,169 +1,92 @@
 "use client";
-
-import { useState, useEffect, useRef } from "react";
-import { Search, LayoutGrid, List, UserPlus } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/Tabs";
-import type {
-  DoctorStatusFilter,
-  DoctorViewMode,
-  Specialty,
-} from "../types/doctorTypes";
-
-interface DoctorFiltersProps {
-  searchQuery: string;
-  onSearchChange: (query: string) => void;
-  statusFilter: DoctorStatusFilter;
-  onStatusFilterChange: (status: DoctorStatusFilter) => void;
-  specialties: Specialty[];
-  totalCount: number;
-  activeCount: number;
-  inactiveCount: number;
-  viewMode: DoctorViewMode;
-  onViewModeChange: (mode: DoctorViewMode) => void;
-  onAddDoctorClick: () => void;
-  selectedSpecialty?: string;
-  onSpecialtyChange?: (specialty: string) => void;
-  specialtyFilter?: string;
-  onSpecialtyFilterChange?: (specialty: string) => void;
-}
+import type { SpecialtyRecord } from "@/features/specialties/types/specialtyTypes";
+import type { DoctorViewMode, MainTab } from "../types/doctorTypes";
 
 export function DoctorFilters({
+  tab,
   searchQuery,
   onSearchChange,
-  selectedSpecialty,
+  specialtyId,
   onSpecialtyChange,
-  specialtyFilter,
-  onSpecialtyFilterChange,
-  statusFilter,
-  onStatusFilterChange,
   viewMode,
   onViewModeChange,
-  onAddDoctorClick,
+  onAdd,
   specialties,
-  totalCount,
-  activeCount,
-  inactiveCount,
-}: DoctorFiltersProps) {
-  const currentSpecialty = specialtyFilter ?? selectedSpecialty ?? "";
-  const handleSpecialtyChange = (spec: string) => {
-    onSpecialtyFilterChange?.(spec);
-    onSpecialtyChange?.(spec);
-  };
-
-  const searchInputRef = useRef<HTMLInputElement>(null);
-  const [prevSearchQuery, setPrevSearchQuery] = useState(searchQuery);
-  const [localSearch, setLocalSearch] = useState(searchQuery);
-
-  if (prevSearchQuery !== searchQuery) {
-    setPrevSearchQuery(searchQuery);
-    setLocalSearch(searchQuery);
+  isLoading,
+}: {
+  tab: MainTab;
+  searchQuery: string;
+  onSearchChange: (value: string) => void;
+  specialtyId: string;
+  onSpecialtyChange: (value: string) => void;
+  viewMode: DoctorViewMode;
+  onViewModeChange: (value: DoctorViewMode) => void;
+  onAdd: () => void;
+  specialties: SpecialtyRecord[];
+  isLoading: boolean;
+}) {
+  const [previousQuery, setPreviousQuery] = useState(searchQuery);
+  const [search, setSearch] = useState(searchQuery);
+  if (previousQuery !== searchQuery) {
+    setPreviousQuery(searchQuery);
+    setSearch(searchQuery);
   }
-
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (localSearch !== searchQuery) {
-        onSearchChange(localSearch);
-      }
+      if (search !== searchQuery) onSearchChange(search);
     }, 300);
     return () => clearTimeout(timer);
-  }, [localSearch, searchQuery, onSearchChange]);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "F2") {
-        e.preventDefault();
-        searchInputRef.current?.focus();
-        searchInputRef.current?.select();
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
-
+  }, [search, searchQuery, onSearchChange]);
   return (
-    <div className="mb-4 rounded-app-xl border border-border-strong bg-surface p-4 shadow-xs">
-      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 md:grid-cols-12 lg:grid-cols-12">
-        <div className="relative sm:col-span-2 md:col-span-6 lg:col-span-4">
-          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted" />
-          <Input
-            ref={searchInputRef}
-            type="text"
-            value={localSearch}
-            onChange={(e) => setLocalSearch(e.target.value)}
-            placeholder="Tìm theo tên, mã bác sĩ, CCHN..."
-            className="h-9.5 pr-12 pl-9"
-          />
-          <div className="pointer-events-none absolute top-1/2 right-2.5 flex -translate-y-1/2 items-center rounded-app-sm bg-secondary px-1.5 py-0.5 text-label font-bold text-muted">
-            F2
-          </div>
-        </div>
-
-        <div className="sm:col-span-1 md:col-span-3 lg:col-span-3">
-          <Select
-            value={currentSpecialty}
-            onChange={(e) => handleSpecialtyChange(e.target.value)}
-            className="h-9.5"
-          >
-            <option value="">Tất cả chuyên khoa</option>
-            {specialties.map((spec) => (
-              <option key={spec.id} value={spec.name}>
-                {spec.name}
-              </option>
-            ))}
-          </Select>
-        </div>
-
-        <div className="sm:col-span-1 md:col-span-3 lg:col-span-2">
-          <Select
-            value={statusFilter}
-            onChange={(e) =>
-              onStatusFilterChange(e.target.value as DoctorStatusFilter)
-            }
-            className="h-9.5"
-          >
-            <option value="ALL">Tất cả trạng thái ({totalCount})</option>
-            <option value="ACTIVE">Đang hoạt động ({activeCount})</option>
-            <option value="INACTIVE">Tạm dừng hoạt động ({inactiveCount})</option>
-          </Select>
-        </div>
-
-        <div className="flex items-center justify-between gap-2 sm:col-span-2 sm:justify-end md:col-span-12 lg:col-span-3">
+    <div className="mb-4 flex flex-col gap-3 rounded-app-xl border border-border-strong bg-surface p-4 lg:flex-row lg:items-center">
+      <Input
+        aria-label="Tìm kiếm"
+        maxLength={100}
+        className="min-w-0 flex-1"
+        placeholder={
+          tab === "DOCTORS"
+            ? "Tìm theo tên hoặc mã bác sĩ"
+            : "Tìm theo tên hoặc mã chuyên khoa"
+        }
+        value={search}
+        onChange={(event) => setSearch(event.target.value)}
+      />
+      {tab === "DOCTORS" && (
+        <Select
+          aria-label="Lọc chuyên khoa"
+          wrapperClassName="w-full lg:w-56 lg:shrink-0"
+          value={specialtyId}
+          onChange={(event) => onSpecialtyChange(event.target.value)}
+        >
+          <option value="">Tất cả chuyên khoa</option>
+          {specialties.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
+              {s.isActive ? "" : " (Tạm dừng)"}
+            </option>
+          ))}
+        </Select>
+      )}
+      <div className="flex flex-wrap items-center gap-2 lg:shrink-0">
+        {tab === "DOCTORS" && (
           <Tabs
             value={viewMode}
-            onValueChange={(val) => onViewModeChange(val as DoctorViewMode)}
+            onValueChange={(value) => onViewModeChange(value as DoctorViewMode)}
           >
-            <TabsList className="h-9.5 rounded-app-md border-border-strong/50 bg-secondary/80 p-0.5 shadow-xs">
-              <TabsTrigger
-                value="GRID"
-                className="size-8 p-0 rounded-app-sm text-muted data-[selected]:bg-surface data-[selected]:text-primary"
-                aria-label="Chế độ xem lưới"
-              >
-                <LayoutGrid className="size-4" />
-              </TabsTrigger>
-              <TabsTrigger
-                value="LIST"
-                className="size-8 p-0 rounded-app-sm text-muted data-[selected]:bg-surface data-[selected]:text-primary"
-                aria-label="Chế độ xem danh sách"
-              >
-                <List className="size-4" />
-              </TabsTrigger>
+            <TabsList>
+              <TabsTrigger value="GRID">Lưới</TabsTrigger>
+              <TabsTrigger value="LIST">Danh sách</TabsTrigger>
             </TabsList>
           </Tabs>
-
-          <Button
-            type="button"
-            variant="default"
-            size="sm"
-            onClick={onAddDoctorClick}
-            className="h-9.5 gap-1.5 px-3.5 text-base font-semibold shadow-xs"
-          >
-            <UserPlus className="size-4" />
-            <span>Thêm bác sĩ</span>
-          </Button>
-        </div>
+        )}
+        <Button onClick={onAdd} disabled={isLoading}>
+          {tab === "DOCTORS" ? "Thêm bác sĩ" : "Thêm chuyên khoa"}
+        </Button>
       </div>
     </div>
   );

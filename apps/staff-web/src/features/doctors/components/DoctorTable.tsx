@@ -1,198 +1,88 @@
 "use client";
-
-import Image from "next/image";
-import { Star, Eye, Edit2, PauseCircle, CheckCircle2 } from "lucide-react";
 import {
   Table,
   TableHeader,
+  TableHead,
   TableBody,
   TableRow,
-  TableHead,
   TableCell,
 } from "@/components/ui/Table";
-import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/Badge";
 import type { Doctor } from "../types/doctorTypes";
-
-interface DoctorTableProps {
-  doctors: Doctor[];
-  onViewDetails: (doctor: Doctor) => void;
-  onEdit: (doctor: Doctor) => void;
-  onDeactivate: (doctor: Doctor) => void;
-  onActivate: (doctor: Doctor) => void;
-}
-
-function formatDateVN(dateStr?: string): string {
-  if (!dateStr) return "";
-  const parts = dateStr.split("-");
-  if (parts.length === 3) {
-    return `${parts[2]}/${parts[1]}`;
-  }
-  return dateStr;
-}
 
 export function DoctorTable({
   doctors,
   onViewDetails,
   onEdit,
   onDeactivate,
-  onActivate,
-}: DoctorTableProps) {
+}: {
+  doctors: Doctor[];
+  onViewDetails: (doctor: Doctor) => void;
+  onEdit: (doctor: Doctor) => void;
+  onDeactivate: (doctor: Doctor) => void;
+}) {
   return (
     <Table>
       <TableHeader>
-          <TableRow>
-            <TableHead className="px-3.5 py-2.5">
-              Bác sĩ & Mã định danh
-            </TableHead>
-            <TableHead className="px-3.5 py-2.5">Chuyên khoa</TableHead>
-            <TableHead className="px-3.5 py-2.5">Kinh nghiệm</TableHead>
-            <TableHead className="px-3.5 py-2.5">Lịch hẹn tuần</TableHead>
-            <TableHead className="px-3.5 py-2.5">Đánh giá</TableHead>
-            <TableHead className="px-3.5 py-2.5">Trạng thái</TableHead>
-            <TableHead className="px-3.5 py-2.5 text-right">
-              Thao tác
-            </TableHead>
+        <TableRow>
+          <TableHead>Bác sĩ</TableHead>
+          <TableHead>Chuyên khoa / Phòng</TableHead>
+          <TableHead>CCHN</TableHead>
+          <TableHead>Trạng thái</TableHead>
+          <TableHead>Thao tác</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {doctors.map((doctor) => (
+          <TableRow key={doctor.id}>
+            <TableCell>
+              <Button
+                variant="link"
+                className="h-auto p-0 font-semibold"
+                onClick={() => onViewDetails(doctor)}
+              >
+                {doctor.user.fullName}
+              </Button>
+              <p className="text-caption text-muted">{doctor.doctorCode}</p>
+            </TableCell>
+            <TableCell>
+              {doctor.specialty.name}
+              <p className="text-caption text-muted">
+                {doctor.specialty.roomCode}
+              </p>
+            </TableCell>
+            <TableCell>{doctor.licenseNumber}</TableCell>
+            <TableCell>
+              <Badge variant={doctor.isActive ? "success" : "neutral"}>
+                {doctor.isPaused
+                  ? "Đang tạm dừng"
+                  : doctor.isActive
+                    ? "Hoạt động"
+                    : "Ngừng hoạt động"}
+              </Badge>
+            </TableCell>
+            <TableCell>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => onEdit(doctor)}
+                >
+                  Sửa
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => onDeactivate(doctor)}
+                >
+                  Lập tạm dừng
+                </Button>
+              </div>
+            </TableCell>
           </TableRow>
-        </TableHeader>
-        <TableBody>
-          {doctors.map((doctor) => {
-            const isActive = doctor.status === "ACTIVE";
-
-            return (
-              <TableRow key={doctor.id}>
-                <TableCell className="px-3.5 py-2.5">
-                  <div className="flex items-center gap-2.5">
-                    <div className="relative size-9 shrink-0 overflow-hidden rounded-full border border-border">
-                      <Image
-                        src={doctor.avatarUrl}
-                        alt={doctor.name}
-                        fill
-                        sizes="40px"
-                        className={cn("object-cover", !isActive && "grayscale-30")}
-                      />
-                    </div>
-                    <div className="min-w-0">
-                      <button
-                        type="button"
-                        onClick={() => onViewDetails(doctor)}
-                        className="truncate text-left text-doctor font-bold text-foreground hover:text-primary hover:underline"
-                      >
-                        {doctor.name}
-                      </button>
-                      <div className="text-caption text-muted font-semibold tabular-nums">
-                        {doctor.code} • {doctor.licenseNumber}
-                      </div>
-                    </div>
-                  </div>
-                </TableCell>
-
-                <TableCell className="px-3.5 py-2.5">
-                  <Badge variant="brand" className="text-caption font-semibold">
-                    {doctor.specialtyName}
-                  </Badge>
-                </TableCell>
-
-                <TableCell className="px-3.5 py-2.5 text-body font-medium text-muted tabular-nums">
-                  {doctor.experienceYears} năm
-                </TableCell>
-
-                <TableCell className="px-3.5 py-2.5 text-body font-bold text-primary tabular-nums">
-                  {doctor.weeklyAppointments} ca
-                </TableCell>
-
-                <TableCell className="px-3.5 py-2.5">
-                  <div className="flex items-center gap-1 text-body font-semibold text-foreground tabular-nums">
-                    <Star className="size-3.5 fill-rating text-rating" />
-                    <span>{doctor.rating.toFixed(2)}</span>
-                  </div>
-                </TableCell>
-
-                <TableCell className="px-3.5 py-2.5">
-                  <div className="flex flex-col gap-1">
-                    <Badge
-                      variant={isActive ? "success" : "warning"}
-                      shape="pill"
-                      className="w-fit gap-1.5 text-caption"
-                    >
-                      <span
-                        className={cn(
-                          "size-1.5 rounded-full",
-                          isActive ? "bg-success" : "bg-warning"
-                        )}
-                      />
-                      <span>{isActive ? "Đang hoạt động" : "Tạm dừng hoạt động"}</span>
-                    </Badge>
-                    {!isActive && doctor.pauseStartDate && (
-                      <span
-                        className="text-[11px] text-muted font-medium"
-                        title={doctor.pauseReason}
-                      >
-                        {formatDateVN(doctor.pauseStartDate)}
-                        {doctor.isIndefinitePause
-                          ? " (Vô thời hạn)"
-                          : doctor.pauseEndDate
-                          ? ` - ${formatDateVN(doctor.pauseEndDate)}`
-                          : ""}
-                      </span>
-                    )}
-                  </div>
-                </TableCell>
-
-                <TableCell className="px-3.5 py-2.5 text-right">
-                  <div className="flex items-center justify-end gap-1">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-xs"
-                      onClick={() => onViewDetails(doctor)}
-                      className="text-primary hover:bg-primary-light"
-                      title="Xem hồ sơ & Lịch"
-                    >
-                      <Eye className="size-4" />
-                    </Button>
-
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-xs"
-                      onClick={() => onEdit(doctor)}
-                      className="text-muted hover:text-foreground hover:bg-item-hover"
-                      title="Chỉnh sửa thông tin"
-                    >
-                      <Edit2 className="size-4" />
-                    </Button>
-
-                    {isActive ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-xs"
-                        onClick={() => onDeactivate(doctor)}
-                        className="text-danger hover:bg-danger-bg"
-                        title="Tạm dừng hoạt động"
-                      >
-                        <PauseCircle className="size-4" />
-                      </Button>
-                    ) : (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-xs"
-                        onClick={() => onActivate(doctor)}
-                        className="text-primary hover:bg-primary-light"
-                        title="Kích hoạt lại"
-                      >
-                        <CheckCircle2 className="size-4" />
-                      </Button>
-                    )}
-                  </div>
-                </TableCell>
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
+        ))}
+      </TableBody>
+    </Table>
   );
 }
