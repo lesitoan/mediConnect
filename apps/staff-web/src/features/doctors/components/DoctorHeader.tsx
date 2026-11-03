@@ -7,8 +7,8 @@ import type { MainTab } from "../types/doctorTypes";
 interface DoctorHeaderProps {
   activeTab: MainTab;
   onTabChange: (tab: MainTab) => void;
-  doctorCount: number;
-  specialtyCount: number;
+  doctorCount?: number;
+  specialtyCount?: number;
 }
 
 export function DoctorHeader({
@@ -24,7 +24,6 @@ export function DoctorHeader({
           <h1 className="text-display font-bold tracking-tight text-foreground">
             Quản lý Bác sĩ & Chuyên khoa
           </h1>
-
         </div>
       </div>
 
@@ -33,20 +32,25 @@ export function DoctorHeader({
         onValueChange={(val) => onTabChange(val as MainTab)}
         className="self-start md:self-auto"
       >
-        <TabsList className="rounded-app-lg border-border-strong bg-secondary/80 p-0.5 shadow-xs">
+        <TabsList className="h-9 rounded-app-lg border-border-strong bg-secondary/80 p-0.5 shadow-xs">
           <TabsTrigger
             value="DOCTORS"
-            className="flex items-center gap-1.5 rounded-app-md px-3.5 py-1.5 text-base font-semibold data-[selected]:font-bold data-[selected]:text-primary"
+            className="h-7 gap-1.5 rounded-app-md px-3.5 py-0 text-base data-[active]:bg-primary data-[active]:text-primary-foreground data-[active]:shadow-xs"
           >
             <User className="size-3.5" />
-            <span className="tabular-nums">Bác sĩ ({doctorCount})</span>
+            <span className="tabular-nums">
+              Bác sĩ{doctorCount === undefined ? "" : ` (${doctorCount})`}
+            </span>
           </TabsTrigger>
           <TabsTrigger
             value="SPECIALTIES"
-            className="flex items-center gap-1.5 rounded-app-md px-3.5 py-1.5 text-base font-semibold data-[selected]:font-bold data-[selected]:text-primary"
+            className="h-7 gap-1.5 rounded-app-md px-3.5 py-0 text-base data-[active]:bg-primary data-[active]:text-primary-foreground data-[active]:shadow-xs"
           >
             <Stethoscope className="size-3.5" />
-            <span className="tabular-nums">Chuyên khoa ({specialtyCount})</span>
+            <span className="tabular-nums">
+              Chuyên khoa
+              {specialtyCount === undefined ? "" : ` (${specialtyCount})`}
+            </span>
           </TabsTrigger>
         </TabsList>
       </Tabs>

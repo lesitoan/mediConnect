@@ -24,11 +24,16 @@ import { DoctorQueryDto } from '../dto/doctor-query.dto';
 import { CreateDoctorPauseDto } from '../dto/admin/create-doctor-pause.dto';
 import { ProvidersService } from '../providers.service';
 import { DoctorPauseConflictFilter } from '../doctor-pause-conflict.exception';
+import { DoctorDetailsService } from '../doctor-details.service';
+import { DoctorDetailQueryDto } from '../dto/admin/doctor-detail-query.dto';
 
 @ApiTags('Admin doctors')
 @Controller('admin/doctors')
 export class AdminDoctorsController {
-  constructor(private readonly providers: ProvidersService) {}
+  constructor(
+    private readonly providers: ProvidersService,
+    private readonly details: DoctorDetailsService,
+  ) {}
 
   @Auth({ roles: [RoleEnum.ADMIN], permissions: [PermissionEnum.DOCTORS_READ] })
   @Get()
@@ -52,8 +57,15 @@ export class AdminDoctorsController {
   @Auth({ roles: [RoleEnum.ADMIN], permissions: [PermissionEnum.DOCTORS_READ] })
   @Get(':id')
   @Header('Cache-Control', 'no-store')
-  async get(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
-    return new HttpResponseBodySuccessDto(await this.providers.get(id, true));
+  async get(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Query() query: DoctorDetailQueryDto,
+    @CurrentUser() actor: CurrentUserDto,
+  ) {
+    if (query.tab === 'INFO')
+      return new HttpResponseBodySuccessDto(await this.providers.get(id, true));
+    const { items, pagination } = await this.details.list(id, query, actor);
+    return new HttpResponseBodySuccessDto(items, pagination);
   }
 
   @Auth({

@@ -10,6 +10,7 @@ import { SpecialtiesModule } from '../specialties/specialties.module';
 import { PublicProvidersController } from './public-providers.controller';
 import { AdminDoctorAvatarsController } from './controllers/admin-doctor-avatars.controller';
 import { DoctorAvatarsService } from './doctor-avatars.service';
+import { DoctorDetailsService } from './doctor-details.service';
 
 @Module({
   imports: [
@@ -25,7 +26,7 @@ import { DoctorAvatarsService } from './doctor-avatars.service';
     PublicProvidersController,
     PublicDoctorsController,
   ],
-  providers: [ProvidersService, DoctorAvatarsService],
+  providers: [ProvidersService, DoctorAvatarsService, DoctorDetailsService],
   exports: [ProvidersService],
 })
 export class ProvidersModule {}

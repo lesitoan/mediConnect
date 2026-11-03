@@ -1,0 +1,11 @@
+export function getApiErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (
+    error &&
+    typeof error === "object" &&
+    "message" in error &&
+    typeof error.message === "string"
+  )
+    return error.message;
+  return "Không thể thực hiện thao tác. Vui lòng thử lại.";
+}

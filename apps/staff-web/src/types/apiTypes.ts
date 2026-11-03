@@ -8,3 +8,17 @@ export interface ApiError {
   message: string;
   data: unknown;
 }
+
+export interface CatalogQuery {
+  page: number;
+  limit: number;
+  search?: string;
+}
+export interface CatalogPage<T> extends ApiResponse<T[]> {
+  pagination: {
+    totalItems: number;
+    itemsPerPage: number;
+    currentPage: number;
+    totalPages: number;
+  };
+}
