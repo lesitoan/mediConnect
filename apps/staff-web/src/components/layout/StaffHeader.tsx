@@ -31,6 +31,7 @@ export function StaffHeader({ onToggleSidebar }: StaffHeaderProps) {
     if (pathname.startsWith("/examinations")) return "Quản lý khám bệnh";
     if (pathname.startsWith("/reception")) return "Tiếp nhận bệnh nhân";
     if (pathname.startsWith("/doctors")) return "Bác sĩ & Chuyên khoa";
+    if (pathname.startsWith("/diagnostic-results")) return "Trả kết quả CLS";
     if (pathname.startsWith("/users")) return "Quản lý tài khoản";
     if (pathname.startsWith("/queues")) return "Hàng chờ khám";
     if (pathname.startsWith("/schedules")) return "Lịch làm việc & Duyệt";
