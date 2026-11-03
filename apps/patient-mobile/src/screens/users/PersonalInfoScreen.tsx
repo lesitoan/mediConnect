@@ -133,8 +133,8 @@ export default function PersonalInfoScreen({ onPressBack }: PersonalInfoScreenPr
         if (!current) return;
         const names = splitFullName(current.fullName);
         setProfile(current);
-        setLastName(names.lastName.toUpperCase());
-        setFirstName(names.firstName.toUpperCase());
+        setLastName(names.lastName);
+        setFirstName(names.firstName);
         setBirthDate(BIRTH_DATE_PATTERN.test(current.birthDate ?? '') ? (current.birthDate ?? '') : '');
         setGender(parseGender(current.gender));
         setEmail(current.email ?? '');
@@ -256,16 +256,16 @@ export default function PersonalInfoScreen({ onPressBack }: PersonalInfoScreenPr
         </Field>
 
         <Field label="Họ và tên lót" error={errors.lastName}>
-          {renderInput('lastName', lastName, (text) => setLastName(text.toUpperCase()), {
+          {renderInput('lastName', lastName, setLastName, {
             placeholder: 'Họ và tên lót',
-            autoCapitalize: 'characters',
+            autoCapitalize: 'words',
           })}
         </Field>
 
         <Field label="Tên" error={errors.firstName}>
-          {renderInput('firstName', firstName, (text) => setFirstName(text.toUpperCase()), {
+          {renderInput('firstName', firstName, setFirstName, {
             placeholder: 'Tên',
-            autoCapitalize: 'characters',
+            autoCapitalize: 'words',
           })}
         </Field>
 

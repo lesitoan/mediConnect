@@ -10,27 +10,19 @@ export type SpecialtyIconKey =
   | 'MATERNITY'
   | 'DIGESTIVE';
 
-export type SpecialtyService = {
-  id: string;
-  name: string;
-  description: string;
-  iconKey: SpecialtyIconKey;
-  minFee: number | null;
-  isAvailable: boolean;
-};
-
 export type Specialty = {
   id: string;
   code: string;
   name: string;
-  doctorCount?: number;
+  roomCode: string;
+  description: string | null;
+  consultationFee: number | null;
   iconKey: SpecialtyIconKey;
-  services: SpecialtyService[];
 };
 
 export type SpecialtyCatalog = {
   totalCount: number;
-  popular: Specialty[];
+  items: Specialty[];
 };
 
 type PublicSpecialty = {
@@ -62,26 +54,23 @@ export async function getSpecialtyCatalog(
     signal,
   );
   const items = specialties.map((specialty) => {
-    const iconKey = getSpecialtyIcon(specialty.name);
-    const service: SpecialtyService = {
-      id: specialty.id,
-      name: `Khám ${specialty.name}`,
-      description: specialty.description ?? `Khám và tư vấn chuyên khoa ${specialty.name}.`,
-      iconKey,
-      minFee:
-        specialty.consultationFee === null
-          ? null
-          : Number(specialty.consultationFee),
-      isAvailable: true,
-    };
+    const consultationFee =
+      specialty.consultationFee === null
+        ? null
+        : Number(specialty.consultationFee);
+    if (consultationFee !== null && !Number.isFinite(consultationFee)) {
+      throw new Error('API trả về phí khám chuyên khoa không hợp lệ.');
+    }
     return {
       id: specialty.id,
       code: specialty.code,
       name: specialty.name,
-      iconKey,
-      services: [service],
+      roomCode: specialty.roomCode,
+      description: specialty.description,
+      consultationFee,
+      iconKey: getSpecialtyIcon(specialty.name),
     };
   });
 
-  return { totalCount: items.length, popular: items };
+  return { totalCount: items.length, items };
 }
