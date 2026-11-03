@@ -3,11 +3,22 @@ import { AUTH_ROUTES, MAIN_TABS, ROOT_ROUTES } from './routes';
 import type { Profile } from '../services/profileService';
 import type { Specialty, SpecialtyService } from '../services/specialtyService';
 import type { Doctor, ScheduleDay, TimeSlot } from '../services/scheduleService';
+type OtpChallengeParams = {
+  challengeId: string;
+  channel: 'EMAIL' | 'ZALO';
+  expiresIn: number;
+  retryAfter: number;
+};
 export type AuthStackParamList = {
   [AUTH_ROUTES.LOGIN]: undefined;
   [AUTH_ROUTES.REGISTER]: undefined;
-  [AUTH_ROUTES.OTP]: { phone: string };
-  [AUTH_ROUTES.SET_PASSWORD]: { phone: string };
+  [AUTH_ROUTES.OTP]: {
+    contact: string;
+    purpose: 'REGISTER' | 'RESET_PASSWORD';
+    challenge: OtpChallengeParams;
+  };
+  [AUTH_ROUTES.SET_PASSWORD]: { contact: string; resetToken: string };
+  [AUTH_ROUTES.FORGOT_PASSWORD]: undefined;
 };
 
 export type MainTabParamList = {

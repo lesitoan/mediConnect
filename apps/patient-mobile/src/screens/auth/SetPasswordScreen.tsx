@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import {
-  Alert,
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -103,7 +103,7 @@ const HeartPulseIcon = createIcon(() => (
 type SetPasswordScreenProps = {
   phone?: string;
   onPressBack?: () => void;
-  onSubmit?: (password: string) => void;
+  onSubmit?: (password: string) => Promise<void>;
 };
 
 const getRules = (password: string, confirm: string) => [
@@ -126,6 +126,7 @@ export default function SetPasswordScreen({ phone, onPressBack, onSubmit }: SetP
   const [isFocusedPassword, setIsFocusedPassword] = useState(false);
   const [isFocusedConfirm, setIsFocusedConfirm] = useState(false);
   const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const rules = getRules(password, confirm);
   const isValid = rules.every((rule) => rule.isMet);
@@ -140,16 +141,25 @@ export default function SetPasswordScreen({ phone, onPressBack, onSubmit }: SetP
     if (error) setError('');
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!isValid) {
       setError('Mật khẩu chưa đáp ứng đầy đủ các yêu cầu');
       return;
     }
-    if (onSubmit) {
-      onSubmit(password);
-      return;
+    if (!onSubmit || isSubmitting) return;
+    setIsSubmitting(true);
+    setError('');
+    try {
+      await onSubmit(password);
+    } catch (submitError) {
+      setError(
+        submitError instanceof Error
+          ? submitError.message
+          : 'Không thể cập nhật mật khẩu.',
+      );
+    } finally {
+      setIsSubmitting(false);
     }
-    Alert.alert('Đặt mật khẩu mới', `Số điện thoại: ${phone ?? ''}`);
   };
 
   return (
@@ -195,7 +205,7 @@ export default function SetPasswordScreen({ phone, onPressBack, onSubmit }: SetP
 
             <View style={styles.card}>
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Số điện thoại</Text>
+                <Text style={styles.label}>Email hoặc số điện thoại</Text>
                 <View style={styles.readOnlyBox}>
                   <SmartphoneIcon size={20} color={COLORS.ICON_MUTED} />
                   <Text style={styles.readOnlyText}>{phone ?? ''}</Text>
@@ -292,9 +302,16 @@ export default function SetPasswordScreen({ phone, onPressBack, onSubmit }: SetP
               style={styles.primaryButton}
               activeOpacity={0.85}
               onPress={handleSubmit}
+              disabled={isSubmitting}
             >
-              <Text style={styles.primaryButtonText}>Xác nhận</Text>
-              <ArrowRightIcon size={18} color={COLORS.SURFACE} />
+              {isSubmitting ? (
+                <ActivityIndicator color={COLORS.SURFACE} />
+              ) : (
+                <>
+                  <Text style={styles.primaryButtonText}>Xác nhận</Text>
+                  <ArrowRightIcon size={18} color={COLORS.SURFACE} />
+                </>
+              )}
             </TouchableOpacity>
           </ScrollView>
         </KeyboardAvoidingView>

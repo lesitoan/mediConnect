@@ -321,6 +321,13 @@ export default function AppointmentHistoryScreen({
             setProfile(current);
             setAppointments(items);
           }
+        } catch (error) {
+          if (isActive) {
+            Alert.alert(
+              'Không thể tải hồ sơ',
+              error instanceof Error ? error.message : 'Vui lòng thử lại sau.',
+            );
+          }
         } finally {
           if (isActive) setIsLoading(false);
         }

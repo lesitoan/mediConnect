@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ComponentRef, type ReactNode } from 'react'; // FIX
 import {
-  Alert,
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -80,13 +80,28 @@ const HeartPulseIcon = createIcon(() => (
 ));
 
 type OtpScreenProps = {
-  phone?: string;
+  challenge: {
+    challengeId: string;
+    expiresIn: number;
+    retryAfter: number;
+    channel: 'EMAIL' | 'ZALO';
+  };
+  purpose: 'REGISTER' | 'RESET_PASSWORD';
   onPressBack?: () => void;
-  onVerified?: (code: string) => void;
+  onVerified?: (result: { resetToken?: string }) => void;
+  onVerify?: (
+    challengeId: string,
+    code: string,
+  ) => Promise<{ purpose: 'REGISTER' | 'RESET_PASSWORD'; resetToken?: string }>;
+  onResend?: () => Promise<{
+    challengeId: string;
+    expiresIn: number;
+    retryAfter: number;
+    channel: 'EMAIL' | 'ZALO';
+  }>;
 };
 
 const OTP_LENGTH = 6;
-const RESEND_SECONDS = 60;
 
 const formatTime = (totalSeconds: number) => {
   const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, '0');
@@ -94,12 +109,26 @@ const formatTime = (totalSeconds: number) => {
   return `${minutes}:${seconds}`;
 };
 
-export default function OtpScreen({ phone, onPressBack, onVerified }: OtpScreenProps) {
+export default function OtpScreen({
+  challenge,
+  purpose,
+  onPressBack,
+  onVerified,
+  onVerify,
+  onResend,
+}: OtpScreenProps) {
   const inputRef = useRef<ComponentRef<typeof TextInput>>(null); // FIX
   const [code, setCode] = useState('');
   const [isFocused, setIsFocused] = useState(false);
   const [error, setError] = useState('');
-  const [secondsLeft, setSecondsLeft] = useState(RESEND_SECONDS);
+  const [currentChallenge, setCurrentChallenge] = useState(challenge);
+  const [secondsLeft, setSecondsLeft] = useState(challenge.retryAfter);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    setCurrentChallenge(challenge);
+    setSecondsLeft(challenge.retryAfter);
+  }, [challenge]);
 
   useEffect(() => {
     if (secondsLeft <= 0) return;
@@ -112,24 +141,53 @@ export default function OtpScreen({ phone, onPressBack, onVerified }: OtpScreenP
     if (error) setError('');
   };
 
-  const handleVerify = () => {
+  const handleVerify = async () => {
     if (code.length < OTP_LENGTH) {
       setError('Vui lòng nhập đủ 6 chữ số');
       return;
     }
-    if (onVerified) {
-      onVerified(code);
-      return;
+    if (!onVerify || isSubmitting) return;
+    setIsSubmitting(true);
+    setError('');
+    try {
+      const result = await onVerify(currentChallenge.challengeId, code);
+      if (result.purpose !== purpose) {
+        throw new Error('Mục đích OTP không khớp với yêu cầu hiện tại.');
+      }
+      if (purpose === 'RESET_PASSWORD' && !result.resetToken) {
+        throw new Error('API không trả về mã đặt lại mật khẩu.');
+      }
+      onVerified?.({ resetToken: result.resetToken });
+    } catch (verificationError) {
+      setError(
+        verificationError instanceof Error
+          ? verificationError.message
+          : 'Không thể xác thực mã OTP.',
+      );
+    } finally {
+      setIsSubmitting(false);
     }
-    Alert.alert('Xác nhận mã', `Số điện thoại: ${phone ?? ''}\nMã OTP: ${code}`);
   };
 
-  const handleResend = () => {
-    if (secondsLeft > 0) return;
-    setCode('');
+  const handleResend = async () => {
+    if (!onResend || secondsLeft > 0 || isSubmitting) return;
+    setIsSubmitting(true);
     setError('');
-    setSecondsLeft(RESEND_SECONDS);
-    inputRef.current?.focus();
+    try {
+      const nextChallenge = await onResend();
+      setCurrentChallenge(nextChallenge);
+      setSecondsLeft(nextChallenge.retryAfter);
+      setCode('');
+      inputRef.current?.focus();
+    } catch (resendError) {
+      setError(
+        resendError instanceof Error
+          ? resendError.message
+          : 'Không thể gửi lại mã OTP.',
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const activeIndex = Math.min(code.length, OTP_LENGTH - 1);
@@ -177,8 +235,8 @@ export default function OtpScreen({ phone, onPressBack, onVerified }: OtpScreenP
 
               <Text style={styles.title}>Nhập mã OTP</Text>
               <Text style={styles.description}>
-                Mã 6 chữ số đã được gửi tới tin nhắn trên điện thoại của bạn. Vui lòng nhập vào ô
-                bên dưới.
+                Mã 6 chữ số đã được gửi qua {currentChallenge.channel === 'ZALO' ? 'Zalo' : 'email'}.
+                Nhập mã để {purpose === 'REGISTER' ? 'kích hoạt tài khoản' : 'đặt lại mật khẩu'}.
               </Text>
 
               <Pressable style={styles.otpRow} onPress={() => inputRef.current?.focus()}>
@@ -219,8 +277,13 @@ export default function OtpScreen({ phone, onPressBack, onVerified }: OtpScreenP
                 style={styles.primaryButton}
                 activeOpacity={0.85}
                 onPress={handleVerify}
+                disabled={isSubmitting}
               >
-                <Text style={styles.primaryButtonText}>Xác nhận mã</Text>
+                {isSubmitting ? (
+                  <ActivityIndicator color={COLORS.SURFACE} />
+                ) : (
+                  <Text style={styles.primaryButtonText}>Xác nhận mã</Text>
+                )}
               </TouchableOpacity>
 
               <View style={styles.resendRow}>
