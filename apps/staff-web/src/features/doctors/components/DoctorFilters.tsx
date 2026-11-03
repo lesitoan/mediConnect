@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { LayoutGrid, List } from "lucide-react";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/button";
@@ -78,13 +79,27 @@ export function DoctorFilters({
             value={viewMode}
             onValueChange={(value) => onViewModeChange(value as DoctorViewMode)}
           >
-            <TabsList>
-              <TabsTrigger value="GRID">Lưới</TabsTrigger>
-              <TabsTrigger value="LIST">Danh sách</TabsTrigger>
+            <TabsList aria-label="Chế độ hiển thị bác sĩ" className="h-9 p-0.5">
+              <TabsTrigger
+                value="GRID"
+                aria-label="Hiển thị lưới"
+                title="Hiển thị lưới"
+                className="h-7 w-8 p-0 data-[active]:bg-surface data-[active]:text-primary data-[active]:shadow-xs"
+              >
+                <LayoutGrid aria-hidden="true" className="size-4" />
+              </TabsTrigger>
+              <TabsTrigger
+                value="LIST"
+                aria-label="Hiển thị danh sách"
+                title="Hiển thị danh sách"
+                className="h-7 w-8 p-0 data-[active]:bg-surface data-[active]:text-primary data-[active]:shadow-xs"
+              >
+                <List aria-hidden="true" className="size-4" />
+              </TabsTrigger>
             </TabsList>
           </Tabs>
         )}
-        <Button onClick={onAdd} disabled={isLoading}>
+        <Button size="lg" onClick={onAdd} disabled={isLoading}>
           {tab === "DOCTORS" ? "Thêm bác sĩ" : "Thêm chuyên khoa"}
         </Button>
       </div>

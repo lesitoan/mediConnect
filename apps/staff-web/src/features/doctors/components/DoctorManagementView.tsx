@@ -55,6 +55,8 @@ export function DoctorManagementView() {
     { skip: tab !== "SPECIALTIES" },
   );
   const options = useGetSpecialtyOptionsQuery();
+  const doctorTotals = useGetDoctorsQuery({ page: 1, limit: 1 });
+  const specialtyTotals = useGetSpecialtiesQuery({ page: 1, limit: 1 });
   const doctorForm = useModal<Doctor>();
   const specialtyForm = useModal<SpecialtyRecord>();
   const details = useModal<string>();
@@ -93,14 +95,8 @@ export function DoctorManagementView() {
         onTabChange={(value) =>
           setFilters({ tab: value, search: "", specialty: "", page: 1 })
         }
-        doctorCount={
-          tab === "DOCTORS" ? result?.pagination.totalItems : undefined
-        }
-        specialtyCount={
-          tab === "SPECIALTIES"
-            ? result?.pagination.totalItems
-            : options.data?.length
-        }
+        doctorCount={doctorTotals.data?.pagination.totalItems}
+        specialtyCount={specialtyTotals.data?.pagination.totalItems}
       />
       <DoctorFilters
         tab={tab}

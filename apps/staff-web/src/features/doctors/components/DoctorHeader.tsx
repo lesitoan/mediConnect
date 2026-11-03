@@ -32,10 +32,10 @@ export function DoctorHeader({
         onValueChange={(val) => onTabChange(val as MainTab)}
         className="self-start md:self-auto"
       >
-        <TabsList className="rounded-app-lg border-border-strong bg-secondary/80 p-0.5 shadow-xs">
+        <TabsList className="h-9 rounded-app-lg border-border-strong bg-secondary/80 p-0.5 shadow-xs">
           <TabsTrigger
             value="DOCTORS"
-            className="flex items-center gap-1.5 rounded-app-md px-3.5 py-1.5 text-base font-semibold data-[selected]:font-bold data-[selected]:text-primary"
+            className="h-7 gap-1.5 rounded-app-md px-3.5 py-0 text-base data-[active]:bg-primary data-[active]:text-primary-foreground data-[active]:shadow-xs"
           >
             <User className="size-3.5" />
             <span className="tabular-nums">
@@ -44,7 +44,7 @@ export function DoctorHeader({
           </TabsTrigger>
           <TabsTrigger
             value="SPECIALTIES"
-            className="flex items-center gap-1.5 rounded-app-md px-3.5 py-1.5 text-base font-semibold data-[selected]:font-bold data-[selected]:text-primary"
+            className="h-7 gap-1.5 rounded-app-md px-3.5 py-0 text-base data-[active]:bg-primary data-[active]:text-primary-foreground data-[active]:shadow-xs"
           >
             <Stethoscope className="size-3.5" />
             <span className="tabular-nums">

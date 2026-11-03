@@ -1,4 +1,8 @@
 import { baseApi } from "@/lib/redux/baseApi";
+import type {
+  DoctorDataTab,
+  DoctorTabRecord,
+} from "../types/doctorDetailTypes";
 import type { ApiResponse, CatalogPage, CatalogQuery } from "@/types/apiTypes";
 import type {
   CreateDoctorInput,
@@ -12,6 +16,19 @@ export const doctorsApi = baseApi
   .enhanceEndpoints({ addTagTypes: ["SCHEDULES"] })
   .injectEndpoints({
     endpoints: (build) => ({
+      getDoctorTab: build.query<
+        CatalogPage<DoctorTabRecord>,
+        { id: string; tab: DoctorDataTab; page: number; limit: number }
+      >({
+        query: ({ id, ...params }) => ({
+          url: `/admin/doctors/${encodeURIComponent(id)}`,
+          params,
+        }),
+        providesTags: (_result, _error, { id }) => [
+          { type: "DOCTORS", id },
+          { type: "SCHEDULES", id: "LIST" },
+        ],
+      }),
       getDoctors: build.query<
         CatalogPage<Doctor>,
         CatalogQuery & { specialtyId?: string }
@@ -117,6 +134,7 @@ export const doctorsApi = baseApi
     }),
   });
 export const {
+  useGetDoctorTabQuery,
   useGetDoctorsQuery,
   useGetDoctorQuery,
   useCreateDoctorMutation,
