@@ -71,7 +71,8 @@ const normalizeText = (value: string) =>
     .replace(/đ/g, 'd')
     .toLowerCase();
 
-const formatFee = (value: number) => `${String(value).replace(/\B(?=(\d{3})+(?!\d))/g, '.')}đ`;
+const formatFee = (value: number | null) =>
+  value === null ? 'Chưa cập nhật' : `${String(value).replace(/\B(?=(\d{3})+(?!\d))/g, '.')}đ`;
 
 export type SpecialtySelection = {
   specialty: Specialty;
@@ -106,6 +107,7 @@ export default function SelectSpecialtyScreen({
 
   const [catalog, setCatalog] = useState<SpecialtyCatalog | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [searchText, setSearchText] = useState('');
   const [activeTab, setActiveTab] = useState<SpecialtyTab>('SPECIALTY');
   const [selectedSpecialtyId, setSelectedSpecialtyId] = useState<string | null>(null);
@@ -116,6 +118,13 @@ export default function SelectSpecialtyScreen({
     getSpecialtyCatalog()
       .then((data) => {
         if (isActive) setCatalog(data);
+      })
+      .catch((error: unknown) => {
+        if (isActive) {
+          setLoadError(
+            error instanceof Error ? error.message : 'Không thể tải chuyên khoa.',
+          );
+        }
       })
       .finally(() => {
         if (isActive) setIsLoading(false);
@@ -185,7 +194,9 @@ export default function SelectSpecialtyScreen({
                 {specialty.name}
               </Text>
               <Text style={styles.gridCount} numberOfLines={1}>
-                {specialty.doctorCount} bác sĩ
+                {specialty.doctorCount === undefined
+                  ? 'Chuyên khoa'
+                  : `${specialty.doctorCount} bác sĩ`}
               </Text>
             </TouchableOpacity>
           );
@@ -270,6 +281,32 @@ export default function SelectSpecialtyScreen({
       return (
         <View style={styles.centered}>
           <ActivityIndicator color={COLORS.PRIMARY_LIGHT} />
+        </View>
+      );
+    }
+    if (loadError) {
+      return (
+        <View style={styles.centered}>
+          <Text style={styles.noticeText}>{loadError}</Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={() => {
+              setIsLoading(true);
+              setLoadError('');
+              getSpecialtyCatalog()
+                .then(setCatalog)
+                .catch((error: unknown) => {
+                  setLoadError(
+                    error instanceof Error
+                      ? error.message
+                      : 'Không thể tải chuyên khoa.',
+                  );
+                })
+                .finally(() => setIsLoading(false));
+            }}
+          >
+            <Text style={styles.sectionLink}>Thử lại</Text>
+          </TouchableOpacity>
         </View>
       );
     }
@@ -420,6 +457,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   screen: { backgroundColor: COLORS.BACKGROUND, paddingBottom: 0 },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  retryButton: { marginTop: 16, paddingHorizontal: 18, paddingVertical: 10 },
   content: { paddingHorizontal: SCREEN_PADDING, paddingTop: 16, paddingBottom: 24 },
   profileBar: {
     flexDirection: 'row',

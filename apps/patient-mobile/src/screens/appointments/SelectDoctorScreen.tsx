@@ -54,7 +54,8 @@ const CARD_BUTTON_COLOR = '#5AB3E3';
 
 const pad = (value: number) => String(value).padStart(2, '0');
 const formatDate = (day: ScheduleDay) => `${pad(day.day)}/${pad(day.month)}/${day.year}`;
-const formatFee = (value: number) => `${String(value).replace(/\B(?=(\d{3})+(?!\d))/g, '.')}đ`;
+const formatFee = (value: number | null) =>
+  value === null ? 'Chưa cập nhật' : `${String(value).replace(/\B(?=(\d{3})+(?!\d))/g, '.')}đ`;
 
 export type DoctorSelection = {
   day: ScheduleDay;
@@ -87,6 +88,7 @@ export default function SelectDoctorScreen({
   const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [isLoadingDoctors, setIsLoadingDoctors] = useState(false);
+  const [doctorLoadError, setDoctorLoadError] = useState('');
   const [selectedDoctorId, setSelectedDoctorId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -110,9 +112,18 @@ export default function SelectDoctorScreen({
     }
     let isActive = true;
     setIsLoadingDoctors(true);
-    getAvailableDoctors(service.id, selectedDateKey)
+    setDoctorLoadError('');
+    getAvailableDoctors(service.id)
       .then((data) => {
         if (isActive) setDoctors(data);
+      })
+      .catch((error: unknown) => {
+        if (isActive) {
+          setDoctors([]);
+          setDoctorLoadError(
+            error instanceof Error ? error.message : 'Không thể tải bác sĩ.',
+          );
+        }
       })
       .finally(() => {
         if (isActive) setIsLoadingDoctors(false);
@@ -199,20 +210,19 @@ export default function SelectDoctorScreen({
         <View style={styles.flex}>
           <View style={styles.doctorNameRow}>
             <Text style={styles.doctorName}>{doctor.fullName.toUpperCase()}</Text>
-            <View style={styles.ratingRow}>
-              <StarIcon size={13} color={RATING_COLOR} />
-              <Text style={styles.ratingText}>{doctor.rating.toFixed(1)}</Text>
-            </View>
+            {doctor.rating !== undefined ? (
+              <View style={styles.ratingRow}>
+                <StarIcon size={13} color={RATING_COLOR} />
+                <Text style={styles.ratingText}>{doctor.rating.toFixed(1)}</Text>
+              </View>
+            ) : null}
           </View>
 
           <Text style={styles.doctorInfo}>
-            Học hàm học vị: <Text style={styles.doctorInfoValue}>{doctor.academicTitle}</Text>
-          </Text>
-          <Text style={styles.doctorInfo}>
-            Kinh nghiệm: <Text style={styles.doctorInfoValue}>{doctor.experience}</Text>
-          </Text>
-          <Text style={styles.doctorInfo}>
-            Chức vụ: <Text style={styles.doctorInfoValue}>{doctor.position}</Text>
+            Chuyên môn:{' '}
+            <Text style={styles.doctorInfoValue}>
+              {doctor.academicTitle ?? 'Chưa cập nhật'}
+            </Text>
           </Text>
 
           <TouchableOpacity
@@ -247,14 +257,37 @@ export default function SelectDoctorScreen({
         <View style={styles.sectionHeader}>
           <View style={styles.sectionTitleRow}>
             <UsersIcon size={20} color={COLORS.PRIMARY} />
-            <Text style={styles.sectionTitle}>2. Chọn bác sĩ</Text>
+            <Text style={styles.sectionTitle}>2. Bác sĩ thuộc chuyên khoa</Text>
           </View>
-          <Text style={styles.sortText}>Sắp xếp: Phù hợp nhất</Text>
+            <Text style={styles.sortText}>Bác sĩ đang hoạt động</Text>
         </View>
 
         {isLoadingDoctors ? (
           <View style={styles.loadingBox}>
             <ActivityIndicator color={COLORS.PRIMARY_LIGHT} />
+          </View>
+        ) : doctorLoadError ? (
+          <View style={styles.loadingBox}>
+            <Text style={styles.emptyText}>{doctorLoadError}</Text>
+            <TouchableOpacity
+              onPress={() => {
+                setIsLoadingDoctors(true);
+                setDoctorLoadError('');
+                getAvailableDoctors(service.id)
+                  .then(setDoctors)
+                  .catch((error: unknown) => {
+                    setDoctors([]);
+                    setDoctorLoadError(
+                      error instanceof Error
+                        ? error.message
+                        : 'Không thể tải bác sĩ.',
+                    );
+                  })
+                  .finally(() => setIsLoadingDoctors(false));
+              }}
+            >
+              <Text style={styles.sortText}>Thử lại</Text>
+            </TouchableOpacity>
           </View>
         ) : doctors.length === 0 ? (
           <Text style={styles.emptyText}>Không có bác sĩ còn lịch trong ngày này.</Text>

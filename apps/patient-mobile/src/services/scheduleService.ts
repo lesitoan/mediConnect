@@ -1,10 +1,12 @@
+import { getPublicApiItems } from './apiClient';
+
 export type Doctor = {
   id: string;
   fullName: string;
-  academicTitle: string;
-  experience: string;
-  position: string;
-  rating: number;
+  academicTitle: string | null;
+  experience?: string;
+  position?: string;
+  rating?: number;
   photoUrl?: string;
 };
 
@@ -22,48 +24,13 @@ const DAYS_AHEAD = 14;
 const WEEKDAY_LABELS = ['CN', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
 const AVAILABILITY_PATTERN = [0, 3, 5, 4, 2, 5];
 
-const MOCK_DOCTORS: Doctor[] = [
-  {
-    id: 'doctor-le-quang-huy',
-    fullName: 'TS.BS Lê Quang Huy',
-    academicTitle: 'Tiến sĩ, Bác sĩ',
-    experience: 'Hơn 18 năm',
-    position: 'Trưởng khoa Tim mạch',
-    rating: 4.9,
-  },
-  {
-    id: 'doctor-nguyen-thu-trang',
-    fullName: 'ThS.BS Nguyễn Thu Trang',
-    academicTitle: 'Thạc sĩ, Bác sĩ',
-    experience: 'Hơn 12 năm',
-    position: 'Phó khoa Tim mạch',
-    rating: 4.8,
-  },
-  {
-    id: 'doctor-tran-dinh-tuan',
-    fullName: 'ThS.BS Trần Đình Tuấn',
-    academicTitle: 'Bác sĩ Chuyên khoa II',
-    experience: 'Hơn 20 năm',
-    position: 'Chuyên gia Can thiệp Tim mạch',
-    rating: 5.0,
-  },
-  {
-    id: 'doctor-pham-hoang-anh',
-    fullName: 'BS.CKI Phạm Hoàng Anh',
-    academicTitle: 'Bác sĩ Chuyên khoa I',
-    experience: 'Hơn 10 năm',
-    position: 'Bác sĩ điều trị',
-    rating: 4.7,
-  },
-  {
-    id: 'doctor-vo-minh-khoi',
-    fullName: 'TS.BS Võ Minh Khôi',
-    academicTitle: 'Tiến sĩ, Bác sĩ',
-    experience: 'Hơn 15 năm',
-    position: 'Phó khoa Nội tổng hợp',
-    rating: 4.8,
-  },
-];
+type PublicDoctor = {
+  id: string;
+  academicTitle: string | null;
+  qualification: string | null;
+  avatarUrl: string | null;
+  user: { fullName: string };
+};
 
 const toDateKey = (date: Date) => {
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -96,11 +63,17 @@ export async function getScheduleDays(serviceId: string): Promise<ScheduleDay[]>
   });
 }
 
-export async function getAvailableDoctors(serviceId: string, dateKey: string): Promise<Doctor[]> {
-  const date = parseDateKey(dateKey);
-  const count = getAvailableCount(date, serviceId);
-  const offset = date.getDate() % MOCK_DOCTORS.length;
-  return Array.from({ length: count }, (_, index) => MOCK_DOCTORS[(offset + index) % MOCK_DOCTORS.length]);
+export async function getAvailableDoctors(serviceId: string): Promise<Doctor[]> {
+  const doctors = await getPublicApiItems<PublicDoctor>(
+    `/providers?specialtyId=${encodeURIComponent(serviceId)}`,
+  );
+  return doctors.map((doctor) => ({
+    id: doctor.id,
+    fullName: doctor.user.fullName,
+    academicTitle: doctor.academicTitle ?? doctor.qualification,
+    position: doctor.qualification ?? undefined,
+    photoUrl: doctor.avatarUrl ?? undefined,
+  }));
 }
 
 export type ShiftId = 'MORNING' | 'AFTERNOON';
