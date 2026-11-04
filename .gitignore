@@ -27,6 +27,8 @@ coverage/
 /apps/api/test/
 /apps/staff-web/e2e/
 /apps/staff-web/e2e/results/
+/apps/patient-web/e2e/
+/apps/patient-web/e2e/results/
 
 # Logs
 logs/

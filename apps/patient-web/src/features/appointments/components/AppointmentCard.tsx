@@ -46,13 +46,20 @@ export default function AppointmentCard({
   const start = startOf(appt, now);
   const upcoming = appt.kind === "confirmed" || appt.kind === "followup";
   const inTime = withinCutoff(appt, now);
-  const canChange = upcoming && canReschedule(appt, now);
+  const canModify = appt.canModify !== false;
+  const canChange = upcoming && canModify && canReschedule(appt, now);
   const daysLeft = Math.max(0, Math.ceil((start.getTime() - now.getTime()) / 86_400_000));
 
-  const cancelLock = inTime ? undefined : `Chỉ hủy được trước giờ khám tối thiểu ${CUTOFF_HOURS} giờ`;
+  const cancelLock = !canModify
+    ? "Không thể hủy lịch ở trạng thái hiện tại"
+    : inTime
+      ? undefined
+      : `Chỉ hủy được trước giờ khám tối thiểu ${CUTOFF_HOURS} giờ`;
   const changeLock = !inTime
     ? `Chỉ đổi được trước giờ khám tối thiểu ${CUTOFF_HOURS} giờ`
-    : `Lịch này đã đổi tối đa ${MAX_RESCHEDULE} lần`;
+    : !canModify
+      ? "Không thể đổi lịch ở trạng thái hiện tại"
+      : `Lịch này đã đổi tối đa ${MAX_RESCHEDULE} lần`;
 
   return (
     <article className={cardShell}>
@@ -239,7 +246,7 @@ export default function AppointmentCard({
 
               <button
                 type="button"
-                disabled={!inTime}
+                disabled={!inTime || !canModify}
                 title={cancelLock}
                 onClick={() => onCancel(appt)}
                 className={`${btn} bg-red-50 text-red-600 hover:bg-red-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400`}
