@@ -42,7 +42,7 @@ export class OtpService {
   assertConfigured(contact: ContactDto): void {
     this.store.assertReady();
     if (!this.isDevelopmentMode()) {
-      this.delivery.assertConfigured(contact.email ? 'EMAIL' : 'ZALO');
+      this.delivery.assertConfigured(contact.email ? 'EMAIL' : 'PHONE');
     }
   }
 
@@ -124,7 +124,7 @@ export class OtpService {
   ): Promise<OtpChallengeDto> {
     this.assertConfigured(contact);
     if (!knownUserId) await this.throttle(ip, 'SEND');
-    const channel = contact.email ? 'EMAIL' : 'ZALO';
+    const channel = contact.email ? 'EMAIL' : 'PHONE';
     const destination = contact.email ?? contact.phone!;
     const id = randomUUID();
     const response: OtpChallengeDto = {

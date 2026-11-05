@@ -4,7 +4,7 @@ import { createHmac } from 'node:crypto';
 import { RedisService } from '../../redis/services/redis.service';
 
 export type OtpPurpose = 'REGISTER' | 'RESET_PASSWORD';
-export type OtpChannel = 'EMAIL' | 'ZALO';
+export type OtpChannel = 'EMAIL' | 'PHONE' | 'ZALO';
 export interface OtpRecord {
   id: string;
   scope: string;
@@ -180,7 +180,7 @@ export class OtpStoreService {
         typeof record.scope !== 'string' ||
         !/^[a-f0-9]{64}$/.test(record.scope) ||
         !['REGISTER', 'RESET_PASSWORD'].includes(record.purpose) ||
-        !['EMAIL', 'ZALO'].includes(record.channel) ||
+        !['EMAIL', 'PHONE', 'ZALO'].includes(record.channel) ||
         typeof record.destination !== 'string' ||
         typeof record.codeDigest !== 'string' ||
         !(
