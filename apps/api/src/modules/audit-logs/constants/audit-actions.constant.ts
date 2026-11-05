@@ -25,6 +25,7 @@ export const AUDIT_ACTION_LABELS: Readonly<Record<string, string>> = {
   SEPAY_PAYMENT_RECEIVE: 'Tiếp nhận giao dịch SePay',
   SEPAY_WEBHOOK_CONFLICT: 'Giao dịch SePay trùng ID nhưng khác nội dung',
   EXPORT_AUDIT_LOG: 'Xuất nhật ký hệ thống',
+  ACCOUNT_CONTACT_CHANGED: 'Đổi liên hệ đăng nhập',
   ACCOUNT_ACTIVATE: 'Kích hoạt tài khoản',
   ACCOUNT_REGISTER: 'Đăng ký tài khoản',
   ACCOUNT_RESET_CREDENTIALS: 'Đặt lại mật khẩu',

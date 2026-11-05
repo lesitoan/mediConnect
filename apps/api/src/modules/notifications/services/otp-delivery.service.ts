@@ -8,7 +8,7 @@ export interface OtpDelivery {
   challengeId: string;
   destination: string;
   channel: 'EMAIL' | 'PHONE';
-  purpose: 'REGISTER' | 'RESET_PASSWORD';
+  purpose: 'REGISTER' | 'RESET_PASSWORD' | 'CHANGE_CONTACT';
   code: string;
   expiresInSeconds: number;
 }
@@ -64,7 +64,9 @@ export class OtpDeliveryService {
       const action =
         input.purpose === 'REGISTER'
           ? 'kích hoạt tài khoản'
-          : 'đặt lại mật khẩu';
+          : input.purpose === 'CHANGE_CONTACT'
+            ? 'đổi liên hệ đăng nhập'
+            : 'đặt lại mật khẩu';
       const response = await fetch(
         isEmail
           ? 'https://api.resend.com/emails'

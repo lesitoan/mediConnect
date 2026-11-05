@@ -306,7 +306,10 @@ export class UsersService {
       after.patientNameSynchronized = true;
     if ('phone' in synchronized && !('phone' in after))
       after.patientPhoneSynchronized = true;
-    if ('phone' in after) data.phoneVerifiedAt = null;
+    if ('phone' in after) {
+      data.phoneVerifiedAt = null;
+      data.contactVersion = { increment: 1 };
+    }
     if (Object.keys(data).length)
       await tx.user.update({ where: { id: userId }, data });
     if ('phone' in after || isRoleChanged) {
