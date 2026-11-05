@@ -686,7 +686,12 @@ export class ReceptionService {
     if (!session) throw new NotFoundException('Appointment session not found');
     const queueDate = clinicDate();
     const queueKey = `${session.specialtyId}:${clinicDateString(queueDate)}`;
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext('RECEPTION_QUEUE'), hashtext(${queueKey}))`;
+    await tx.$queryRaw<{ locked: string }[]>`
+      SELECT pg_advisory_xact_lock(
+        hashtext('RECEPTION_QUEUE'),
+        hashtext(${queueKey})
+      )::text AS locked
+    `;
     const maximum = await tx.careSession.aggregate({
       where: {
         specialtyId: session.specialtyId,

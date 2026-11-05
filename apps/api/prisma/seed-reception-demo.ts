@@ -6,7 +6,6 @@ import { requireE2EClock } from '../src/common/utils/e2e-clock';
 const DEMO_DOCTOR_CODES = ['SEED-GEN-01', 'SEED-GEN-02', 'SEED-SUR-01'];
 const DEMO_PATIENT_PREFIX = 'REC-DEMO-';
 const DEMO_APPOINTMENT_PREFIX = 'MDC-REC-';
-const E2E_PATIENT_NAME_PREFIX = 'E2E-AUTOMATION-';
 const E2E_PATIENT_PHONE_PREFIX = '09099999';
 const E2E_APPOINTMENT_REASON_PREFIX = 'E2E-AUTO-';
 const DEMO_PATIENTS = [
@@ -73,7 +72,6 @@ async function cleanup(prisma: PrismaService) {
       OR: [
         { patientCode: { startsWith: DEMO_PATIENT_PREFIX } },
         {
-          fullName: { startsWith: E2E_PATIENT_NAME_PREFIX },
           phone: { startsWith: E2E_PATIENT_PHONE_PREFIX },
         },
       ],
@@ -273,8 +271,8 @@ async function seedAppointments(prisma: PrismaService, adminId: string) {
       patient: patients[2],
       doctorCode: 'SEED-GEN-01',
       date: today,
-      startsAtOrAfter: clinicDateTime(today, 8, 0),
-      reason: 'Lịch demo đã quá giờ',
+      startsAtOrAfter: clinicOpening,
+      reason: 'Lịch demo chờ check-in trong ngày',
       status: 'CONFIRMED' as const,
       sessionStatus: 'SCHEDULED' as const,
       queueNumber: null,

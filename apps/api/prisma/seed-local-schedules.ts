@@ -4,7 +4,8 @@ import { PrismaClient } from '../src/generated/prisma/client';
 import { RoleEnum } from '../src/modules/users/constants/roles.constant';
 import { getCurrentTime } from '../src/common/utils/e2e-clock';
 
-const DAYS_TO_SEED = 7;
+const DAYS_TO_SEED = 8;
+const DAYS_BEFORE_E2E_NOW = 1;
 const SLOT_DURATION_MINUTES = 30;
 const START_MINUTES = 8 * 60;
 const END_MINUTES = 18 * 60;
@@ -118,7 +119,10 @@ async function main(): Promise<void> {
       select: { id: true },
     });
     const createdBy = admin?.id ?? doctors[0].userId;
-    const firstDate = getClinicDate(getCurrentTime());
+    const firstDate = addDays(
+      getClinicDate(getCurrentTime()),
+      -DAYS_BEFORE_E2E_NOW,
+    );
     const publishedAt = getCurrentTime();
     let createdSchedules = 0;
     let createdSlots = 0;
