@@ -240,16 +240,31 @@ export class ProvidersService {
     actor: CurrentUserDto,
     transaction?: Prisma.TransactionClient,
   ) {
-    if (!Object.keys(input).length)
+    if (!Object.values(input).some((value) => value !== undefined))
       throw new BadRequestException('No changes supplied');
     if (input.specialtyId)
       input = { ...input, specialtyId: input.specialtyId.toLowerCase() };
+    const { fullName, phone, ...profileInput } = input;
+    const hasIdentity = fullName !== undefined || phone !== undefined;
     const action = async (tx: Prisma.TransactionClient) => {
+      if (!transaction) {
+        const target = await tx.doctor.findUnique({
+          where: { id },
+          select: { userId: true },
+        });
+        if (!target) throw new NotFoundException('Doctor not found');
+        await tx.$queryRaw`SELECT id FROM ${sqlTable(this.prisma.schemaName, 'users')} WHERE id IN (${actor.id}::uuid, ${target.userId}::uuid) ORDER BY id FOR NO KEY UPDATE`;
+        await this.users.assertAdminPermissions(tx, actor.id, [
+          PermissionEnum.DOCTORS_WRITE,
+          ...(hasIdentity ? [PermissionEnum.USERS_WRITE] : []),
+        ]);
+      }
       await this.lockDoctor(tx, id);
       const doctorBefore = await tx.doctor.findUnique({
         where: { id },
         select: {
           id: true,
+          userId: true,
           specialtyId: true,
           doctorCode: true,
           licenseNumber: true,
@@ -260,10 +275,40 @@ export class ProvidersService {
         },
       });
       if (!doctorBefore) throw new NotFoundException('Doctor not found');
+      if (hasIdentity) {
+        if (transaction)
+          await this.users.assertAdminPermissions(tx, actor.id, [
+            PermissionEnum.USERS_WRITE,
+          ]);
+        const identity = await this.users.updateIdentity(
+          tx,
+          doctorBefore.userId,
+          { fullName, phone },
+        );
+        if (Object.keys(identity.after).length)
+          await this.auditLogs.record(
+            {
+              actor: {
+                type: 'USER',
+                id: actor.id,
+                name: actor.name,
+                role: UserRole.ADMIN,
+              },
+              actionCode: 'USER_UPDATE',
+              module: 'USERS',
+              targetType: 'USER',
+              targetId: doctorBefore.userId,
+              result: AuditLogResult.SUCCESS,
+              ...identity,
+            },
+            tx,
+          );
+      }
       if (
-        !(Object.keys(input) as (keyof UpdateDoctorDto)[]).some(
+        !(Object.keys(profileInput) as (keyof typeof profileInput)[]).some(
           (field) =>
-            input[field] !== undefined && input[field] !== doctorBefore[field],
+            profileInput[field] !== undefined &&
+            profileInput[field] !== doctorBefore[field],
         )
       )
         return this.get(id, true, tx);
@@ -285,7 +330,7 @@ export class ProvidersService {
       }
       const doctor = await tx.doctor.update({
         where: { id },
-        data: input,
+        data: profileInput,
         select: {
           ...ADMIN_SELECT,
           leaveRequests: {
@@ -304,7 +349,7 @@ export class ProvidersService {
         'academicTitle',
       ] as const) {
         if (
-          input[field] !== undefined &&
+          profileInput[field] !== undefined &&
           doctorBefore[field] !== doctor[field]
         ) {
           before[field] = doctorBefore[field];
@@ -313,7 +358,7 @@ export class ProvidersService {
       }
       for (const field of ['qualification', 'bio', 'avatarUrl'] as const) {
         if (
-          input[field] !== undefined &&
+          profileInput[field] !== undefined &&
           doctorBefore[field] !== doctor[field]
         ) {
           before[`${field}Changed`] = false;

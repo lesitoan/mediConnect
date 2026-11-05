@@ -14,7 +14,7 @@ export class MeUsersService {
   update(input: UpdateMeDto, userId: string) {
     if (!Object.values(input).some((value) => value !== undefined))
       throw new BadRequestException('Chưa có thông tin cập nhật.');
-    const { fullName, ...profileInput } = input;
+    const { fullName, phone, ...profileInput } = input;
     const hasPatientChanges = Object.values(profileInput).some(
       (value) => value !== undefined,
     );
@@ -24,8 +24,8 @@ export class MeUsersService {
         userId,
         PermissionEnum.USERS_UPDATE_ME,
       );
-      if (fullName !== undefined)
-        user = await this.users.updateName(tx, user, fullName);
+      if (fullName !== undefined || phone !== undefined)
+        user = await this.users.updatePersonalInfo(tx, user, fullName, phone);
       const patientProfile = hasPatientChanges
         ? await this.patients.updateMine(profileInput, user, tx)
         : undefined;
