@@ -7,6 +7,7 @@ import {
   StaffWorkScheduleStatus,
 } from '../../generated/prisma/enums';
 import { sqlTable } from '../database/utils/sql-table';
+import { retryTransaction } from '../../common/utils/retry-transaction';
 
 type DatabaseClient = PrismaService | Prisma.TransactionClient;
 
@@ -50,6 +51,10 @@ const LEAVE_REQUEST_INCLUDE = {
 export class SchedulesRepository {
   constructor(private readonly prisma: PrismaService) {}
 
+  get schemaName() {
+    return this.prisma.schemaName;
+  }
+
   findStaffUser(userId: string) {
     return this.prisma.user.findUnique({
       where: { id: userId },
@@ -70,9 +75,11 @@ export class SchedulesRepository {
     });
   }
 
-  findActiveDoctors() {
+  findActiveDoctors(filter: { doctorId?: string; specialtyId?: string } = {}) {
     return this.prisma.doctor.findMany({
       where: {
+        ...(filter.doctorId ? { id: filter.doctorId } : {}),
+        ...(filter.specialtyId ? { specialtyId: filter.specialtyId } : {}),
         isActive: true,
         user: { status: 'ACTIVE', deletedAt: null },
         specialty: { isActive: true },
@@ -114,6 +121,13 @@ export class SchedulesRepository {
   ) {
     return client.doctorSchedule.findFirst({
       where: { doctorId, startsAt, endsAt },
+    });
+  }
+
+  findDefaultDoctorSchedules(doctorId: string, from: Date, until: Date) {
+    return this.prisma.doctorSchedule.findMany({
+      where: { doctorId, startsAt: { gte: from, lt: until } },
+      include: { slots: { select: { startsAt: true } } },
     });
   }
 
@@ -746,6 +760,30 @@ export class SchedulesRepository {
     `);
     if (!result) throw new Error('Availability query returned no result');
     return result;
+  }
+
+  materializationTransaction<T>(
+    callback: (client: Prisma.TransactionClient) => Promise<T>,
+  ) {
+    return retryTransaction(
+      () =>
+        this.prisma.$transaction(callback, { isolationLevel: 'Serializable' }),
+      'Default doctor schedules',
+    );
+  }
+
+  bookingTransaction<T>(
+    callback: (client: Prisma.TransactionClient) => Promise<T>,
+  ) {
+    return retryTransaction(
+      () =>
+        this.prisma.$transaction(callback, {
+          isolationLevel: 'ReadCommitted',
+          maxWait: 5000,
+          timeout: 15000,
+        }),
+      'Schedule booking resources',
+    );
   }
 
   transaction<T>(callback: (client: Prisma.TransactionClient) => Promise<T>) {

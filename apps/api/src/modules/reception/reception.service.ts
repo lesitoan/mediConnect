@@ -19,6 +19,13 @@ import { PrismaService } from '../database/services/prisma.service';
 import { clinicDate, clinicDateString } from '../../common/utils/clinic-date';
 import { getCurrentTime } from '../../common/utils/e2e-clock';
 import { sqlTable } from '../database/utils/sql-table';
+import {
+  ACTIVE_BOOKING_SESSION_STATUSES,
+  assertDoctorAvailable,
+  hasPatientBookingOverlap,
+  lockBookingResources,
+} from '../database/utils/booking-locks';
+import { retryTransaction } from '../../common/utils/retry-transaction';
 import type { CurrentUserDto } from '../users/dto/responses/current-user.dto';
 import { RoleEnum } from '../users/constants/roles.constant';
 import { SchedulesService } from '../schedules/schedules.service';
@@ -513,61 +520,89 @@ export class ReceptionService {
       throw new ConflictException('Appointment slot is no longer available');
     let appointmentId: string;
     try {
-      appointmentId = await this.prisma.$transaction(
-        async (tx) => {
-          const slot = await tx.appointmentSlot.findUnique({
-            where: { id: input.appointmentSlotId },
-            include: {
-              careSessions: {
-                where: {
-                  status: {
-                    notIn: [
-                      CareSessionStatus.CANCELLED,
-                      CareSessionStatus.NO_SHOW,
-                    ],
+      appointmentId = await retryTransaction(
+        () =>
+          this.prisma.$transaction(
+            async (tx) => {
+              const patient = await this.resolvePatient(tx, input);
+              await lockBookingResources(tx, this.prisma.schemaName, {
+                patientId: patient.id,
+                slotIds: [input.appointmentSlotId],
+              });
+              const slot = await tx.appointmentSlot.findUnique({
+                where: { id: input.appointmentSlotId },
+                include: {
+                  careSessions: {
+                    where: {
+                      status: {
+                        notIn: [
+                          CareSessionStatus.CANCELLED,
+                          CareSessionStatus.NO_SHOW,
+                        ],
+                      },
+                    },
+                    select: { id: true },
+                  },
+                  doctorSchedule: { include: { doctor: true } },
+                },
+              });
+              if (
+                !slot ||
+                slot.isBlocked ||
+                slot.doctorSchedule.status !== DoctorScheduleStatus.PUBLISHED ||
+                slot.doctorSchedule.doctor.id !== input.doctorId ||
+                slot.doctorSchedule.doctor.specialtyId !== input.specialtyId ||
+                slot.careSessions.length
+              )
+                throw new ConflictException(
+                  'Appointment slot is no longer available',
+                );
+              await assertDoctorAvailable(
+                tx,
+                slot.doctorSchedule.doctor.id,
+                slot.startsAt,
+                slot.endsAt,
+              );
+              if (
+                await hasPatientBookingOverlap(
+                  tx,
+                  this.prisma.schemaName,
+                  patient.id,
+                  slot.startsAt,
+                  slot.endsAt,
+                  ACTIVE_BOOKING_SESSION_STATUSES,
+                )
+              ) {
+                throw new ConflictException(
+                  'Patient already has an overlapping appointment',
+                );
+              }
+              const appointment = await tx.appointment.create({
+                data: {
+                  appointmentCode: this.appointmentCode(),
+                  patientId: patient.id,
+                  bookingSource: AppointmentBookingSource.WALK_IN,
+                  status: AppointmentStatus.CONFIRMED,
+                  createdBy: user.id,
+                  reason: input.reason,
+                  careSessions: {
+                    create: {
+                      appointmentSlotId: slot.id,
+                      specialtyId: input.specialtyId,
+                      status: CareSessionStatus.SCHEDULED,
+                    },
                   },
                 },
                 select: { id: true },
-              },
-              doctorSchedule: { include: { doctor: true } },
+              });
+              if (input.checkIn) {
+                await this.allocateQueue(tx, appointment.id, user.id);
+              }
+              return appointment.id;
             },
-          });
-          if (
-            !slot ||
-            slot.isBlocked ||
-            slot.doctorSchedule.status !== DoctorScheduleStatus.PUBLISHED ||
-            slot.doctorSchedule.doctor.id !== input.doctorId ||
-            slot.doctorSchedule.doctor.specialtyId !== input.specialtyId ||
-            slot.careSessions.length
-          )
-            throw new ConflictException(
-              'Appointment slot is no longer available',
-            );
-          const patient = await this.resolvePatient(tx, input);
-          const appointment = await tx.appointment.create({
-            data: {
-              appointmentCode: this.appointmentCode(),
-              patientId: patient.id,
-              bookingSource: AppointmentBookingSource.WALK_IN,
-              status: AppointmentStatus.CONFIRMED,
-              createdBy: user.id,
-              reason: input.reason,
-              careSessions: {
-                create: {
-                  appointmentSlotId: slot.id,
-                  specialtyId: input.specialtyId,
-                  status: CareSessionStatus.SCHEDULED,
-                },
-              },
-            },
-            select: { id: true },
-          });
-          if (input.checkIn) {
-            await this.allocateQueue(tx, appointment.id, user.id);
-          }
-          return appointment.id;
-        },
-        { isolationLevel: 'Serializable' },
+            { isolationLevel: 'ReadCommitted', maxWait: 5000, timeout: 15000 },
+          ),
+        'Walk-in booking',
       );
     } catch (error) {
       if (this.isUniqueConstraintError(error))

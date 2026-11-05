@@ -1,7 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import type { Prisma } from '../../generated/prisma/client';
 import { CareSessionStatus } from '../../generated/prisma/enums';
+import { retryTransaction } from '../../common/utils/retry-transaction';
 import { PrismaService } from '../database/services/prisma.service';
+import {
+  hasPatientBookingOverlap,
+  lockBookingResources,
+} from '../database/utils/booking-locks';
 
 type DatabaseClient = PrismaService | Prisma.TransactionClient;
 
@@ -60,7 +65,11 @@ export class AppointmentsRepository {
           select: { id: true },
         },
         doctorSchedule: {
-          include: { doctor: { include: { user: true, specialty: true } } },
+          select: {
+            status: true,
+            doctorId: true,
+            doctor: { select: { specialtyId: true } },
+          },
         },
       },
     });
@@ -71,6 +80,38 @@ export class AppointmentsRepository {
       where: { patientId },
       include: APPOINTMENT_INCLUDE,
       orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async hasPatientOverlap(
+    client: Prisma.TransactionClient,
+    patientId: string,
+    startsAt: Date,
+    endsAt: Date,
+    activeStatuses: readonly CareSessionStatus[],
+    excludedSessionId?: string,
+  ): Promise<boolean> {
+    return hasPatientBookingOverlap(
+      client,
+      this.prisma.schemaName,
+      patientId,
+      startsAt,
+      endsAt,
+      activeStatuses,
+      excludedSessionId,
+    );
+  }
+
+  lockResources(
+    client: Prisma.TransactionClient,
+    patientId: string,
+    appointmentId?: string,
+    slotIds: string[] = [],
+  ) {
+    return lockBookingResources(client, this.prisma.schemaName, {
+      patientId,
+      appointmentId,
+      slotIds,
     });
   }
 
@@ -87,7 +128,7 @@ export class AppointmentsRepository {
   ) {
     return client.appointment.create({
       data,
-      include: APPOINTMENT_INCLUDE,
+      select: { id: true },
     });
   }
 
@@ -106,7 +147,7 @@ export class AppointmentsRepository {
     return client.appointment.update({
       where: { id: appointmentId },
       data,
-      include: APPOINTMENT_INCLUDE,
+      select: { id: true },
     });
   }
 
@@ -119,8 +160,14 @@ export class AppointmentsRepository {
   }
 
   transaction<T>(callback: (client: Prisma.TransactionClient) => Promise<T>) {
-    return this.prisma.$transaction(callback, {
-      isolationLevel: 'Serializable',
-    });
+    return retryTransaction(
+      () =>
+        this.prisma.$transaction(callback, {
+          isolationLevel: 'ReadCommitted',
+          maxWait: 5000,
+          timeout: 15000,
+        }),
+      'Appointments',
+    );
   }
 }

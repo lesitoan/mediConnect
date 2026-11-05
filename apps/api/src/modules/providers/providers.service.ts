@@ -120,7 +120,9 @@ export class ProvidersService {
         take: 1,
       },
     } as const;
-    const [items, total] = await this.prisma.$transaction([
+    // These are read-only queries. Do not reserve an interactive transaction
+    // connection while Prisma hydrates the provider relations.
+    const [items, total] = await Promise.all([
       this.prisma.doctor.findMany({
         where,
         select,

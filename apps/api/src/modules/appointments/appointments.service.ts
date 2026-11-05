@@ -13,6 +13,7 @@ import type { BookAppointmentDto } from './dto/patient/book-appointment.dto';
 import type { CancelAppointmentDto } from './dto/patient/cancel-appointment.dto';
 import type { RescheduleAppointmentDto } from './dto/patient/reschedule-appointment.dto';
 import { AppointmentsRepository } from './appointments.repository';
+import { assertDoctorAvailable } from '../database/utils/booking-locks';
 
 const MIN_BOOKING_NOTICE_HOURS = 2;
 const APPOINTMENT_CHANGE_CUTOFF_HOURS = 12;
@@ -34,17 +35,19 @@ export class AppointmentsService {
 
   async book(input: BookAppointmentDto, user: CurrentUserDto) {
     const patient = await this.requirePatient(user.id);
-    const now = new Date();
 
     try {
       const appointmentId = await this.repository.transaction(
         async (client) => {
+          await this.repository.lockResources(client, patient.id, undefined, [
+            input.appointmentSlotId,
+          ]);
           const slot = await this.repository.findSlotForBooking(
             input.appointmentSlotId,
             client,
           );
           if (!slot) throw new NotFoundException('Appointment slot not found');
-          this.assertBookableSlot(slot, now);
+          this.assertBookableSlot(slot, new Date());
           await this.assertSlotOutsideLeave(
             client,
             slot.doctorSchedule.doctorId,
@@ -52,20 +55,14 @@ export class AppointmentsService {
             slot.endsAt,
           );
 
-          const overlapping = await client.careSession.count({
-            where: {
-              appointment: {
-                patientId: patient.id,
-                status: AppointmentStatus.CONFIRMED,
-              },
-              status: { in: [...ACTIVE_SLOT_SESSION_STATUSES] },
-              appointmentSlot: {
-                startsAt: { lt: slot.endsAt },
-                endsAt: { gt: slot.startsAt },
-              },
-            },
-          });
-          if (overlapping > 0)
+          const hasOverlap = await this.repository.hasPatientOverlap(
+            client,
+            patient.id,
+            slot.startsAt,
+            slot.endsAt,
+            ACTIVE_SLOT_SESSION_STATUSES,
+          );
+          if (hasOverlap)
             throw new ConflictException(
               'Patient already has an overlapping appointment',
             );
@@ -123,61 +120,63 @@ export class AppointmentsService {
   ) {
     const patient = await this.requirePatient(user.id);
     try {
-      return await this.repository.transaction(async (client) => {
-        const appointment = await client.appointment.findFirst({
-          where: { id, patientId: patient.id },
-          include: { careSessions: { include: { appointmentSlot: true } } },
-        });
-        if (!appointment) throw new NotFoundException('Appointment not found');
-        this.assertRescheduleableAppointment(appointment);
+      const appointmentId = await this.repository.transaction(
+        async (client) => {
+          await this.repository.lockResources(client, patient.id, id, [
+            input.newAppointmentSlotId,
+          ]);
+          const appointment = await client.appointment.findFirst({
+            where: { id, patientId: patient.id },
+            include: { careSessions: { include: { appointmentSlot: true } } },
+          });
+          if (!appointment)
+            throw new NotFoundException('Appointment not found');
+          this.assertRescheduleableAppointment(appointment);
 
-        const session = appointment.careSessions[0];
-        if (!session)
-          throw new ConflictException('Appointment session not found');
-        const newSlot = await this.repository.findSlotForBooking(
-          input.newAppointmentSlotId,
-          client,
-        );
-        if (!newSlot)
-          throw new NotFoundException('New appointment slot not found');
-        this.assertBookableSlot(newSlot, new Date());
-        await this.assertSlotOutsideLeave(
-          client,
-          newSlot.doctorSchedule.doctorId,
-          newSlot.startsAt,
-          newSlot.endsAt,
-        );
-
-        const overlapping = await client.careSession.count({
-          where: {
-            id: { not: session.id },
-            appointment: {
-              patientId: patient.id,
-              status: AppointmentStatus.CONFIRMED,
-            },
-            status: { in: [...ACTIVE_SLOT_SESSION_STATUSES] },
-            appointmentSlot: {
-              startsAt: { lt: newSlot.endsAt },
-              endsAt: { gt: newSlot.startsAt },
-            },
-          },
-        });
-        if (overlapping > 0)
-          throw new ConflictException(
-            'Patient already has an overlapping appointment',
+          const session = appointment.careSessions[0];
+          if (!session)
+            throw new ConflictException('Appointment session not found');
+          const newSlot = await this.repository.findSlotForBooking(
+            input.newAppointmentSlotId,
+            client,
+          );
+          if (!newSlot)
+            throw new NotFoundException('New appointment slot not found');
+          this.assertBookableSlot(newSlot, new Date());
+          await this.assertSlotOutsideLeave(
+            client,
+            newSlot.doctorSchedule.doctorId,
+            newSlot.startsAt,
+            newSlot.endsAt,
           );
 
-        await this.repository.updateCareSession(
-          session.id,
-          { appointmentSlotId: newSlot.id },
-          client,
-        );
-        return this.repository.updateAppointment(
-          id,
-          { rescheduleCount: { increment: 1 } },
-          client,
-        );
-      });
+          const hasOverlap = await this.repository.hasPatientOverlap(
+            client,
+            patient.id,
+            newSlot.startsAt,
+            newSlot.endsAt,
+            ACTIVE_SLOT_SESSION_STATUSES,
+            session.id,
+          );
+          if (hasOverlap)
+            throw new ConflictException(
+              'Patient already has an overlapping appointment',
+            );
+
+          await this.repository.updateCareSession(
+            session.id,
+            { appointmentSlotId: newSlot.id },
+            client,
+          );
+          const updated = await this.repository.updateAppointment(
+            id,
+            { rescheduleCount: { increment: 1 } },
+            client,
+          );
+          return updated.id;
+        },
+      );
+      return this.repository.findPatientAppointment(patient.id, appointmentId);
     } catch (error) {
       if (this.isUniqueConstraintError(error))
         throw new ConflictException(
@@ -189,7 +188,8 @@ export class AppointmentsService {
 
   async cancel(id: string, input: CancelAppointmentDto, user: CurrentUserDto) {
     const patient = await this.requirePatient(user.id);
-    return this.repository.transaction(async (client) => {
+    const appointmentId = await this.repository.transaction(async (client) => {
+      await this.repository.lockResources(client, patient.id, id);
       const appointment = await client.appointment.findFirst({
         where: { id, patientId: patient.id },
         include: { careSessions: { include: { appointmentSlot: true } } },
@@ -204,7 +204,7 @@ export class AppointmentsService {
         },
         data: { status: CareSessionStatus.CANCELLED },
       });
-      return this.repository.updateAppointment(
+      const updated = await this.repository.updateAppointment(
         id,
         {
           status: AppointmentStatus.CANCELLED,
@@ -214,7 +214,9 @@ export class AppointmentsService {
         },
         client,
       );
+      return updated.id;
     });
+    return this.repository.findPatientAppointment(patient.id, appointmentId);
   }
 
   private async requirePatient(userId: string) {
@@ -229,18 +231,7 @@ export class AppointmentsService {
     startsAt: Date,
     endsAt: Date,
   ) {
-    const conflictingLeave = await client.leaveRequest.count({
-      where: {
-        doctorId,
-        status: { in: ['RESOLVING', 'APPROVED'] },
-        startsAt: { lt: endsAt },
-        endsAt: { gt: startsAt },
-      },
-    });
-    if (conflictingLeave > 0)
-      throw new ConflictException(
-        'Appointment slot is blocked by a leave request',
-      );
+    await assertDoctorAvailable(client, doctorId, startsAt, endsAt);
   }
 
   private assertBookableSlot(

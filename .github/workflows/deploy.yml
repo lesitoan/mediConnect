@@ -121,7 +121,9 @@ jobs:
           cache-to: type=gha,scope=ai,mode=max
 
   deploy:
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    if: >-
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/toanls/fix-booking-performent')
     needs: build
     runs-on: ubuntu-latest
     environment: production

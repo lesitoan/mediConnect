@@ -42,6 +42,14 @@ import type { WorkScheduleMatrixQueryDto } from './dto/staff/work-schedule-matri
 import type { ProposeScheduleExceptionDto } from './dto/admin/propose-schedule-exception.dto';
 import type { RespondScheduleExceptionDto } from './dto/patient/respond-schedule-exception.dto';
 import { SchedulesRepository } from './schedules.repository';
+import {
+  ACTIVE_BOOKING_SESSION_STATUSES,
+  assertDoctorAvailable,
+  hasPatientBookingOverlap,
+  lockBookingResources,
+  lockBookingRows,
+} from '../database/utils/booking-locks';
+import { TransactionResourcesChangedError } from '../../common/utils/transaction-resources-changed.error';
 import type { AvailabilityQueryDto } from './dto/availability-query.dto';
 
 function clinicDateStart(value: string): Date {
@@ -55,6 +63,11 @@ function clinicDateStart(value: string): Date {
   }
   return date;
 }
+
+const DEFAULT_DOCTOR_SHIFTS = [
+  ['08:00', '12:00'],
+  ['13:00', '18:00'],
+] as const;
 
 @Injectable()
 export class SchedulesService {
@@ -72,7 +85,7 @@ export class SchedulesService {
       throw new BadRequestException('Khoảng tra cứu phải từ 1 đến 31 ngày.');
     }
 
-    await this.ensureDefaultDoctorSlots(from, until);
+    await this.ensureDefaultDoctorSlots(from, until, query);
 
     const now = getCurrentTime();
     const timeRanges: Record<string, [number, number]> = {
@@ -120,25 +133,58 @@ export class SchedulesService {
     return new Date(`${this.clinicDateString(date)}T${time}:00+07:00`);
   }
 
-  private async ensureDefaultDoctorSlots(from: Date, until: Date) {
-    const doctors = await this.repository.findActiveDoctors();
+  private async hasDefaultDoctorSlots(doctorId: string, day: Date) {
+    const schedules = await this.repository.findDefaultDoctorSchedules(
+      doctorId,
+      day,
+      new Date(day.getTime() + 86400000),
+    );
     const now = getCurrentTime();
+    for (const [shiftStart, shiftEnd] of DEFAULT_DOCTOR_SHIFTS) {
+      const startsAt = this.clinicDateTime(day, shiftStart);
+      const endsAt = this.clinicDateTime(day, shiftEnd);
+      const schedule = schedules.find(
+        (entry) =>
+          entry.startsAt.getTime() === startsAt.getTime() &&
+          entry.endsAt.getTime() === endsAt.getTime(),
+      );
+      if (schedule?.status === 'ABSENT') continue;
+      if (!schedule || schedule.status !== 'PUBLISHED') return false;
+      const starts = new Set(
+        schedule.slots.map((slot) => slot.startsAt.getTime()),
+      );
+      for (
+        let start = startsAt.getTime();
+        start + 1800000 <= endsAt.getTime();
+        start += 1800000
+      ) {
+        if (start > now.getTime() && !starts.has(start)) return false;
+      }
+    }
+    return true;
+  }
+
+  private async ensureDefaultDoctorSlots(
+    from: Date,
+    until: Date,
+    filter: { doctorId?: string; specialtyId?: string } = {},
+  ) {
+    const doctors = await this.repository.findActiveDoctors(filter);
     for (const doctor of doctors) {
       for (
         let day = new Date(from);
         day < until;
         day = new Date(day.getTime() + 86400000)
       ) {
-        await this.repository.transaction(async (client) => {
+        if (await this.hasDefaultDoctorSlots(doctor.id, day)) continue;
+        await this.repository.materializationTransaction(async (client) => {
+          const now = getCurrentTime();
           await this.repository.lockDoctorScheduleMaterialization(
             client,
             doctor.id,
             day,
           );
-          for (const [shiftStart, shiftEnd] of [
-            ['08:00', '12:00'],
-            ['13:00', '18:00'],
-          ]) {
+          for (const [shiftStart, shiftEnd] of DEFAULT_DOCTOR_SHIFTS) {
             const startsAt = this.clinicDateTime(day, shiftStart);
             const endsAt = this.clinicDateTime(day, shiftEnd);
             let schedule = await this.repository.findDoctorSchedule(
@@ -745,7 +791,14 @@ export class SchedulesService {
       throw new ConflictException(
         'Only pending or resolving leave requests can be rejected',
       );
-    return this.repository.transaction(async (client) => {
+    return this.repository.bookingTransaction(async (client) => {
+      await lockBookingRows(
+        client,
+        this.repository.schemaName,
+        'doctors',
+        request.doctorId ? [request.doctorId] : [],
+        'UPDATE',
+      );
       const current = await this.repository.findLeaveRequest(id, client);
       if (
         !current ||
@@ -820,7 +873,14 @@ export class SchedulesService {
         'Only pending leave requests can be approved',
       );
 
-    return this.repository.transaction(async (client) => {
+    return this.repository.bookingTransaction(async (client) => {
+      await lockBookingRows(
+        client,
+        this.repository.schemaName,
+        'doctors',
+        request.doctorId ? [request.doctorId] : [],
+        'UPDATE',
+      );
       const current = await this.repository.findLeaveRequest(id, client);
       if (!current || current.status !== LeaveRequestStatus.PENDING)
         throw new ConflictException(
@@ -972,6 +1032,7 @@ export class SchedulesService {
       await this.ensureDefaultDoctorSlots(
         shiftDate,
         new Date(shiftDate.getTime() + 86400000),
+        { doctorId: targetDoctorId },
       );
       const matchingSlot = await this.repository.findAvailableReplacementSlotAt(
         targetDoctorId,
@@ -985,7 +1046,24 @@ export class SchedulesService {
         );
     }
 
-    return this.repository.transaction(async (client) => {
+    return this.repository.bookingTransaction(async (client) => {
+      await lockBookingRows(
+        client,
+        this.repository.schemaName,
+        'doctors',
+        [
+          existing.originalDoctorId,
+          ...(input.toDoctorId ? [input.toDoctorId] : []),
+        ],
+        'UPDATE',
+      );
+      await lockBookingRows(
+        client,
+        this.repository.schemaName,
+        'schedule_exceptions',
+        [id],
+        'UPDATE',
+      );
       const current = await client.scheduleException.findUnique({
         where: { id },
         include: {
@@ -1139,7 +1217,33 @@ export class SchedulesService {
     input: RespondScheduleExceptionDto,
     user: CurrentUserDto,
   ) {
-    return this.repository.transaction(async (client) => {
+    return this.repository.bookingTransaction(async (client) => {
+      const hint = await this.repository.findPatientScheduleException(
+        id,
+        user.id,
+        client,
+      );
+      if (!hint) throw new NotFoundException('Schedule proposal not found');
+      const hintedTarget = hint.reassignments.find(
+        (r) => r.status === ScheduleReassignmentStatus.PROPOSED,
+      )?.toSlotId;
+      await lockBookingResources(client, this.repository.schemaName, {
+        patientId: hint.careSession.appointment.patientId,
+        appointmentId: hint.careSession.appointmentId,
+        slotIds:
+          input.decision === 'ACCEPT' && hintedTarget ? [hintedTarget] : [],
+        doctorIds: hint.leaveRequest.doctorId
+          ? [hint.leaveRequest.doctorId]
+          : [],
+        doctorLock: 'UPDATE',
+      });
+      await lockBookingRows(
+        client,
+        this.repository.schemaName,
+        'schedule_exceptions',
+        [id],
+        'UPDATE',
+      );
       const exception = await this.repository.findPatientScheduleException(
         id,
         user.id,
@@ -1155,6 +1259,11 @@ export class SchedulesService {
           'This proposal is no longer awaiting a response',
         );
 
+      const currentTarget = exception.reassignments.find(
+        (r) => r.status === ScheduleReassignmentStatus.PROPOSED,
+      )?.toSlotId;
+      if (input.decision === 'ACCEPT' && currentTarget !== hintedTarget)
+        throw new TransactionResourcesChangedError();
       const proposedResolution = exception.resolution;
       if (!proposedResolution)
         throw new ConflictException('The proposal has no resolution type');
@@ -1247,6 +1356,27 @@ export class SchedulesService {
             'The proposed slot is during approved leave',
           );
 
+        await assertDoctorAvailable(
+          client,
+          reassignment.toDoctorId,
+          slot.startsAt,
+          slot.endsAt,
+        );
+        if (
+          await hasPatientBookingOverlap(
+            client,
+            this.repository.schemaName,
+            exception.careSession.appointment.patientId,
+            slot.startsAt,
+            slot.endsAt,
+            ACTIVE_BOOKING_SESSION_STATUSES,
+            exception.careSessionId,
+          )
+        ) {
+          throw new ConflictException(
+            'Patient already has an overlapping appointment',
+          );
+        }
         await this.repository.updateCareSessionSlot(
           client,
           exception.careSessionId,
