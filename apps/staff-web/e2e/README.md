@@ -1,6 +1,6 @@
 # Staff Web E2E Tests
 
-The Selenium runner reads the 57 test cases in
+The Selenium runner reads the 56 test cases in
 `test-cases/reception-queue.xlsx`, runs their steps against the staff-web UI,
 and writes the original testcase fields plus actual result and status to
 `results/reception-queue-results.xlsx`.
@@ -12,7 +12,7 @@ E2E. Set one fixed clinic time for the API, staff-web, seed commands, and
 Selenium runner. The default matches the appointment runner:
 
 ```powershell
-$env:E2E_NOW = "2026-11-10T08:00:00+07:00"
+$env:E2E_NOW = "2026-11-10T08:30:00+07:00"
 
 Push-Location apps/api
 npm run prisma:seed:clinic
@@ -41,13 +41,13 @@ $env:E2E_DOCTOR_PASSWORD = "<local doctor password>"
 
 ## Running
 
-Run all 57 cases, or select a comma-separated subset. The runner prepares the
+Run all 74 cases, or select a comma-separated subset. The runner prepares the
 declared fixture before every testcase and reuses one Chrome window throughout
 the run, resetting authentication when the actor changes:
 
 ```powershell
 node apps/staff-web/e2e/runReceptionTests.mjs
-node apps/staff-web/e2e/runReceptionTests.mjs --ids=UC07-TK-01,UC07-WI-16
+node apps/staff-web/e2e/runReceptionTests.mjs --ids=UC07-TK-01,UC07-WI-08
 ```
 
 The runner executes seed scripts from `apps/api`, so they load
@@ -55,7 +55,7 @@ The runner executes seed scripts from `apps/api`, so they load
 The legacy `--auto-seed` argument remains accepted but is no longer needed.
 Only run the suite against the intended local test database.
 
-`receptionQueueCaseMapping.mjs` maps each of the 57 workbook IDs to its actor,
+`receptionQueueCaseMapping.mjs` maps each of the 74 workbook IDs to its actor,
 fixture, queue scenario, mutation behavior, and UI test layer. The runner
 validates that the workbook's fixture and scenario declarations match this
 mapping before executing cases. The testcase `pre-condition` field declares
@@ -64,9 +64,11 @@ its fixture:
 - `Fixture: reception` prepares the `REC-DEMO-*` patients and `MDC-REC-*`
   appointments.
 - `Fixture: queue` prepares the `Q-DEMO-*` queue and appointment data.
-- `Queue scenario: START`, `WAITING`, `IN_CONSULTATION`,
-  `IN_CONSULTATION_INCOMPLETE`, or
-  `IN_CONSULTATION_WITH_PRESCRIPTION` selects the queue fixture variant.
+- `Queue scenario: FULL`, `WAITING`, `CALL_NEXT`, `EMPTY`, `START`,
+  `IN_CONSULTATION`, `IN_CONSULTATION_INCOMPLETE`,
+  `IN_CONSULTATION_WITH_PRESCRIPTION`, `SKIP_READY`, `SKIP_WAIT`, `SKIP_179`,
+  `SKIP_180`, `SKIP_THIRD`, `RESTORE`, `PRIORITY`, `CALL_BLOCKED_CALLED`, or
+  `CALL_BLOCKED_IN_CONSULTATION` selects the queue fixture variant.
   `FULL` is the default when omitted.
 
 Queue coordination cases use `doctor01@example.invalid` (doctor code
@@ -99,7 +101,7 @@ Optional environment variables:
 | `E2E_INPUT_FILE` | `test-cases/reception-queue.xlsx` | Workbook path relative to `e2e/` |
 | `E2E_OUTPUT_FILE` | `results/reception-queue-results.xlsx` | Report path relative to `e2e/` |
 | `E2E_HEADLESS` | `false` | Set to `true` for headless Chrome |
-| `E2E_NOW` | `2026-11-10T08:00:00+07:00` | Fixed clinic time, matching appointment E2E |
+| `E2E_NOW` | `2026-11-10T08:30:00+07:00` | Fixed clinic time, matching appointment E2E |
 | `E2E_TEST_IDS` | unset | Comma-separated testcase IDs |
 
 The report keeps the five input fields and adds `actual result` and `status`.
@@ -118,6 +120,17 @@ blocked. Reports are written under `results/`, which is ignored by Git.
   UI behavior rather than validation controls that do not exist.
 - Appointment reception lists current-day, actionable session statuses.
   Past, future, cancelled, and completed appointments are asserted as absent.
+- Reception fixtures include appointment slots at 08:00, 08:30, and later.
+  With the shared default clock at 08:30, these support late, exact-time, and
+  before-appointment check-in cases; changing `E2E_NOW` must preserve the
+  intended relation to those fixtures.
+- The suite covers the 179/180/181-second skip boundary, the third-skip
+  transition to `NO_SHOW`, successful restore, dispatch priority, and blocking
+  calls while a doctor already has an active visit.
+- Search cases include partial and accent-insensitive terms. The current API
+  performs case-insensitive substring matching but does not remove Vietnamese
+  diacritics, so the no-diacritic testcase records the current no-match result.
+- Walk-in validation cases cover adjacent phone, CCCD, and birth-year limits.
 - `UC07-TN-12` checks that the pending-resolution appointment cannot be
   checked in and reports the rejection message shown by the UI.
 - Queue viewing uses the receptionist queue at `/queues`; queue coordination

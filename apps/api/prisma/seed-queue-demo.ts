@@ -340,7 +340,13 @@ type QueueFixtureScenario =
   | 'START'
   | 'SKIP_READY'
   | 'SKIP_WAIT'
+  | 'SKIP_179'
+  | 'SKIP_180'
+  | 'SKIP_THIRD'
   | 'RESTORE'
+  | 'PRIORITY'
+  | 'CALL_BLOCKED_CALLED'
+  | 'CALL_BLOCKED_IN_CONSULTATION'
   | 'IN_CONSULTATION_INCOMPLETE'
   | 'COMPLETED'
   | 'NO_SHOW'
@@ -368,7 +374,13 @@ function getQueueScenario(): QueueFixtureScenario {
     scenario !== 'START' &&
     scenario !== 'SKIP_READY' &&
     scenario !== 'SKIP_WAIT' &&
+    scenario !== 'SKIP_179' &&
+    scenario !== 'SKIP_180' &&
+    scenario !== 'SKIP_THIRD' &&
     scenario !== 'RESTORE' &&
+    scenario !== 'PRIORITY' &&
+    scenario !== 'CALL_BLOCKED_CALLED' &&
+    scenario !== 'CALL_BLOCKED_IN_CONSULTATION' &&
     scenario !== 'IN_CONSULTATION_INCOMPLETE' &&
     scenario !== 'COMPLETED' &&
     scenario !== 'NO_SHOW' &&
@@ -623,13 +635,25 @@ async function seed(
                               : scenario === 'EMPTY'
                                 ? []
                                 : scenario === 'START' ||
-                                    scenario === 'SKIP_WAIT'
+                                    scenario === 'SKIP_WAIT' ||
+                                    scenario === 'SKIP_179' ||
+                                    scenario === 'SKIP_180' ||
+                                    scenario === 'SKIP_THIRD'
                                   ? [
                                       {
                                         ...DEMO_QUEUE[9],
                                         doctorCode: E2E_DOCTOR_CODE,
                                         calledAgoSeconds:
-                                          scenario === 'START' ? 30 : 60,
+                                          scenario === 'START'
+                                            ? 30
+                                            : scenario === 'SKIP_WAIT'
+                                              ? 60
+                                              : scenario === 'SKIP_179'
+                                                ? 179
+                                                : 180,
+                                        ...(scenario === 'SKIP_THIRD'
+                                          ? { skipCount: 2 }
+                                          : {}),
                                       },
                                     ]
                                   : scenario === 'SKIP_READY'
@@ -653,6 +677,35 @@ async function seed(
                                             doctorCode: E2E_DOCTOR_CODE,
                                           },
                                         ]
+                                      : scenario === 'PRIORITY'
+                                        ? DEMO_QUEUE.slice(0, 4).map((item) => ({
+                                            ...item,
+                                            doctorCode: E2E_DOCTOR_CODE,
+                                          }))
+                                        : scenario === 'CALL_BLOCKED_CALLED'
+                                          ? [
+                                              {
+                                                ...DEMO_QUEUE[9],
+                                                doctorCode: E2E_DOCTOR_CODE,
+                                                calledAgoSeconds: 60,
+                                              },
+                                              {
+                                                ...DEMO_QUEUE[0],
+                                                doctorCode: E2E_DOCTOR_CODE,
+                                              },
+                                            ]
+                                          : scenario ===
+                                              'CALL_BLOCKED_IN_CONSULTATION'
+                                            ? [
+                                                {
+                                                  ...DEMO_QUEUE[11],
+                                                  doctorCode: E2E_DOCTOR_CODE,
+                                                },
+                                                {
+                                                  ...DEMO_QUEUE[0],
+                                                  doctorCode: E2E_DOCTOR_CODE,
+                                                },
+                                              ]
                                       : [
                                           {
                                             ...DEMO_QUEUE[0],
@@ -853,7 +906,12 @@ async function seed(
         queueNumber: isScheduled ? null : queueNumber,
         queuePosition: isScheduled ? null : queueNumber,
         priorityType: item.priorityType,
-        skipCount: item.status === 'SKIPPED' ? 1 : 0,
+        skipCount:
+          'skipCount' in item && typeof item.skipCount === 'number'
+            ? item.skipCount
+            : item.status === 'SKIPPED'
+              ? 1
+              : 0,
         calledAt:
           'calledAgoSeconds' in item
             ? new Date(now.getTime() - item.calledAgoSeconds * 1000)

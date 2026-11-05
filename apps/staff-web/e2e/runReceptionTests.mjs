@@ -31,7 +31,7 @@ const STAFF_WEB_URL = process.env.STAFF_WEB_URL ?? "http://localhost:3001";
 const API_BASE_URL = process.env.API_BASE_URL ?? "http://localhost:4000/api/v1";
 const API_DIRECTORY = resolve(SCRIPT_DIRECTORY, "../../../apps/api");
 const E2E_NOW =
-  process.env.E2E_NOW ?? "2026-11-10T08:00:00+07:00";
+  process.env.E2E_NOW ?? "2026-11-10T08:30:00+07:00";
 const E2E_NOW_PATTERN =
   /^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?\+07:00$/;
 
@@ -228,6 +228,7 @@ async function main() {
           actualResult: `NOT RUN: ${blocker}`,
           status: "BLOCKED",
         });
+        console.log(`${testCase.id}: BLOCKED - ${blocker}`);
         continue;
       }
 
@@ -277,6 +278,7 @@ async function main() {
 
       if (status === "PASS") actualResult = `PASS: ${actualResult}`;
       results.push({ testCase, actualResult, status });
+      console.log(`${testCase.id}: ${status}`);
     }
   } finally {
     if (driver) {

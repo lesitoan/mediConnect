@@ -265,7 +265,14 @@ async function createFixtureAppointment(
     hour: number;
     minute: number;
     status?: 'CONFIRMED' | 'CANCELLED';
-    sessionStatus?: 'SCHEDULED' | 'CHECKED_IN' | 'COMPLETED' | 'CANCELLED';
+    sessionStatus?:
+      | 'SCHEDULED'
+      | 'CHECKED_IN'
+      | 'WAITING'
+      | 'CALLED'
+      | 'IN_CONSULTATION'
+      | 'COMPLETED'
+      | 'CANCELLED';
     rescheduleCount?: number;
   },
 ): Promise<void> {
@@ -298,8 +305,22 @@ async function createFixtureAppointment(
           appointmentSlotId: slot.id,
           specialtyId,
           status: sessionStatus,
-          ...(sessionStatus === 'CHECKED_IN'
-            ? { checkedInAt: now, checkedInBy: createdBy }
+          ...(sessionStatus === 'CHECKED_IN' ||
+          sessionStatus === 'WAITING' ||
+          sessionStatus === 'CALLED' ||
+          sessionStatus === 'IN_CONSULTATION'
+            ? {
+                checkedInAt: now,
+                checkedInBy: createdBy,
+                queueDate: new Date(`${date}T00:00:00.000Z`),
+                queueNumber: 1,
+                queuePosition: 1,
+                priorityType: 'APPOINTMENT_ON_TIME',
+              }
+            : {}),
+          ...(sessionStatus === 'CALLED' ||
+          sessionStatus === 'IN_CONSULTATION'
+            ? { calledAt: now }
             : {}),
         },
       },
@@ -552,6 +573,20 @@ async function main(): Promise<void> {
         minute,
       );
     }
+    if (
+      caseId === 'UC06-BOOK-018' ||
+      caseId === 'UC06-CHANGE-024'
+    ) {
+      await ensureSlot(
+        prisma,
+        activeDoctor.id,
+        admin.id,
+        now,
+        '2026-11-12',
+        9,
+        15,
+      );
+    }
     if (caseId === 'UC06-BOOK-004') {
       await ensureSlot(
         prisma,
@@ -640,6 +675,7 @@ async function main(): Promise<void> {
       effectiveCaseId,
     );
     const hasPrimaryAppointment =
+      effectiveCaseId === 'UC06-BOOK-018' ||
       (effectiveCaseId.startsWith('UC06-CHANGE-') &&
         effectiveCaseId !== 'UC06-CHANGE-012') ||
       (effectiveCaseId.startsWith('UC06-CANCEL-') &&
@@ -691,6 +727,20 @@ async function main(): Promise<void> {
         Object.assign(fixture, { rescheduleCount: 1 });
       } else if (effectiveCaseId === 'UC06-CHANGE-004') {
         Object.assign(fixture, { rescheduleCount: 2 });
+      } else if (
+        ['UC06-CHANGE-021', 'UC06-CANCEL-014'].includes(effectiveCaseId)
+      ) {
+        Object.assign(fixture, { sessionStatus: 'WAITING' });
+      } else if (
+        ['UC06-CHANGE-022', 'UC06-CANCEL-015'].includes(effectiveCaseId)
+      ) {
+        Object.assign(fixture, { sessionStatus: 'CALLED' });
+      } else if (
+        ['UC06-CHANGE-023', 'UC06-CANCEL-016'].includes(effectiveCaseId)
+      ) {
+        Object.assign(fixture, { sessionStatus: 'IN_CONSULTATION' });
+      } else if (effectiveCaseId === 'UC06-CHANGE-024') {
+        Object.assign(fixture, { hour: 10, minute: 0 });
       }
 
       await createFixtureAppointment(prisma, {
@@ -702,6 +752,21 @@ async function main(): Promise<void> {
         createdBy: admin.id,
         now,
         ...fixture,
+      });
+    }
+
+    if (effectiveCaseId === 'UC06-CHANGE-024') {
+      await createFixtureAppointment(prisma, {
+        appointmentCode: 'APPT-UC06-02',
+        patientId: patients[0].id,
+        patientUserId: patients[0].userId!,
+        doctorId: activeDoctor.id,
+        specialtyId: generalSpecialty.id,
+        createdBy: admin.id,
+        now,
+        date: '2026-11-12',
+        hour: 9,
+        minute: 0,
       });
     }
 

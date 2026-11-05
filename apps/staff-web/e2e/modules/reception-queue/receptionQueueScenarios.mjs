@@ -255,7 +255,9 @@ async function enterText(driver, target, value) {
 }
 
 function getClinicDateString(offsetDays = 0) {
-  const now = new Date();
+  const now = new Date(
+    process.env.E2E_NOW ?? "2026-11-10T08:30:00+07:00",
+  );
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Ho_Chi_Minh",
     year: "numeric",
@@ -282,9 +284,13 @@ function getClinicDateString(offsetDays = 0) {
 }
 
 function resolveFixtureTokens(value) {
+  const currentYear = new Date(
+    process.env.E2E_NOW ?? "2026-11-10T08:30:00+07:00",
+  ).getFullYear();
   return value
     .replaceAll("{{TOMORROW}}", getClinicDateString(1))
-    .replaceAll("{{NEXT_YEAR}}", String(new Date().getFullYear() + 1));
+    .replaceAll("{{CURRENT_YEAR}}", String(currentYear))
+    .replaceAll("{{NEXT_YEAR}}", String(currentYear + 1));
 }
 
 async function hasVisibleDialog(driver) {
@@ -880,6 +886,14 @@ async function closeWalkInDialog(driver) {
 async function clickTarget(driver, text) {
   const target = unquote(text);
   const normalizedTarget = normalize(target);
+  if (normalizedTarget === "trang sau") {
+    await clickLocatedElement(
+      driver,
+      By.css('button[aria-label="Trang sau"]'),
+      "pagination next page",
+    );
+    return;
+  }
   if (
     normalizedTarget === "tao ho so moi" &&
     (await hasWalkInDialog(driver))
