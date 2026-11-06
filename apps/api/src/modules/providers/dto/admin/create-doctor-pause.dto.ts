@@ -22,6 +22,9 @@ export class CreateDoctorPauseDto {
   @ApiPropertyOptional({ nullable: true, maxLength: 2000 })
   @IsOptional()
   @IsString()
+  @Matches(/\S/, {
+    message: 'reason must contain at least one non-whitespace character',
+  })
   @MaxLength(2000)
   reason?: string | null;
 }

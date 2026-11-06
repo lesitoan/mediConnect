@@ -388,6 +388,9 @@ export class ProvidersService {
   ) {
     const startsAt = new Date(input.startsAt);
     const endsAt = input.endsAt ? new Date(input.endsAt) : null;
+    const reason = input.reason?.trim();
+    if (input.reason != null && !reason)
+      throw new BadRequestException('Reason must contain non-whitespace text');
     if (
       !Number.isFinite(startsAt.getTime()) ||
       startsAt.getTime() <= Date.now() ||
@@ -442,7 +445,7 @@ export class ProvidersService {
           doctorId,
           startsAt,
           endsAt,
-          reason: input.reason?.trim() || 'Tạm dừng hoạt động',
+          reason: reason || 'Tạm dừng hoạt động',
           requestType: 'ABSENT',
           source: 'ADMIN_PAUSE',
           status: 'APPROVED',

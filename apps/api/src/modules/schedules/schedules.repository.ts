@@ -70,6 +70,61 @@ export class SchedulesRepository {
     });
   }
 
+  findWorkSchedulesForMatrix(staffUserIds: string[], from: Date, until: Date) {
+    return this.prisma.staffWorkSchedule.findMany({
+      where: {
+        staffUserId: { in: staffUserIds },
+        status: {
+          in: [
+            StaffWorkScheduleStatus.DRAFT,
+            StaffWorkScheduleStatus.PUBLISHED,
+            StaffWorkScheduleStatus.ABSENT,
+          ],
+        },
+        effectiveFrom: { lt: until },
+        OR: [{ effectiveTo: null }, { effectiveTo: { gte: from } }],
+      },
+      orderBy: [
+        { staffUserId: 'asc' },
+        { dayOfWeek: 'asc' },
+        { startsAt: 'asc' },
+      ],
+    });
+  }
+
+  findPublishedWorkSchedulesForStaff(
+    staffUserId: string,
+    from: Date,
+    until: Date,
+  ) {
+    return this.prisma.staffWorkSchedule.findMany({
+      where: {
+        staffUserId,
+        status: StaffWorkScheduleStatus.PUBLISHED,
+        effectiveFrom: { lte: until },
+        OR: [{ effectiveTo: null }, { effectiveTo: { gte: from } }],
+      },
+    });
+  }
+
+  findPublishedDoctorWorkSchedules(
+    client: DatabaseClient,
+    staffUserId: string,
+    dayOfWeek: number,
+    date: Date,
+  ) {
+    return client.staffWorkSchedule.findMany({
+      where: {
+        staffUserId,
+        staffType: 'DOCTOR',
+        dayOfWeek,
+        status: StaffWorkScheduleStatus.PUBLISHED,
+        effectiveFrom: { lte: date },
+        OR: [{ effectiveTo: null }, { effectiveTo: { gte: date } }],
+      },
+    });
+  }
+
   findActiveDoctors() {
     return this.prisma.doctor.findMany({
       where: {
@@ -208,27 +263,7 @@ export class SchedulesRepository {
     });
   }
 
-  findOverlappingWorkSchedules(
-    staffUserId: string,
-    startsAt: Date,
-    endsAt: Date,
-  ) {
-    return this.prisma.staffWorkSchedule.findMany({
-      where: {
-        staffUserId,
-        startsAt: { lt: endsAt },
-        endsAt: { gt: startsAt },
-        status: {
-          in: [
-            StaffWorkScheduleStatus.DRAFT,
-            StaffWorkScheduleStatus.PUBLISHED,
-          ],
-        },
-      },
-    });
-  }
-
-  findApprovedLeaveRequests(
+  findScheduleLeaveRequests(
     staffUserIds: string[],
     doctorIds: string[],
     startsAt: Date,
@@ -236,13 +271,21 @@ export class SchedulesRepository {
   ) {
     return this.prisma.leaveRequest.findMany({
       where: {
-        OR: [
-          { staffUserId: { in: staffUserIds } },
-          { doctorId: { in: doctorIds } },
+        AND: [
+          {
+            OR: [
+              { staffUserId: { in: staffUserIds } },
+              { doctorId: { in: doctorIds } },
+            ],
+          },
+          {
+            OR: [{ endsAt: null }, { endsAt: { gt: startsAt } }],
+          },
         ],
-        status: LeaveRequestStatus.APPROVED,
+        status: {
+          in: [LeaveRequestStatus.RESOLVING, LeaveRequestStatus.APPROVED],
+        },
         startsAt: { lt: endsAt },
-        endsAt: { gt: startsAt },
       },
       select: {
         id: true,
@@ -251,6 +294,31 @@ export class SchedulesRepository {
         startsAt: true,
         endsAt: true,
         status: true,
+      },
+    });
+  }
+
+  findOverlappingRecurringWorkSchedules(input: {
+    staffUserId: string;
+    effectiveFrom: Date;
+    effectiveTo: Date | null;
+  }) {
+    return this.prisma.staffWorkSchedule.findMany({
+      where: {
+        staffUserId: input.staffUserId,
+        status: {
+          in: [
+            StaffWorkScheduleStatus.DRAFT,
+            StaffWorkScheduleStatus.PUBLISHED,
+          ],
+        },
+        effectiveFrom: {
+          lte: input.effectiveTo ?? new Date('9999-12-31T00:00:00.000Z'),
+        },
+        OR: [
+          { effectiveTo: null },
+          { effectiveTo: { gte: input.effectiveFrom } },
+        ],
       },
     });
   }
@@ -528,7 +596,7 @@ export class SchedulesRepository {
           in: [LeaveRequestStatus.RESOLVING, LeaveRequestStatus.APPROVED],
         },
         startsAt: { lt: endsAt },
-        endsAt: { gt: startsAt },
+        OR: [{ endsAt: null }, { endsAt: { gt: startsAt } }],
       },
     });
   }
@@ -734,7 +802,8 @@ export class SchedulesRepository {
               + EXTRACT(MINUTE FROM s.ends_at AT TIME ZONE 'Asia/Ho_Chi_Minh') > 720
           )
           AND NOT EXISTS (SELECT 1 FROM ${sqlTable(this.prisma.schemaName, 'leave_requests')} l WHERE l.doctor_id = d.id
-            AND l.status IN ('RESOLVING', 'APPROVED') AND l.starts_at < s.ends_at AND l.ends_at > s.starts_at)
+            AND l.status IN ('RESOLVING', 'APPROVED') AND l.starts_at < s.ends_at
+            AND l.ends_at > s.starts_at)
           AND NOT EXISTS (SELECT 1 FROM ${sqlTable(this.prisma.schemaName, 'care_sessions')} cs
             JOIN ${sqlTable(this.prisma.schemaName, 'appointments')} a ON a.id = cs.appointment_id
             WHERE cs.appointment_slot_id = s.id AND cs.status NOT IN ('CANCELLED', 'NO_SHOW') AND a.status <> 'CANCELLED')

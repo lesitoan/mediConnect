@@ -42,7 +42,10 @@ export function getSchedulesInDateRange(
     .map((staffMember): DoctorScheduleRow => {
       const shifts: DoctorScheduleRow["shifts"] = {};
       for (const shift of staffMember.shifts) {
-        if (shift.date < dateRange.startDate || shift.date > dateRange.endDate) {
+        if (
+          shift.date < dateRange.startDate ||
+          shift.date > dateRange.endDate
+        ) {
           continue;
         }
         const dayOfWeek = getScheduleDayOfWeek(shift.date);
@@ -51,7 +54,7 @@ export function getSchedulesInDateRange(
           doctorId: staffMember.userId,
           dayOfWeek,
           date: shift.date,
-          shiftName: shift.key === "MORNING" ? "Ca sáng" : "Ca chiều",
+          shiftName: "Ca làm",
           shiftStatus: shift.status,
           timeRange: `${getTimeLabel(shift.startsAt)} – ${getTimeLabel(
             shift.endsAt,
@@ -71,7 +74,9 @@ export function getSchedulesInDateRange(
         shifts,
       };
     })
-    .sort((left, right) => left.doctorName.localeCompare(right.doctorName, "vi"));
+    .sort((left, right) =>
+      left.doctorName.localeCompare(right.doctorName, "vi"),
+    );
   const shifts = schedules.flatMap((schedule) =>
     Object.values(schedule.shifts).flatMap((dayShifts) => dayShifts ?? []),
   );
@@ -113,11 +118,9 @@ export function filterSchedules(
 
     return (
       !query ||
-      [
-        schedule.doctorName,
-        schedule.doctorCode,
-        schedule.specialtyName,
-      ].some((value) => value.toLocaleLowerCase("vi").includes(query))
+      [schedule.doctorName, schedule.doctorCode, schedule.specialtyName].some(
+        (value) => value.toLocaleLowerCase("vi").includes(query),
+      )
     );
   });
 }
