@@ -305,7 +305,7 @@ export class UsersService {
   async activateAccount(
     tx: Prisma.TransactionClient,
     userId: string,
-    channel: 'EMAIL' | 'ZALO',
+    channel: 'EMAIL' | 'ZALO' | 'SMS',
     now: Date,
   ): Promise<void> {
     await tx.user.update({

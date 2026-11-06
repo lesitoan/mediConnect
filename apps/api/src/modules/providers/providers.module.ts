@@ -26,6 +26,6 @@ import { DoctorAvatarsService } from './doctor-avatars.service';
     PublicDoctorsController,
   ],
   providers: [ProvidersService, DoctorAvatarsService],
-  exports: [ProvidersService],
+  exports: [ProvidersService, DoctorAvatarsService],
 })
 export class ProvidersModule {}

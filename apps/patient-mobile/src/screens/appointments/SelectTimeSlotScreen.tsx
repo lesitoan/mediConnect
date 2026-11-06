@@ -32,7 +32,6 @@ import { COLORS, FONTS } from '../../constants/theme';
 import type { Profile } from '../../services/profileService';
 import {
   getTimeSlots,
-  SLOT_DURATION_MINUTES,
   type Doctor,
   type ScheduleDay,
   type ShiftId,
@@ -82,6 +81,7 @@ type SelectTimeSlotScreenProps = {
   service: SpecialtyService;
   doctor: Doctor;
   day: ScheduleDay;
+  preferredSlotId?: string;
   onPressBack?: () => void;
   onPressHome?: () => void;
   onPressChangeDay?: () => void;
@@ -92,6 +92,7 @@ export default function SelectTimeSlotScreen({
   service,
   doctor,
   day,
+  preferredSlotId,
   onPressBack,
   onPressHome,
   onPressChangeDay,
@@ -100,28 +101,57 @@ export default function SelectTimeSlotScreen({
   const insets = useSafeAreaInsets();
   const [shifts, setShifts] = useState<ShiftSchedule[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [retryCount, setRetryCount] = useState(0);
   const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
 
   useEffect(() => {
     let isActive = true;
+    const controller = new AbortController();
     setIsLoading(true);
-    getTimeSlots(doctor.id, day.dateKey)
+    setLoadError('');
+    getTimeSlots(doctor.id, day.dateKey, controller.signal)
       .then((data) => {
-        if (isActive) setShifts(data);
+        if (!isActive) return;
+        setShifts(data);
+        const allSlots = data.flatMap((shift) => shift.slots);
+        setSelectedSlotId(
+          allSlots.some((slot) => slot.id === preferredSlotId && slot.isAvailable)
+            ? preferredSlotId ?? null
+            : null,
+        );
+      })
+      .catch((error: unknown) => {
+        if (isActive && !controller.signal.aborted) {
+          setShifts([]);
+          setLoadError(
+            error instanceof Error ? error.message : 'Không thể tải khung giờ.',
+          );
+        }
       })
       .finally(() => {
         if (isActive) setIsLoading(false);
       });
     return () => {
       isActive = false;
+      controller.abort();
     };
-  }, [doctor.id, day.dateKey]);
+  }, [doctor.id, day.dateKey, preferredSlotId, retryCount]);
 
   const selectedSlot = shifts
     .flatMap((shift) => shift.slots)
     .find((slot) => slot.id === selectedSlotId);
   const canContinue = !!selectedSlot;
   const dayText = `${day.weekdayLabel}, ngày ${pad(day.day)}/${pad(day.month)}/${day.year}`;
+  const firstSlot = shifts.flatMap((shift) => shift.slots)[0];
+  const displayedSlot = selectedSlot ?? firstSlot;
+  const slotDurationMinutes = displayedSlot
+    ? (() => {
+        const [startHour, startMinute] = displayedSlot.startTime.split(':').map(Number);
+        const [endHour, endMinute] = displayedSlot.endTime.split(':').map(Number);
+        return endHour * 60 + endMinute - (startHour * 60 + startMinute);
+      })()
+    : null;
 
   const handleContinue = () => {
     if (selectedSlot) onContinue?.({ day, doctor, slot: selectedSlot });
@@ -245,7 +275,9 @@ export default function SelectTimeSlotScreen({
             <ClockIcon size={22} color={COLORS.PRIMARY} />
             <Text style={styles.sectionTitle}>Chọn khung giờ khám</Text>
           </View>
-          <Text style={styles.sectionNote}>{SLOT_DURATION_MINUTES} phút / lượt</Text>
+          {slotDurationMinutes === null ? null : (
+            <Text style={styles.sectionNote}>{slotDurationMinutes} phút / lượt</Text>
+          )}
         </View>
 
         <View style={styles.legend}>
@@ -267,6 +299,13 @@ export default function SelectTimeSlotScreen({
           <View style={styles.loadingBox}>
             <ActivityIndicator color={COLORS.PRIMARY_LIGHT} />
           </View>
+        ) : loadError ? (
+          <TouchableOpacity
+            style={styles.loadingBox}
+            onPress={() => setRetryCount((value) => value + 1)}
+          >
+            <Text style={styles.sectionNote}>{loadError}</Text>
+          </TouchableOpacity>
         ) : (
           shifts.map(renderShift)
         )}

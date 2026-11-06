@@ -7,6 +7,7 @@ export type Doctor = {
   experience?: string;
   position?: string;
   rating?: number;
+  reviewCount?: number;
   photoUrl?: string;
 };
 
@@ -26,6 +27,8 @@ type PublicDoctor = {
   qualification: string | null;
   bio: string | null;
   avatarUrl: string | null;
+  rating: number | null;
+  reviewCount: number;
   user: { fullName: string };
 };
 
@@ -42,8 +45,11 @@ type AvailableSlot = {
 
 const DAYS_AHEAD = 14;
 const WEEKDAY_LABELS = ['CN', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const getClinicDateKey = (date: Date) => {
+const isUuid = (value?: string): value is string => !!value && UUID_PATTERN.test(value);
+
+export const getClinicDateKey = (date: Date) => {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Ho_Chi_Minh',
     year: 'numeric',
@@ -81,35 +87,36 @@ const getClinicTime = (dateTime: string) => {
 const getClinicHour = (dateTime: string) => Number(getClinicTime(dateTime).slice(0, 2));
 
 async function getAvailability(
-  dateFrom: string,
-  dateTo: string,
+  date: string,
   filters: { specialtyId?: string; doctorId?: string } = {},
   signal?: AbortSignal,
 ): Promise<AvailableSlot[]> {
-  const query = new URLSearchParams({ dateFrom, dateTo });
-  if (filters.specialtyId) query.set('specialtyId', filters.specialtyId);
-  if (filters.doctorId) query.set('doctorId', filters.doctorId);
+  const query = new URLSearchParams({ dateFrom: date, dateTo: date });
+  if (isUuid(filters.specialtyId)) query.set('specialtyId', filters.specialtyId);
+  if (isUuid(filters.doctorId)) query.set('doctorId', filters.doctorId);
   return getPublicAvailability<AvailableSlot>(query, signal);
 }
 
 export async function getScheduleDays(
-  specialtyId: string,
+  filter: string | { specialtyId?: string; doctorId?: string },
   signal?: AbortSignal,
 ): Promise<ScheduleDay[]> {
+  const filters = typeof filter === 'string' ? { specialtyId: filter } : filter;
   const firstDate = getClinicDateKey(new Date());
-  const lastDate = addDays(firstDate, DAYS_AHEAD - 1);
-  const slots = await getAvailability(firstDate, lastDate, { specialtyId }, signal);
+  const dateKeys = Array.from({ length: DAYS_AHEAD }, (_, index) => addDays(firstDate, index));
+  const slotsByDay = await Promise.all(
+    dateKeys.map((dateKey) => getAvailability(dateKey, filters, signal)),
+  );
   const doctorIdsByDate = new Map<string, Set<string>>();
 
-  for (const slot of slots) {
-    const dateKey = getClinicDateKey(new Date(slot.startsAt));
+  slotsByDay.forEach((slots, index) => {
+    const dateKey = dateKeys[index];
     const doctorIds = doctorIdsByDate.get(dateKey) ?? new Set<string>();
-    doctorIds.add(slot.doctor.id);
+    for (const slot of slots) doctorIds.add(slot.doctor.id);
     doctorIdsByDate.set(dateKey, doctorIds);
-  }
+  });
 
-  return Array.from({ length: DAYS_AHEAD }, (_, index) => {
-    const dateKey = addDays(firstDate, index);
+  return dateKeys.map((dateKey) => {
     const [year, month, day] = dateKey.split('-').map(Number);
     const availableDoctorCount = doctorIdsByDate.get(dateKey)?.size ?? 0;
     const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
@@ -135,7 +142,7 @@ export async function getAvailableDoctors(
       `/providers?specialtyId=${encodeURIComponent(specialtyId)}`,
       signal,
     ),
-    getAvailability(dateKey, dateKey, { specialtyId }, signal),
+    getAvailability(dateKey, { specialtyId }, signal),
   ]);
   const availableDoctorIds = new Set(slots.map((slot) => slot.doctor.id));
 
@@ -147,6 +154,8 @@ export async function getAvailableDoctors(
       academicTitle: doctor.academicTitle,
       position: doctor.qualification ?? undefined,
       experience: doctor.bio ?? undefined,
+      rating: doctor.rating ?? undefined,
+      reviewCount: doctor.reviewCount,
       photoUrl: doctor.avatarUrl ?? undefined,
     }));
 }
@@ -173,7 +182,7 @@ export async function getTimeSlots(
   dateKey: string,
   signal?: AbortSignal,
 ): Promise<ShiftSchedule[]> {
-  const slots = await getAvailability(dateKey, dateKey, { doctorId }, signal);
+  const slots = await getAvailability(dateKey, { doctorId }, signal);
   const shiftSlots: Record<ShiftId, TimeSlot[]> = {
     MORNING: [],
     AFTERNOON: [],

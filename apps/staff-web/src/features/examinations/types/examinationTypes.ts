@@ -36,6 +36,7 @@ export interface LabResult {
   source: string;
   returnedAt: string;
   recordedBy: string;
+  images?: { url: string; publicId: string; name: string; uploadedAt: string; uploadedBy: string }[];
 }
 export interface Examination {
   id: string;

@@ -12,12 +12,16 @@ export interface DiagnosticVisit {
 }
 export interface DiagnosticImage {
   id: string;
+  publicId?: string;
   name: string;
   url: string;
   size: number;
+  uploadedAt?: string;
+  uploadedBy?: string;
 }
 export interface DiagnosticOrder {
   id: string;
+  expectedUpdatedAt?: string;
   visit: DiagnosticVisit;
   service: string;
   serviceCode: string;
@@ -28,6 +32,9 @@ export interface DiagnosticOrder {
   images: DiagnosticImage[];
   completedAt?: string;
   recordedBy?: string;
+  doctor?: string;
+  specialty?: string;
+  queueNumber?: number | null;
 }
 export const DIAGNOSTIC_CATEGORY_LABELS: Record<DiagnosticCategory, string> = {
   LAB: "Xét nghiệm",

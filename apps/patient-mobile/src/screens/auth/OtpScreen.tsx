@@ -84,7 +84,7 @@ type OtpScreenProps = {
     challengeId: string;
     expiresIn: number;
     retryAfter: number;
-    channel: 'EMAIL' | 'ZALO';
+    channel: 'EMAIL' | 'ZALO' | 'SMS';
   };
   purpose: 'REGISTER' | 'RESET_PASSWORD';
   onPressBack?: () => void;
@@ -97,7 +97,7 @@ type OtpScreenProps = {
     challengeId: string;
     expiresIn: number;
     retryAfter: number;
-    channel: 'EMAIL' | 'ZALO';
+    channel: 'EMAIL' | 'ZALO' | 'SMS';
   }>;
 };
 
@@ -235,7 +235,7 @@ export default function OtpScreen({
 
               <Text style={styles.title}>Nhập mã OTP</Text>
               <Text style={styles.description}>
-                Mã 6 chữ số đã được gửi qua {currentChallenge.channel === 'ZALO' ? 'Zalo' : 'email'}.
+                Mã 6 chữ số đã được gửi qua {currentChallenge.channel === 'ZALO' ? 'Zalo' : currentChallenge.channel === 'SMS' ? 'tin nhắn SMS' : 'email'}.
                 Nhập mã để {purpose === 'REGISTER' ? 'kích hoạt tài khoản' : 'đặt lại mật khẩu'}.
               </Text>
 

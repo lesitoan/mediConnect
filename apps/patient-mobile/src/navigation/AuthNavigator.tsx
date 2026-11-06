@@ -67,14 +67,13 @@ export default function AuthNavigator({ onSignIn }: AuthNavigatorProps) {
         {({ navigation }) => (
           <ForgotPasswordScreen
             onPressBack={() => navigation.goBack()}
-            onRequestOtp={async (contact) => {
-              const challenge = await requestPasswordReset(contact);
+            onRequestOtp={requestPasswordReset}
+            onOtpRequested={(contact, challenge) => {
               navigation.navigate(AUTH_ROUTES.OTP, {
                 contact,
                 purpose: 'RESET_PASSWORD',
                 challenge,
               });
-              return challenge;
             }}
           />
         )}

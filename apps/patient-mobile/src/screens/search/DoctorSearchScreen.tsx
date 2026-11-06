@@ -1,6 +1,8 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
+  ActivityIndicator,
   Image,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text as RNText,
@@ -27,6 +29,12 @@ import {
   XCircleIcon,
 } from '../../components/icons';
 import { COLORS, FONTS } from '../../constants/theme';
+import {
+  getDoctorPage,
+  type SearchDoctor,
+} from '../../services/doctorProfileService';
+import { getClinicDateKey } from '../../services/scheduleService';
+import { getSpecialtyPage } from '../../services/specialtyService';
 
 
 function Text(props: TextProps) {
@@ -44,76 +52,11 @@ const ACTIVE_CARD_GRADIENT = ['#2F7FB8', '#025C8E'] as const;
 type TabId = 'specialty' | 'doctor';
 type FilterId = 'all' | 'professor' | 'today';
 type SortId = 'rating' | 'experience';
-type Availability = 'today' | 'tomorrow';
-
-
 export type SearchSpecialty = {
   id: string;
   name: string;
   sub: string;
 };
-
-
-export type SearchDoctor = {
-  id: string;
-  name: string;
-  specialtyId: string;
-  degree: string;
-  isProfessor: boolean;
-  experienceYears: number;
-  position: string;
-  rating: number;
-  reviews: number;
-  availability: Availability;
-  avatarUri?: string;
-};
-
-
-const SPECIALTIES: SearchSpecialty[] = [
-  { id: 'cardio', name: 'Nội Tim Mạch', sub: '12 Chuyên gia' },
-  { id: 'general', name: 'Nội Tổng Quát', sub: 'Toàn diện 24/7' },
-  { id: 'pediatric', name: 'Nhi Khoa', sub: 'Chăm sóc trẻ em' },
-];
-
-
-const DOCTORS: SearchDoctor[] = [
-  {
-    id: 'doc-001',
-    name: 'TS.BS NGUYỄN VĂN YÊN',
-    specialtyId: 'cardio',
-    degree: 'Tiến sĩ, Bác sĩ',
-    isProfessor: true,
-    experienceYears: 26,
-    position: 'Nội tim mạch',
-    rating: 4.9,
-    reviews: 128,
-    availability: 'today',
-  },
-  {
-    id: 'doc-002',
-    name: 'TS.BS LÊ QUANG HUY',
-    specialtyId: 'cardio',
-    degree: 'Tiến sĩ, Bác sĩ',
-    isProfessor: true,
-    experienceYears: 20,
-    position: 'Tim mạch can thiệp',
-    rating: 5.0,
-    reviews: 214,
-    availability: 'tomorrow',
-  },
-  {
-    id: 'doc-003',
-    name: 'PGS.TS TRẦN MAI LOAN',
-    specialtyId: 'pediatric',
-    degree: 'Phó Giáo sư, TS',
-    isProfessor: true,
-    experienceYears: 25,
-    position: 'Trưởng khoa Nhi',
-    rating: 4.9,
-    reviews: 350,
-    availability: 'today',
-  },
-];
 
 
 const FILTERS: { id: FilterId; label: string }[] = [
@@ -127,16 +70,6 @@ const SORT_LABELS: Record<SortId, string> = {
   rating: 'Đánh giá cao',
   experience: 'Kinh nghiệm',
 };
-
-
-const normalize = (value: string) =>
-  value
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/đ/g, 'd')
-    .replace(/Đ/g, 'D')
-    .toLowerCase()
-    .trim();
 
 
 function SmileIcon({ color }: { color: string }) {
@@ -185,8 +118,10 @@ function VerifiedDot() {
 
 
 function SpecialtyIcon({ id, color }: { id: string; color: string }) {
-  if (id === 'cardio') return <HeartPulseIcon size={22} color={color} />;
-  if (id === 'general') return <BriefcaseMedicalIcon size={22} color={color} />;
+  const normalizedId = id.toLowerCase();
+  if (normalizedId.includes('tim')) return <HeartPulseIcon size={22} color={color} />;
+  if (normalizedId.includes('nội')) return <BriefcaseMedicalIcon size={22} color={color} />;
+  if (normalizedId.includes('nhi')) return <SmileIcon color={color} />;
   return <SmileIcon color={color} />;
 }
 
@@ -216,39 +151,195 @@ export default function DoctorSearchScreen({
   const [specialtyId, setSpecialtyId] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterId>('all');
   const [sort, setSort] = useState<SortId>('rating');
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [doctors, setDoctors] = useState<SearchDoctor[]>([]);
+  const [doctorPage, setDoctorPage] = useState(1);
+  const [doctorTotal, setDoctorTotal] = useState(0);
+  const [isLoadingDoctors, setIsLoadingDoctors] = useState(true);
+  const [isLoadingMoreDoctors, setIsLoadingMoreDoctors] = useState(false);
+  const [doctorError, setDoctorError] = useState<string | null>(null);
+  const [doctorMoreError, setDoctorMoreError] = useState<string | null>(null);
+  const [doctorRetry, setDoctorRetry] = useState(0);
+  const [specialties, setSpecialties] = useState<SearchSpecialty[]>([]);
+  const [specialtyPage, setSpecialtyPage] = useState(1);
+  const [specialtyTotal, setSpecialtyTotal] = useState(0);
+  const [specialtyTotalPages, setSpecialtyTotalPages] = useState(1);
+  const [isLoadingSpecialties, setIsLoadingSpecialties] = useState(true);
+  const [isLoadingMoreSpecialties, setIsLoadingMoreSpecialties] = useState(false);
+  const [specialtyError, setSpecialtyError] = useState<string | null>(null);
+  const [specialtyMoreError, setSpecialtyMoreError] = useState<string | null>(null);
+  const [specialtyRetry, setSpecialtyRetry] = useState(0);
+  const doctorRequestVersion = useRef(0);
+  const specialtyRequestVersion = useRef(0);
 
+  useEffect(() => {
+    const requestVersion = ++doctorRequestVersion.current;
+    const controller = new AbortController();
+    setIsLoadingMoreDoctors(false);
+    setDoctorMoreError(null);
+    const timeout = setTimeout(() => {
+      setIsLoadingDoctors(true);
+      setDoctorError(null);
+      setDoctorPage(1);
+      const clinicDate = getClinicDateKey(new Date());
+      getDoctorPage(
+        {
+          search: query,
+          specialtyId: specialtyId ?? undefined,
+          hasAcademicTitle: filter === 'professor',
+          availabilityDate: filter === 'today' ? clinicDate : undefined,
+          sortBy: sort === 'rating' ? 'RATING' : 'EXPERIENCE',
+          page: 1,
+          limit: 5,
+        },
+        controller.signal,
+      )
+        .then((response) => {
+          if (requestVersion !== doctorRequestVersion.current) return;
+          setDoctors(response.items);
+          setDoctorTotal(response.totalItems);
+          setDoctorPage(response.currentPage);
+        })
+        .catch(() => {
+          if (requestVersion === doctorRequestVersion.current && !controller.signal.aborted) {
+            setDoctorError('Không thể tải danh sách bác sĩ. Vui lòng thử lại.');
+          }
+        })
+        .finally(() => {
+          if (requestVersion === doctorRequestVersion.current) {
+            setIsLoadingDoctors(false);
+            setIsRefreshing(false);
+          }
+        });
+    }, 250);
+    return () => {
+      clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [query, specialtyId, filter, sort, doctorRetry]);
 
-  const specialtyName = (id: string) => SPECIALTIES.find((s) => s.id === id)?.name ?? '';
+  useEffect(() => {
+    const requestVersion = ++specialtyRequestVersion.current;
+    const controller = new AbortController();
+    setIsLoadingMoreSpecialties(false);
+    setSpecialtyMoreError(null);
+    const timeout = setTimeout(() => {
+      setIsLoadingSpecialties(true);
+      setSpecialtyError(null);
+      setSpecialtyPage(1);
+      getSpecialtyPage(
+        { search: query, page: 1, limit: 10 },
+        controller.signal,
+      )
+        .then((response) => {
+          if (requestVersion !== specialtyRequestVersion.current) return;
+          setSpecialties(
+            response.items.map((item) => ({
+              id: item.id,
+              name: item.name,
+              sub: item.description ?? `Phòng ${item.roomCode}`,
+            })),
+          );
+          setSpecialtyTotal(response.totalItems);
+          setSpecialtyTotalPages(response.totalPages);
+          setSpecialtyPage(response.currentPage);
+        })
+        .catch(() => {
+          if (requestVersion === specialtyRequestVersion.current && !controller.signal.aborted) {
+            setSpecialtyError('Không thể tải danh sách chuyên khoa. Vui lòng thử lại.');
+          }
+        })
+        .finally(() => {
+          if (requestVersion === specialtyRequestVersion.current) {
+            setIsLoadingSpecialties(false);
+          }
+        });
+    }, 250);
+    return () => {
+      clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [query, specialtyRetry]);
 
+  const hasMoreDoctors = doctors.length < doctorTotal;
+  const hasMoreSpecialties = specialtyPage < specialtyTotalPages;
 
-  const doctors = useMemo(() => {
-    const q = normalize(query);
-    const list = DOCTORS.filter((doc) => {
-      if (specialtyId && doc.specialtyId !== specialtyId) return false;
-      if (filter === 'professor' && !doc.isProfessor) return false;
-      if (filter === 'today' && doc.availability !== 'today') return false;
-      if (!q) return true;
-      const haystack = normalize(`${doc.name} ${doc.position} ${specialtyName(doc.specialtyId)}`);
-      return haystack.includes(q);
-    });
-    return [...list].sort((a, b) =>
-      sort === 'rating'
-        ? b.rating - a.rating || b.reviews - a.reviews
-        : b.experienceYears - a.experienceYears,
-    );
-  }, [query, specialtyId, filter, sort]);
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    setDoctorRetry((value) => value + 1);
+    setSpecialtyRetry((value) => value + 1);
+  };
 
+  const loadMoreDoctors = async () => {
+    const requestVersion = doctorRequestVersion.current;
+    setIsLoadingMoreDoctors(true);
+    setDoctorMoreError(null);
+    try {
+      const clinicDate = getClinicDateKey(new Date());
+      const response = await getDoctorPage({
+        search: query,
+        specialtyId: specialtyId ?? undefined,
+        hasAcademicTitle: filter === 'professor',
+        availabilityDate: filter === 'today' ? clinicDate : undefined,
+        sortBy: sort === 'rating' ? 'RATING' : 'EXPERIENCE',
+        page: doctorPage + 1,
+        limit: 5,
+      });
+      if (requestVersion !== doctorRequestVersion.current) return;
+      setDoctors((current) => [...current, ...response.items]);
+      setDoctorPage(response.currentPage);
+      setDoctorTotal(response.totalItems);
+    } catch {
+      if (requestVersion === doctorRequestVersion.current) {
+        setDoctorMoreError('Không thể tải thêm bác sĩ. Vui lòng thử lại.');
+      }
+    } finally {
+      if (requestVersion === doctorRequestVersion.current) {
+        setIsLoadingMoreDoctors(false);
+      }
+    }
+  };
 
-  const specialties = useMemo(() => {
-    const q = normalize(query);
-    if (!q) return SPECIALTIES;
-    return SPECIALTIES.filter((s) => normalize(`${s.name} ${s.sub}`).includes(q));
-  }, [query]);
+  const loadMoreSpecialties = async () => {
+    const requestVersion = specialtyRequestVersion.current;
+    setIsLoadingMoreSpecialties(true);
+    setSpecialtyMoreError(null);
+    try {
+      const response = await getSpecialtyPage({
+        search: query,
+        page: specialtyPage + 1,
+        limit: 10,
+      });
+      if (requestVersion !== specialtyRequestVersion.current) return;
+      setSpecialties((current) => [
+        ...current,
+        ...response.items.map((item) => ({
+          id: item.id,
+          name: item.name,
+          sub: item.description ?? `Phòng ${item.roomCode}`,
+        })),
+      ]);
+      setSpecialtyPage(response.currentPage);
+      setSpecialtyTotal(response.totalItems);
+      setSpecialtyTotalPages(response.totalPages);
+    } catch {
+      if (requestVersion === specialtyRequestVersion.current) {
+        setSpecialtyMoreError('Không thể tải thêm chuyên khoa. Vui lòng thử lại.');
+      }
+    } finally {
+      if (requestVersion === specialtyRequestVersion.current) {
+        setIsLoadingMoreSpecialties(false);
+      }
+    }
+  };
 
 
   const handleSelectSpecialty = (id: string) => {
     setSpecialtyId((prev) => (prev === id ? null : id));
   };
+
+  const specialtyName = (id: string) =>
+    specialties.find((specialty) => specialty.id === id)?.name ?? 'Chưa cập nhật';
 
 
   const renderSpecialtyCard = (item: SearchSpecialty) => {
@@ -256,7 +347,7 @@ export default function DoctorSearchScreen({
     const content: ReactNode = (
       <>
         <View style={[styles.specialtyIconBox, active && styles.specialtyIconBoxActive]}>
-          <SpecialtyIcon id={item.id} color={active ? '#FFFFFF' : NAVY} />
+          <SpecialtyIcon id={item.name} color={active ? '#FFFFFF' : NAVY} />
         </View>
         <View>
           <Text style={[styles.specialtyName, active && styles.specialtyNameActive]}>{item.name}</Text>
@@ -308,6 +399,13 @@ export default function DoctorSearchScreen({
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            tintColor={COLORS.PRIMARY}
+          />
+        }
       >
         <View style={styles.searchRow}>
           <View style={styles.searchBox}>
@@ -327,7 +425,21 @@ export default function DoctorSearchScreen({
               </TouchableOpacity>
             ) : null}
           </View>
-          <TouchableOpacity style={styles.filterButton} activeOpacity={0.8} onPress={onPressFilter}>
+          <TouchableOpacity
+            style={styles.filterButton}
+            activeOpacity={0.8}
+            onPress={
+              onPressFilter ??
+              (() =>
+                setFilter((current) =>
+                  current === 'all'
+                    ? 'professor'
+                    : current === 'professor'
+                      ? 'today'
+                      : 'all',
+                ))
+            }
+          >
             <SlidersIcon size={22} color={NAVY} />
             <View style={styles.filterDot} />
           </TouchableOpacity>
@@ -342,7 +454,7 @@ export default function DoctorSearchScreen({
           >
             <BriefcaseMedicalIcon size={16} color={tab === 'specialty' ? NAVY : '#4A5563'} />
             <Text style={[styles.segmentText, tab === 'specialty' && styles.segmentTextActive]}>
-              Chuyên khoa (24)
+              Chuyên khoa ({specialtyTotal})
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -352,7 +464,7 @@ export default function DoctorSearchScreen({
           >
             <StethoscopeIcon size={16} color={tab === 'doctor' ? NAVY : '#4A5563'} />
             <Text style={[styles.segmentText, tab === 'doctor' && styles.segmentTextActive]}>
-              Bác sĩ (Hơn 150)
+              Bác sĩ ({doctorTotal})
             </Text>
           </TouchableOpacity>
         </View>
@@ -360,29 +472,55 @@ export default function DoctorSearchScreen({
 
         {tab === 'specialty' ? (
           <View style={styles.specialtyList}>
-            {specialties.length === 0 ? (
+            {isLoadingSpecialties ? (
+              <ActivityIndicator color={COLORS.PRIMARY} />
+            ) : specialtyError ? (
+              <TouchableOpacity onPress={() => setSpecialtyRetry((value) => value + 1)}>
+                <Text style={styles.emptyText}>{specialtyError}</Text>
+              </TouchableOpacity>
+            ) : specialties.length === 0 ? (
               <Text style={styles.emptyText}>Không tìm thấy chuyên khoa phù hợp</Text>
             ) : (
-              specialties.map((item) => (
-                <TouchableOpacity
-                  key={item.id}
-                  activeOpacity={0.85}
-                  style={styles.specialtyRow}
-                  onPress={() => {
-                    setSpecialtyId(item.id);
-                    setTab('doctor');
-                  }}
-                >
-                  <View style={styles.specialtyIconBox}>
-                    <SpecialtyIcon id={item.id} color={NAVY} />
-                  </View>
-                  <View style={styles.flex}>
-                    <Text style={styles.specialtyName}>{item.name}</Text>
-                    <Text style={styles.specialtySub}>{item.sub}</Text>
-                  </View>
-                  <ChevronRightIcon size={18} color={NAVY} />
-                </TouchableOpacity>
-              ))
+              <>
+                {specialties.map((item) => (
+                  <TouchableOpacity
+                    key={item.id}
+                    activeOpacity={0.85}
+                    style={styles.specialtyRow}
+                    onPress={() => {
+                      setSpecialtyId(item.id);
+                      setTab('doctor');
+                    }}
+                  >
+                    <View style={styles.specialtyIconBox}>
+                      <SpecialtyIcon id={item.name} color={NAVY} />
+                    </View>
+                    <View style={styles.flex}>
+                      <Text style={styles.specialtyName}>{item.name}</Text>
+                      <Text style={styles.specialtySub}>{item.sub}</Text>
+                    </View>
+                    <ChevronRightIcon size={18} color={NAVY} />
+                  </TouchableOpacity>
+                ))}
+                {specialtyMoreError ? (
+                  <TouchableOpacity onPress={loadMoreSpecialties}>
+                    <Text style={styles.emptyText}>{specialtyMoreError}</Text>
+                  </TouchableOpacity>
+                ) : null}
+                {hasMoreSpecialties ? (
+                  <TouchableOpacity
+                    style={styles.pageButton}
+                    disabled={isLoadingMoreSpecialties}
+                    onPress={loadMoreSpecialties}
+                  >
+                    {isLoadingMoreSpecialties ? (
+                      <ActivityIndicator color={COLORS.PRIMARY} />
+                    ) : (
+                      <Text style={styles.pageButtonText}>Xem thêm chuyên khoa</Text>
+                    )}
+                  </TouchableOpacity>
+                ) : null}
+              </>
             )}
           </View>
         ) : (
@@ -397,7 +535,7 @@ export default function DoctorSearchScreen({
                 hitSlop={8}
                 onPress={onPressAllSpecialties ?? (() => setTab('specialty'))}
               >
-                <Text style={styles.sectionLink}>Tất cả 24 khoa</Text>
+                <Text style={styles.sectionLink}>Tất cả {specialtyTotal} khoa</Text>
                 <ChevronRightIcon size={14} color={NAVY} />
               </TouchableOpacity>
             </View>
@@ -408,7 +546,7 @@ export default function DoctorSearchScreen({
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.specialtyScroll}
             >
-              {SPECIALTIES.map(renderSpecialtyCard)}
+              {specialties.slice(0, 3).map(renderSpecialtyCard)}
             </ScrollView>
 
 
@@ -448,11 +586,16 @@ export default function DoctorSearchScreen({
 
 
             <View style={styles.doctorList}>
-              {doctors.length === 0 ? (
+              {isLoadingDoctors ? (
+                <ActivityIndicator color={COLORS.PRIMARY} />
+              ) : doctorError ? (
+                <TouchableOpacity onPress={() => setDoctorRetry((value) => value + 1)}>
+                  <Text style={styles.emptyText}>{doctorError}</Text>
+                </TouchableOpacity>
+              ) : doctors.length === 0 ? (
                 <Text style={styles.emptyText}>Không tìm thấy bác sĩ phù hợp</Text>
               ) : (
                 doctors.map((doc) => {
-                  const today = doc.availability === 'today';
                   return (
                     <View key={doc.id} style={styles.doctorCard}>
                       <LinearGradient
@@ -462,7 +605,11 @@ export default function DoctorSearchScreen({
                         style={styles.cardTopLine}
                       />
                       <View style={styles.doctorBody}>
-                        <View style={styles.doctorTop}>
+                        <TouchableOpacity
+                          style={styles.doctorTop}
+                          activeOpacity={0.9}
+                          onPress={() => onPressViewDetail?.(doc)}
+                        >
                           <View style={styles.photoWrap}>
                             <View style={styles.photo}>
                               {doc.avatarUri ? (
@@ -477,20 +624,20 @@ export default function DoctorSearchScreen({
 
                           <View style={styles.doctorInfo}>
                             <View style={styles.badgeRow}>
-                              <View style={[styles.availBadge, !today && styles.availBadgeTomorrow]}>
-                                <View
-                                  style={[styles.availDot, { backgroundColor: today ? GREEN : NAVY }]}
-                                />
-                                <Text
-                                  style={[styles.availText, { color: today ? '#0E7A55' : NAVY }]}
-                                >
-                                  {today ? 'CÓ LỊCH HÔM NAY' : 'CÓ LỊCH NGÀY MAI'}
+                              <View style={[styles.availBadge, styles.availBadgeTomorrow]}>
+                                <View style={[styles.availDot, { backgroundColor: NAVY }]} />
+                                <Text style={[styles.availText, { color: NAVY }]}>
+                                  XEM LỊCH KHÁM
                                 </Text>
                               </View>
                               <View style={styles.ratingRow}>
                                 <StarIcon size={13} color={STAR} fill={STAR} strokeWidth={1.5} />
-                                <Text style={styles.ratingValue}>{doc.rating.toFixed(1)}</Text>
-                                <Text style={styles.ratingCount}>({doc.reviews})</Text>
+                                <Text style={styles.ratingValue}>
+                                  {doc.rating === null ? '—' : doc.rating.toFixed(1)}
+                                </Text>
+                                <Text style={styles.ratingCount}>
+                                  ({doc.reviews})
+                                </Text>
                               </View>
                             </View>
 
@@ -500,20 +647,24 @@ export default function DoctorSearchScreen({
 
                             <View style={styles.infoRow}>
                               <Text style={styles.infoLabel}>Học vị:</Text>
-                              <Text style={styles.infoValue}>{doc.degree}</Text>
+                              <Text style={styles.infoValue}>{doc.degree ?? 'Chưa cập nhật'}</Text>
                             </View>
                             <View style={styles.infoRow}>
                               <Text style={styles.infoLabel}>Kinh nghiệm:</Text>
                               <Text style={[styles.infoValue, styles.infoAccent]}>
-                                Hơn {doc.experienceYears} năm
+                                {doc.experienceYears === null
+                                  ? 'Chưa cập nhật'
+                                  : `Hơn ${doc.experienceYears} năm`}
                               </Text>
                             </View>
                             <View style={styles.infoRow}>
-                              <Text style={styles.infoLabel}>Chức vụ:</Text>
-                              <Text style={[styles.infoValue, styles.infoAccent]}>{doc.position}</Text>
+                              <Text style={styles.infoLabel}>Chuyên khoa:</Text>
+                              <Text style={[styles.infoValue, styles.infoAccent]}>
+                                {specialtyName(doc.specialtyId)}
+                              </Text>
                             </View>
                           </View>
-                        </View>
+                        </TouchableOpacity>
 
 
                         <View style={styles.divider} />
@@ -548,6 +699,24 @@ export default function DoctorSearchScreen({
                   );
                 })
               )}
+              {doctorMoreError ? (
+                <TouchableOpacity onPress={loadMoreDoctors}>
+                  <Text style={styles.emptyText}>{doctorMoreError}</Text>
+                </TouchableOpacity>
+              ) : null}
+              {hasMoreDoctors && !isLoadingDoctors && !doctorError ? (
+                <TouchableOpacity
+                  style={styles.pageButton}
+                  disabled={isLoadingMoreDoctors}
+                  onPress={loadMoreDoctors}
+                >
+                  {isLoadingMoreDoctors ? (
+                    <ActivityIndicator color={COLORS.PRIMARY} />
+                  ) : (
+                    <Text style={styles.pageButtonText}>Xem thêm bác sĩ</Text>
+                  )}
+                </TouchableOpacity>
+              ) : null}
             </View>
           </>
         )}
@@ -737,6 +906,17 @@ const styles = StyleSheet.create({
 
 
   doctorList: { marginTop: 12, gap: 14 },
+  pageButton: {
+    minHeight: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#C5E1FA',
+    backgroundColor: COLORS.SURFACE,
+  },
+  pageButtonText: { fontFamily: FONTS.BOLD, fontSize: 13, color: NAVY },
   doctorCard: {
     borderRadius: 18,
     borderWidth: 1,
@@ -852,4 +1032,3 @@ const styles = StyleSheet.create({
   aiTitle: { fontFamily: FONTS.BOLD, fontSize: 14.5, lineHeight: 21, color: '#164E78' },
   aiLink: { marginTop: 2, fontFamily: FONTS.SEMI_BOLD, fontSize: 13.5, color: NAVY },
 });
-

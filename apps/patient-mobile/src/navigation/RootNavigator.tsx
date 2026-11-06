@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, View } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
+import {
+  NavigationContainer,
+  useNavigationContainerRef,
+} from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import BookingProfileScreen from '../screens/appointments/BookingProfileScreen';
 import CreateProfileScreen from '../screens/appointments/CreateProfileScreen';
@@ -28,13 +31,23 @@ import MainTabNavigator from './MainTabNavigator';
 import { ROOT_ROUTES } from './routes';
 import type { RootStackParamList } from './types';
 import { logoutPatient, restorePatientSession } from '../services/authService';
+import { getSpecialtyService } from '../services/specialtyService';
 import { COLORS } from '../constants/theme';
 
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
+type BookingIntent = NonNullable<RootStackParamList[typeof ROOT_ROUTES.BOOKING_PROFILE]>;
 
 export default function RootNavigator() {
   const [isSignedIn, setIsSignedIn] = useState<boolean | null>(null);
+  const [pendingBooking, setPendingBooking] = useState<BookingIntent | null>(null);
+  const navigationRef = useNavigationContainerRef<RootStackParamList>();
+
+  useEffect(() => {
+    if (!isSignedIn || !pendingBooking || !navigationRef.isReady()) return;
+    navigationRef.navigate(ROOT_ROUTES.BOOKING_PROFILE, pendingBooking);
+    setPendingBooking(null);
+  }, [isSignedIn, navigationRef, pendingBooking]);
 
   useEffect(() => {
     let isActive = true;
@@ -67,6 +80,7 @@ export default function RootNavigator() {
           : 'Phiên trên thiết bị đã bị xóa. Hãy thử lại khi có kết nối.',
       );
     } finally {
+      setPendingBooking(null);
       setIsSignedIn(false);
     }
   };
@@ -80,8 +94,11 @@ export default function RootNavigator() {
   }
 
   return (
-    <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <NavigationContainer ref={navigationRef}>
+      <Stack.Navigator
+        initialRouteName={isSignedIn ? ROOT_ROUTES.MAIN : ROOT_ROUTES.SEARCH}
+        screenOptions={{ headerShown: false }}
+      >
         {isSignedIn ? (
           <>
             <Stack.Screen name={ROOT_ROUTES.MAIN}>
@@ -130,13 +147,19 @@ export default function RootNavigator() {
             </Stack.Screen>
 
             <Stack.Screen name={ROOT_ROUTES.BOOKING_PROFILE}>
-              {({ navigation }) => (
+              {({ navigation, route }) => (
                 <BookingProfileScreen
                   onPressBack={() => navigation.goBack()}
                   onPressHome={() => navigation.popToTop()}
                   onPressAddProfile={() => navigation.navigate(ROOT_ROUTES.CREATE_PROFILE)}
                   onSelectProfile={(profile) =>
-                    navigation.navigate(ROOT_ROUTES.SELECT_SPECIALTY, { profile })
+                    navigation.navigate(ROOT_ROUTES.SELECT_SPECIALTY, {
+                      profile,
+                      initialSpecialtyId: route.params?.specialtyId,
+                      preferredDoctorId: route.params?.doctorId,
+                      preferredDateKey: route.params?.dateKey,
+                      preferredSlotId: route.params?.slotId,
+                    })
                   }
                 />
               )}
@@ -187,13 +210,21 @@ export default function RootNavigator() {
               {({ navigation, route }) => (
                 <SelectSpecialtyScreen
                   profile={route.params.profile}
+                  initialSpecialtyId={route.params.initialSpecialtyId}
+                  preferredDoctorId={route.params.preferredDoctorId}
+                  preferredDateKey={route.params.preferredDateKey}
+                  preferredSlotId={route.params.preferredSlotId}
                   onPressBack={() => navigation.goBack()}
                   onPressHome={() => navigation.popToTop()}
                   onPressChangeProfile={() => navigation.goBack()}
+                  onPressAssistant={() => navigation.navigate(ROOT_ROUTES.AI_CHAT)}
                   onContinue={({ specialty }) =>
                     navigation.navigate(ROOT_ROUTES.SELECT_DOCTOR, {
                       profile: route.params.profile,
                       specialty,
+                      preferredDoctorId: route.params.preferredDoctorId,
+                      preferredDateKey: route.params.preferredDateKey,
+                      preferredSlotId: route.params.preferredSlotId,
                     })
                   }
                 />
@@ -205,14 +236,18 @@ export default function RootNavigator() {
                 <SelectDoctorScreen
                   profile={route.params.profile}
                   specialty={route.params.specialty}
+                  preferredDoctorId={route.params.preferredDoctorId}
+                  preferredDateKey={route.params.preferredDateKey}
                   onPressBack={() => navigation.goBack()}
                   onPressHome={() => navigation.popToTop()}
                   onContinue={({ day, doctor }) =>
                     navigation.navigate(ROOT_ROUTES.SELECT_TIME_SLOT, {
                       profile: route.params.profile,
                       specialty: route.params.specialty,
+                      service: getSpecialtyService(route.params.specialty),
                       doctor,
                       day,
+                      preferredSlotId: route.params.preferredSlotId,
                     })
                   }
                 />
@@ -224,6 +259,7 @@ export default function RootNavigator() {
                 <SelectTimeSlotScreen
                   profile={route.params.profile}
                   specialty={route.params.specialty}
+                  service={route.params.service}
                   doctor={route.params.doctor}
                   day={route.params.day}
                   onPressBack={() => navigation.goBack()}
@@ -233,6 +269,7 @@ export default function RootNavigator() {
                     navigation.navigate(ROOT_ROUTES.CONFIRM_BOOKING, {
                       profile: route.params.profile,
                       specialty: route.params.specialty,
+                      service: route.params.service,
                       doctor: route.params.doctor,
                       day: route.params.day,
                       slot,
@@ -247,6 +284,7 @@ export default function RootNavigator() {
                 <ConfirmBookingScreen
                   profile={route.params.profile}
                   specialty={route.params.specialty}
+                  service={route.params.service}
                   doctor={route.params.doctor}
                   day={route.params.day}
                   slot={route.params.slot}
@@ -327,7 +365,13 @@ export default function RootNavigator() {
               {({ navigation }) => (
                 <DoctorSearchScreen
                   onPressBack={() => navigation.goBack()}
-                  onPressBook={() => navigation.navigate(ROOT_ROUTES.BOOKING_PROFILE)}
+                  onPressHelp={() => navigation.navigate(ROOT_ROUTES.AI_CHAT)}
+                  onPressBook={(doctor) =>
+                    navigation.navigate(ROOT_ROUTES.BOOKING_PROFILE, {
+                      doctorId: doctor.id,
+                      specialtyId: doctor.specialtyId,
+                    })
+                  }
                   onPressAskAI={() => navigation.navigate(ROOT_ROUTES.AI_CHAT)}
                   onPressViewDetail={(doctor) =>
                     navigation.navigate(ROOT_ROUTES.DOCTOR_DETAIL, { doctorId: doctor.id })
@@ -341,7 +385,14 @@ export default function RootNavigator() {
                 <DoctorDetailScreen
                   doctorId={route.params.doctorId}
                   onPressBack={() => navigation.goBack()}
-                  onPressBook={() => navigation.navigate(ROOT_ROUTES.BOOKING_PROFILE)}
+                  onPressBook={(selection) =>
+                    navigation.navigate(ROOT_ROUTES.BOOKING_PROFILE, {
+                      doctorId: selection.doctorId,
+                      specialtyId: selection.specialtyId,
+                      dateKey: selection.dateKey,
+                      slotId: selection.slotId,
+                    })
+                  }
                   onPressChat={() => navigation.navigate(ROOT_ROUTES.AI_CHAT)}
                 />
               )}
@@ -365,9 +416,50 @@ export default function RootNavigator() {
 
           </>
         ) : (
-          <Stack.Screen name={ROOT_ROUTES.AUTH}>
-            {() => <AuthNavigator onSignIn={() => setIsSignedIn(true)} />}
-          </Stack.Screen>
+          <>
+            <Stack.Screen name={ROOT_ROUTES.AUTH}>
+              {() => <AuthNavigator onSignIn={() => setIsSignedIn(true)} />}
+            </Stack.Screen>
+            <Stack.Screen name={ROOT_ROUTES.SEARCH}>
+              {({ navigation }) => (
+                <DoctorSearchScreen
+                  onPressBack={() => navigation.navigate(ROOT_ROUTES.AUTH)}
+                  onPressHelp={() => navigation.navigate(ROOT_ROUTES.AUTH)}
+                  onPressBook={(doctor) => {
+                    setPendingBooking({
+                      doctorId: doctor.id,
+                      specialtyId: doctor.specialtyId,
+                    });
+                    navigation.navigate(ROOT_ROUTES.AUTH);
+                  }}
+                  onPressAskAI={() => navigation.navigate(ROOT_ROUTES.AUTH)}
+                  onPressViewDetail={(doctor) =>
+                    navigation.navigate(ROOT_ROUTES.DOCTOR_DETAIL, {
+                      doctorId: doctor.id,
+                    })
+                  }
+                />
+              )}
+            </Stack.Screen>
+            <Stack.Screen name={ROOT_ROUTES.DOCTOR_DETAIL}>
+              {({ navigation, route }) => (
+                <DoctorDetailScreen
+                  doctorId={route.params.doctorId}
+                  onPressBack={() => navigation.goBack()}
+                  onPressBook={(selection) => {
+                    setPendingBooking({
+                      doctorId: selection.doctorId,
+                      specialtyId: selection.specialtyId,
+                      dateKey: selection.dateKey,
+                      slotId: selection.slotId,
+                    });
+                    navigation.navigate(ROOT_ROUTES.AUTH);
+                  }}
+                  onPressChat={() => navigation.navigate(ROOT_ROUTES.AUTH)}
+                />
+              )}
+            </Stack.Screen>
+          </>
         )}
       </Stack.Navigator>
     </NavigationContainer>

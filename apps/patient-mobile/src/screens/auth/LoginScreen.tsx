@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import ScreenContainer from '../../components/ScreenContainer';
+import { ApiRequestError, getApiBaseUrl } from '../../services/apiClient';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 
 const COLORS = {
@@ -160,9 +161,27 @@ export default function LoginScreen({
     if (!onLogin || isSubmitting) return;
     setIsSubmitting(true);
     setRequestError('');
+    const loginPayload = {
+      phone: phone.trim(),
+      password,
+      clientType: 'MOBILE',
+    };
+    console.log('LOGIN BASE URL:', getApiBaseUrl());
+    console.log('LOGIN REQUEST PAYLOAD:', {
+      ...loginPayload,
+      password: '[REDACTED]',
+    });
     try {
-      await onLogin(phone.trim(), password);
+      await onLogin(loginPayload.phone, loginPayload.password);
     } catch (error) {
+      if (error instanceof ApiRequestError) {
+        console.error('LOGIN HTTP ERROR RESPONSE:', {
+          status: error.status,
+          data: error.responseData,
+        });
+      }
+      
+      console.error('LOGIN ERROR DETAILS:', error);
       setRequestError(
         error instanceof Error ? error.message : 'Không thể đăng nhập.',
       );

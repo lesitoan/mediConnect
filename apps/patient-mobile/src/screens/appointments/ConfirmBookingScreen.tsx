@@ -69,11 +69,6 @@ const WARNING_ICON = '#E8A317';
 const MASK_DOT = '●';
 const PLACEHOLDER_VALUE = '—';
 
-const SAMPLE_LOCATION = {
-  room: 'Phòng 302, Tầng 3, Tòa A',
-  facility: 'Trung tâm Kỹ thuật cao MediConnect',
-};
-
 const WEEKDAY_NAMES: Record<string, string> = {
   'Thứ 2': 'Thứ Hai',
   'Thứ 3': 'Thứ Ba',
@@ -199,6 +194,7 @@ type ConfirmBookingScreenProps = {
 
 export default function ConfirmBookingScreen({
   profile,
+  specialty,
   service,
   doctor,
   day,
@@ -228,13 +224,7 @@ export default function ConfirmBookingScreen({
     try {
       setIsSubmitting(true);
       const appointment = await createAppointment({
-        profileId: profile.id,
-        serviceId: service.id,
-        doctorId: doctor.id,
-        dateKey: day.dateKey,
-        slotId: slot.id,
-        startTime: slot.startTime,
-        endTime: slot.endTime,
+        appointmentSlotId: slot.id,
         note: note.trim(),
       });
       onConfirmed?.(appointment);
@@ -322,8 +312,8 @@ export default function ConfirmBookingScreen({
             <DetailRow
               icon={<BuildingIcon size={16} color={COLORS.PRIMARY} />}
               label="Địa điểm"
-              value={SAMPLE_LOCATION.room}
-              subValue={SAMPLE_LOCATION.facility}
+              value={`Phòng ${specialty.roomCode}`}
+              subValue="Chưa cập nhật"
             />
             <DetailRow
               icon={<MedicalSquareIcon size={16} color={COLORS.PRIMARY} />}

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -102,6 +103,38 @@ export class AuthenticationService {
         { sessionId: id },
       );
       return tokens;
+    });
+  }
+
+  async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<{ message: string }> {
+    return this.usersService.withLockedAccount(userId, async (tx) => {
+      const user = await tx.user.findUnique({
+        where: { id: userId },
+        select: { passwordHash: true },
+      });
+      if (
+        !user?.passwordHash ||
+        !(await compare(currentPassword, user.passwordHash))
+      ) {
+        throw new UnauthorizedException('Mật khẩu hiện tại không chính xác.');
+      }
+      if (await compare(newPassword, user.passwordHash)) {
+        throw new BadRequestException(
+          'Mật khẩu mới phải khác mật khẩu hiện tại.',
+        );
+      }
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          passwordHash: await hash(newPassword, 12),
+          passwordChangedAt: new Date(),
+        },
+      });
+      return { message: 'Đổi mật khẩu thành công.' };
     });
   }
 

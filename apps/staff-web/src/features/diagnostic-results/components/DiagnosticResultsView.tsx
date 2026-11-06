@@ -1,5 +1,6 @@
 "use client";
-import { useEffect } from "react";
+import { useState } from "react";
+import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
@@ -24,8 +25,7 @@ import {
 import { Pagination } from "@/components/shared/Pagination";
 import { useModal } from "@/hooks/useModal";
 import { useTableFilters } from "@/hooks/useTableFilters";
-import { useDiagnosticPreview } from "../hooks/useDiagnosticPreview";
-import { ensureDiagnosticDemoOrders } from "../services/diagnosticPreviewStore";
+import { useDiagnosticResults } from "../hooks/useDiagnosticResults";
 import {
   DIAGNOSTIC_CATEGORY_LABELS,
   DIAGNOSTIC_STATUS_LABELS,
@@ -33,8 +33,11 @@ import {
 import { formatDiagnosticTime } from "../diagnosticUtils";
 import { DiagnosticResultEditor } from "./DiagnosticResultEditor";
 import { DiagnosticResultsPanel } from "./DiagnosticResultsPanel";
+import { getDiagnosticResult } from "../services/diagnosticResultsService";
+import type { DiagnosticOrder } from "../types/diagnosticTypes";
 
 const DEFAULT_FILTERS = {
+  date: "",
   search: "",
   category: "ALL",
   status: "ALL",
@@ -43,31 +46,18 @@ const DEFAULT_FILTERS = {
 };
 const PAGE_SIZES = [10, 20] as const;
 export function DiagnosticResultsView() {
-  const orders = useDiagnosticPreview();
   const { filters, setFilter, resetFilters } = useTableFilters(
     DEFAULT_FILTERS,
     "replace",
   );
   const editor = useModal<string>();
   const record = useModal<string>();
-  useEffect(() => {
-    ensureDiagnosticDemoOrders();
-  }, []);
-  const normalized = filters.search.trim().toLocaleLowerCase("vi");
-  const filtered = orders.filter(
-    (order) =>
-      (filters.category === "ALL" || order.category === filters.category) &&
-      (filters.status === "ALL" || order.status === filters.status) &&
-      [
-        order.visit.patientName,
-        order.visit.patientCode,
-        order.visit.examinationCode,
-        order.service,
-        order.serviceCode,
-      ].some((value) => value.toLocaleLowerCase("vi").includes(normalized)),
-  );
+  const { orders, pagination, isLoading, reload } = useDiagnosticResults(filters);
+  const [serverResults, setServerResults] = useState<import("@/features/examinations/types/examinationTypes").LabResult[]>([]);
+  const [selectedOrder, setSelectedOrder] = useState<DiagnosticOrder | null>(null);
+  const filtered = orders;
   const size = PAGE_SIZES.find((value) => value === filters.pageSize) ?? 10;
-  const totalPages = Math.max(1, Math.ceil(filtered.length / size));
+  const totalPages = Math.max(1, pagination.totalPages);
   const page = Math.min(totalPages, Math.max(1, Math.floor(filters.page) || 1));
   const selectedVisit = orders.find(
     (order) => order.visit.careSessionId === record.data,
@@ -75,6 +65,14 @@ export function DiagnosticResultsView() {
   const viewRecord = (id: string) => {
     editor.close();
     record.open(id);
+    void import("@/features/examinations/services/examinationsService").then(({ getExamination }) => getExamination(id)).then((item) => setServerResults(item.labResults ?? [])).catch((error: unknown) => toast.error(error instanceof Error ? error.message : "Không thể tải hồ sơ khám."));
+  };
+  const openEditor = async (order: DiagnosticOrder) => {
+    try {
+      const detail = await getDiagnosticResult(order.visit.careSessionId, order.service);
+      setSelectedOrder({ ...order, ...detail, images: detail.images.map((image, index) => ({ ...image, id: image.publicId ?? `${index}`, size: image.size ?? 0 })) });
+      editor.open(order.id);
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Không thể tải chi tiết chỉ định."); }
   };
   return (
     <div className="mx-auto w-full max-w-7xl space-y-5">
@@ -86,16 +84,14 @@ export function DiagnosticResultsView() {
             hồ sơ khám.
           </p>
         </div>
-        <Badge variant="brand">Giao diện minh họa</Badge>
+      <Badge variant="brand">Tiếp nhận kết quả CLS</Badge>
       </header>
       <div className="rounded-app-xl border border-primary/20 bg-primary-light p-4 text-body">
         <p className="font-semibold text-primary">
-          Bản UI xem thử — chưa kết nối trả kết quả thật
+          Danh sách chỉ định cận lâm sàng
         </p>
         <p className="mt-1 text-muted">
-          Dữ liệu và ảnh chỉ giữ trong tab hiện tại. Tải lại trang sẽ mất bản
-          nháp và kết quả minh họa. Các phiên khám có chỉ định đã mở trong tab
-          này sẽ xuất hiện ở danh sách.
+          Chỉ định được đồng bộ từ phiên khám trong ngày.
         </p>
       </div>
       <div className="grid gap-3 sm:grid-cols-3">
@@ -173,13 +169,14 @@ export function DiagnosticResultsView() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.slice((page - 1) * size, page * size).map((order) => (
+            {filtered.map((order) => (
               <TableRow key={order.id}>
                 <TableCell>
                   <p className="font-semibold">{order.visit.patientName}</p>
                   <p className="mt-1 text-caption text-muted">
                     {order.visit.patientCode} · {order.visit.examinationCode}
                   </p>
+                  <p className="mt-1 text-caption text-muted">{order.doctor} · {order.specialty} · {order.visit.room} · STT {order.queueNumber ?? "-"}</p>
                 </TableCell>
                 <TableCell className="max-w-xs whitespace-normal">
                   <p className="font-medium">{order.service}</p>
@@ -216,7 +213,7 @@ export function DiagnosticResultsView() {
                       variant={
                         order.status === "COMPLETED" ? "outline" : "default"
                       }
-                      onClick={() => editor.open(order.id)}
+                      onClick={() => void openEditor(order)}
                     >
                       {order.status === "WAITING"
                         ? "Tiếp nhận"
@@ -237,7 +234,7 @@ export function DiagnosticResultsView() {
             ))}
           </TableBody>
         </Table>
-        {!filtered.length && (
+        {!filtered.length && !isLoading && (
           <div className="space-y-3 p-10 text-center">
             <p className="text-body text-muted">Không có chỉ định phù hợp.</p>
             <Button variant="outline" onClick={resetFilters}>
@@ -248,7 +245,7 @@ export function DiagnosticResultsView() {
         <Pagination
           currentPage={page}
           totalPages={totalPages}
-          totalItems={filtered.length}
+          totalItems={pagination.total}
           pageSize={size}
           pageSizeOptions={PAGE_SIZES}
           itemName="chỉ định"
@@ -256,10 +253,11 @@ export function DiagnosticResultsView() {
           onPageSizeChange={(value) => setFilter("pageSize", value)}
         />
       </Card>
-      {editor.isOpen && editor.data && (
+      {editor.isOpen && editor.data && selectedOrder && (
         <DiagnosticResultEditor
           key={editor.data}
-          orderId={editor.data}
+          order={selectedOrder}
+          onChanged={reload}
           onClose={editor.close}
           onViewRecord={viewRecord}
         />
@@ -296,8 +294,9 @@ export function DiagnosticResultsView() {
                     Lý do chỉ định: {selectedVisit.reason || "Chưa ghi nhận"}
                   </p>
                 </Card>
-                <DiagnosticResultsPanel
+              <DiagnosticResultsPanel
                   careSessionId={selectedVisit.careSessionId}
+                  serverResults={serverResults}
                 />
               </>
             )}

@@ -16,14 +16,16 @@ import { COLORS, FONTS } from '../../constants/theme';
 
 type OtpChallenge = {
   challengeId: string;
-  channel: 'EMAIL' | 'ZALO';
+  channel: 'EMAIL' | 'ZALO' | 'SMS';
   expiresIn: number;
   retryAfter: number;
+  developmentCode?: string;
 };
 
 type ForgotPasswordScreenProps = {
   onPressBack?: () => void;
   onRequestOtp: (contact: string) => Promise<OtpChallenge>;
+  onOtpRequested: (contact: string, challenge: OtpChallenge) => void;
 };
 
 const PHONE_PATTERN = /^(0|\+84)\d{9}$/;
@@ -31,10 +33,13 @@ const PHONE_PATTERN = /^(0|\+84)\d{9}$/;
 export default function ForgotPasswordScreen({
   onPressBack,
   onRequestOtp,
+  onOtpRequested,
 }: ForgotPasswordScreenProps) {
   const [contact, setContact] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [developmentChallenge, setDevelopmentChallenge] =
+    useState<OtpChallenge | null>(null);
 
   const handleSubmit = async () => {
     const value = contact.trim();
@@ -45,10 +50,20 @@ export default function ForgotPasswordScreen({
     }
     if (isSubmitting) return;
 
+    if (developmentChallenge) {
+      onOtpRequested(value, developmentChallenge);
+      return;
+    }
+
     setIsSubmitting(true);
     setError('');
     try {
-      await onRequestOtp(value);
+      const challenge = await onRequestOtp(value);
+      if (challenge.developmentCode) {
+        setDevelopmentChallenge(challenge);
+      } else {
+        onOtpRequested(value, challenge);
+      }
     } catch (requestError) {
       setError(
         requestError instanceof Error
@@ -84,22 +99,33 @@ export default function ForgotPasswordScreen({
                 Nhập email hoặc số điện thoại đã đăng ký. Nếu tài khoản hợp lệ,
                 mã OTP sẽ được gửi để xác minh.
               </Text>
-              <Text style={styles.label}>Email hoặc số điện thoại</Text>
+              <Text style={styles.label}>Số điện thoại</Text>
               <TextInput
                 style={styles.input}
                 value={contact}
                 onChangeText={(value) => {
                   setContact(value);
                   setError('');
+                  setDevelopmentChallenge(null);
                 }}
-                placeholder="Nhập email hoặc số điện thoại"
+                placeholder="Nhập số điện thoại"
                 placeholderTextColor={COLORS.PLACEHOLDER}
                 autoCapitalize="none"
                 autoCorrect={false}
-                keyboardType="email-address"
-                autoComplete="email"
+                keyboardType="phone-pad"
+                autoComplete="tel"
               />
               {!!error && <Text style={styles.error}>{error}</Text>}
+              {!!developmentChallenge?.developmentCode && (
+                <View style={styles.developmentCodeContainer}>
+                  <Text style={styles.developmentCodeLabel}>
+                    Mã OTP (Dev Mode)
+                  </Text>
+                  <Text selectable style={styles.developmentCode}>
+                    {developmentChallenge.developmentCode}
+                  </Text>
+                </View>
+              )}
               <TouchableOpacity
                 style={styles.submitButton}
                 activeOpacity={0.85}
@@ -109,7 +135,9 @@ export default function ForgotPasswordScreen({
                 {isSubmitting ? (
                   <ActivityIndicator color={COLORS.SURFACE} />
                 ) : (
-                  <Text style={styles.submitText}>Gửi mã OTP</Text>
+                  <Text style={styles.submitText}>
+                    {developmentChallenge ? 'Nhập mã OTP' : 'Gửi mã OTP'}
+                  </Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -161,6 +189,25 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.REGULAR,
     fontSize: 12,
     color: COLORS.DANGER,
+  },
+  developmentCodeContainer: {
+    marginTop: 18,
+    padding: 14,
+    borderRadius: 12,
+    backgroundColor: COLORS.BACKGROUND_TOP,
+    alignItems: 'center',
+  },
+  developmentCodeLabel: {
+    fontFamily: FONTS.SEMI_BOLD,
+    fontSize: 12,
+    color: COLORS.TEXT_MUTED,
+  },
+  developmentCode: {
+    marginTop: 4,
+    fontFamily: FONTS.BOLD,
+    fontSize: 22,
+    letterSpacing: 4,
+    color: COLORS.PRIMARY,
   },
   submitButton: {
     height: 50,

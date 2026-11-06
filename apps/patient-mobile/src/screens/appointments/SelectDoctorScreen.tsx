@@ -48,6 +48,7 @@ const NAVY = '#12395C';
 const MUTED_TEXT = '#8A96A8';
 const DANGER_TEXT = '#E5484D';
 const CARD_BUTTON_COLOR = '#5AB3E3';
+const RATING_COLOR = '#F5A524';
 
 const pad = (value: number) => String(value).padStart(2, '0');
 const formatDate = (day: ScheduleDay) => `${pad(day.day)}/${pad(day.month)}/${day.year}`;
@@ -62,6 +63,8 @@ export type DoctorSelection = {
 type SelectDoctorScreenProps = {
   profile: Profile;
   specialty: Specialty;
+  preferredDoctorId?: string;
+  preferredDateKey?: string;
   onPressBack?: () => void;
   onPressHome?: () => void;
   onContinue?: (selection: DoctorSelection) => void;
@@ -70,6 +73,8 @@ type SelectDoctorScreenProps = {
 export default function SelectDoctorScreen({
   profile,
   specialty,
+  preferredDoctorId,
+  preferredDateKey,
   onPressBack,
   onPressHome,
   onContinue,
@@ -81,18 +86,29 @@ export default function SelectDoctorScreen({
   const [days, setDays] = useState<ScheduleDay[]>([]);
   const [isLoadingDays, setIsLoadingDays] = useState(true);
   const [dayLoadError, setDayLoadError] = useState('');
+  const [dayRetry, setDayRetry] = useState(0);
   const [isDaysExpanded, setIsDaysExpanded] = useState(false);
   const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [isLoadingDoctors, setIsLoadingDoctors] = useState(false);
   const [doctorLoadError, setDoctorLoadError] = useState('');
+  const [doctorRetry, setDoctorRetry] = useState(0);
   const [selectedDoctorId, setSelectedDoctorId] = useState<string | null>(null);
 
   useEffect(() => {
     let isActive = true;
-    getScheduleDays(specialty.id)
+    const controller = new AbortController();
+    setIsLoadingDays(true);
+    setDayLoadError('');
+    getScheduleDays({ specialtyId: specialty.id }, controller.signal)
       .then((data) => {
-        if (isActive) setDays(data);
+        if (!isActive) return;
+        setDays(data);
+        const preferredDay = data.find(
+          (item) => item.dateKey === preferredDateKey && !item.isFullyBooked,
+        );
+        const firstOpenDay = data.find((item) => !item.isFullyBooked);
+        setSelectedDateKey(preferredDay?.dateKey ?? firstOpenDay?.dateKey ?? null);
       })
       .catch((error: unknown) => {
         if (isActive) {
@@ -106,8 +122,9 @@ export default function SelectDoctorScreen({
       });
     return () => {
       isActive = false;
+      controller.abort();
     };
-  }, [specialty.id]);
+  }, [specialty.id, preferredDateKey, dayRetry]);
 
   useEffect(() => {
     if (!selectedDateKey) {
@@ -115,11 +132,18 @@ export default function SelectDoctorScreen({
       return undefined;
     }
     let isActive = true;
+    const controller = new AbortController();
     setIsLoadingDoctors(true);
     setDoctorLoadError('');
-    getAvailableDoctors(specialty.id, selectedDateKey)
+    getAvailableDoctors(specialty.id, selectedDateKey, controller.signal)
       .then((data) => {
-        if (isActive) setDoctors(data);
+        if (!isActive) return;
+        setDoctors(data);
+        setSelectedDoctorId(
+          data.some((doctor) => doctor.id === preferredDoctorId)
+            ? preferredDoctorId ?? null
+            : null,
+        );
       })
       .catch((error: unknown) => {
         if (isActive) {
@@ -134,8 +158,9 @@ export default function SelectDoctorScreen({
       });
     return () => {
       isActive = false;
+      controller.abort();
     };
-  }, [specialty.id, selectedDateKey]);
+  }, [specialty.id, selectedDateKey, preferredDoctorId, doctorRetry]);
 
   const selectedDay = days.find((item) => item.dateKey === selectedDateKey);
   const selectedDoctor = doctors.find((item) => item.id === selectedDoctorId);
@@ -271,21 +296,7 @@ export default function SelectDoctorScreen({
           <View style={styles.loadingBox}>
             <Text style={styles.emptyText}>{doctorLoadError}</Text>
             <TouchableOpacity
-              onPress={() => {
-                setIsLoadingDoctors(true);
-                setDoctorLoadError('');
-                getAvailableDoctors(specialty.id, selectedDateKey)
-                  .then(setDoctors)
-                  .catch((error: unknown) => {
-                    setDoctors([]);
-                    setDoctorLoadError(
-                      error instanceof Error
-                        ? error.message
-                        : 'Không thể tải bác sĩ.',
-                    );
-                  })
-                  .finally(() => setIsLoadingDoctors(false));
-              }}
+              onPress={() => setDoctorRetry((value) => value + 1)}
             >
               <Text style={styles.sortText}>Thử lại</Text>
             </TouchableOpacity>
@@ -293,9 +304,9 @@ export default function SelectDoctorScreen({
         ) : doctors.length === 0 ? (
           <Text style={styles.emptyText}>Không có khung giờ còn trống cho ngày này.</Text>
         ) : (
-          <>
+          <View>
             {doctors.map(renderDoctorCard)}
-          </>
+          </View>
         )}
       </View>
     );
@@ -343,18 +354,7 @@ export default function SelectDoctorScreen({
           <View style={styles.loadingBox}>
             <Text style={styles.emptyText}>{dayLoadError}</Text>
             <TouchableOpacity
-              onPress={() => {
-                setIsLoadingDays(true);
-                setDayLoadError('');
-                getScheduleDays(specialty.id)
-                  .then(setDays)
-                  .catch((error: unknown) => {
-                    setDayLoadError(
-                      error instanceof Error ? error.message : 'Không thể tải lịch khám.',
-                    );
-                  })
-                  .finally(() => setIsLoadingDays(false));
-              }}
+              onPress={() => setDayRetry((value) => value + 1)}
             >
               <Text style={styles.sectionLink}>Thử lại</Text>
             </TouchableOpacity>

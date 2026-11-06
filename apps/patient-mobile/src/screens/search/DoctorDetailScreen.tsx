@@ -33,6 +33,7 @@ import {
   type BookingIconProps,
 } from '../../components/bookingIcons';
 import { COLORS, FONTS } from '../../constants/theme';
+import { ApiRequestError } from '../../services/apiClient';
 import {
   getDoctorProfile,
   type DoctorProfile,
@@ -149,7 +150,12 @@ const getDayCaption = (day: ScheduleDay, index: number) => {
 type DoctorDetailScreenProps = {
   doctorId: string;
   onPressBack?: () => void;
-  onPressBook?: () => void;
+  onPressBook?: (selection: {
+    doctorId: string;
+    specialtyId: string;
+    dateKey?: string;
+    slotId?: string;
+  }) => void;
   onPressChat?: () => void;
 };
 
@@ -163,37 +169,79 @@ export default function DoctorDetailScreen({
   const [profile, setProfile] = useState<DoctorProfile | null>(null);
   const [days, setDays] = useState<ScheduleDay[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [profileRetry, setProfileRetry] = useState(0);
   const [isFavorite, setIsFavorite] = useState(false);
   const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
   const [slots, setSlots] = useState<SlotItem[]>([]);
+  const [dayLoadError, setDayLoadError] = useState<string | null>(null);
+  const [scheduleError, setScheduleError] = useState<string | null>(null);
+  const [scheduleRetry, setScheduleRetry] = useState(0);
   const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
 
   useEffect(() => {
     let isActive = true;
-    Promise.all([getDoctorProfile(doctorId), getScheduleDays(doctorId)])
-      .then(([profileData, dayData]) => {
+    const controller = new AbortController();
+    setIsLoading(true);
+    setLoadError(null);
+    getDoctorProfile(doctorId, controller.signal)
+      .then((profileData) => {
         if (!isActive) return;
         setProfile(profileData);
-        setDays(dayData);
-        const firstOpenDay = dayData.find((item) => !item.isFullyBooked);
-        setSelectedDateKey(firstOpenDay ? firstOpenDay.dateKey : null);
+      })
+      .catch((error: unknown) => {
+        if (!isActive || controller.signal.aborted) return;
+        if (error instanceof ApiRequestError && error.status === 404) {
+          setLoadError('Không tìm thấy bác sĩ.');
+        } else {
+          setLoadError(
+            error instanceof Error ? error.message : 'Không thể tải thông tin bác sĩ.',
+          );
+        }
       })
       .finally(() => {
         if (isActive) setIsLoading(false);
       });
     return () => {
       isActive = false;
+      controller.abort();
     };
-  }, [doctorId]);
+  }, [doctorId, profileRetry]);
+
+  useEffect(() => {
+    let isActive = true;
+    const controller = new AbortController();
+    getScheduleDays({ doctorId }, controller.signal)
+      .then((dayData) => {
+        if (!isActive) return;
+        setDayLoadError(null);
+        setDays(dayData);
+        const firstOpenDay = dayData.find((item) => !item.isFullyBooked);
+        setSelectedDateKey(firstOpenDay ? firstOpenDay.dateKey : null);
+      })
+      .catch(() => {
+        if (isActive && !controller.signal.aborted) {
+          setDays([]);
+          setDayLoadError('Không thể tải lịch khám.');
+        }
+      });
+    return () => {
+      isActive = false;
+      controller.abort();
+    };
+  }, [doctorId, scheduleRetry]);
 
   useEffect(() => {
     setSelectedSlotId(null);
     if (!selectedDateKey) {
       setSlots([]);
+      setScheduleError(null);
       return undefined;
     }
     let isActive = true;
-    getTimeSlots(doctorId, selectedDateKey).then((shifts) => {
+    setScheduleError(null);
+    const controller = new AbortController();
+    getTimeSlots(doctorId, selectedDateKey, controller.signal).then((shifts) => {
       if (!isActive) return;
       const items = shifts.flatMap((shift) =>
         shift.slots
@@ -202,11 +250,17 @@ export default function DoctorDetailScreen({
       );
       setSlots(items);
       setSelectedSlotId(items[0] ? items[0].slot.id : null);
+    }).catch(() => {
+      if (isActive && !controller.signal.aborted) {
+        setSlots([]);
+        setScheduleError('Không thể tải khung giờ trống.');
+      }
     });
     return () => {
       isActive = false;
+      controller.abort();
     };
-  }, [doctorId, selectedDateKey]);
+  }, [doctorId, selectedDateKey, scheduleRetry]);
 
   const selectedDay = days.find((item) => item.dateKey === selectedDateKey) ?? days[0];
   const hasScheduleThisWeek = days.some((item) => !item.isFullyBooked && getWeekOffset(item) <= 0);
@@ -216,12 +270,26 @@ export default function DoctorDetailScreen({
     const stats = [
       {
         id: 'rating',
-        value: doctor.rating.toFixed(1),
-        label: `${formatNumber(doctor.reviewCount)}+ đánh giá`,
+        value: doctor.rating === null ? '—' : doctor.rating.toFixed(1),
+        label: doctor.reviewCount === 0
+          ? 'Chưa có đánh giá'
+          : `${formatNumber(doctor.reviewCount)} đánh giá`,
         hasStar: true,
       },
-      { id: 'experience', value: `${doctor.experienceYears}+ Năm`, label: 'Kinh nghiệm' },
-      { id: 'cases', value: `${formatNumber(doctor.treatedCases)}+`, label: 'Ca điều trị' },
+      {
+        id: 'experience',
+        value: doctor.experienceYears === null
+          ? 'Chưa cập nhật'
+          : `${doctor.experienceYears}+ Năm`,
+        label: 'Kinh nghiệm',
+      },
+      {
+        id: 'cases',
+        value: doctor.treatedCases === null
+          ? 'Chưa cập nhật'
+          : `${formatNumber(doctor.treatedCases)}+`,
+        label: 'Ca điều trị',
+      },
     ];
     return (
       <View style={styles.card}>
@@ -257,12 +325,12 @@ export default function DoctorDetailScreen({
             </View>
             <Text style={styles.doctorName}>{doctor.fullName.toUpperCase()}</Text>
             <Text style={styles.doctorTitle}>
-              {doctor.academicTitle} - {doctor.position}
+              {[doctor.academicTitle, doctor.position].filter(Boolean).join(' - ') || 'Chưa cập nhật'}
             </Text>
             <View style={styles.hospitalRow}>
               <BuildingIcon size={14} color={COLORS.PRIMARY_LIGHT} />
               <Text style={styles.hospitalText} numberOfLines={1}>
-                {doctor.hospitalName}
+                {doctor.hospitalName ?? 'Chưa cập nhật'}
               </Text>
             </View>
           </View>
@@ -291,19 +359,25 @@ export default function DoctorDetailScreen({
         </View>
         <Text style={styles.cardTitle}>Giới thiệu & Chuyên môn chính</Text>
       </View>
-      <Text style={styles.introText}>{doctor.introduction}</Text>
-      <Text style={styles.strengthLabel}>Lĩnh vực thế mạnh chuyên sâu:</Text>
-      <View style={styles.tagWrap}>
-        {doctor.strengths.map((strength) => {
-          const Icon = STRENGTH_ICONS[strength.iconKey];
-          return (
-            <View key={strength.id} style={styles.tag}>
-              <Icon size={14} color={COLORS.PRIMARY_LIGHT} />
-              <Text style={styles.tagText}>{strength.label}</Text>
-            </View>
-          );
-        })}
-      </View>
+      <Text style={styles.introText}>
+        {doctor.introduction ?? 'Chưa có thông tin giới thiệu.'}
+      </Text>
+      {doctor.strengths?.length ? (
+        <>
+          <Text style={styles.strengthLabel}>Lĩnh vực thế mạnh chuyên sâu:</Text>
+          <View style={styles.tagWrap}>
+            {doctor.strengths.map((strength) => {
+              const Icon = STRENGTH_ICONS[strength.iconKey];
+              return (
+                <View key={strength.id} style={styles.tag}>
+                  <Icon size={14} color={COLORS.PRIMARY_LIGHT} />
+                  <Text style={styles.tagText}>{strength.label}</Text>
+                </View>
+              );
+            })}
+          </View>
+        </>
+      ) : null}
     </View>
   );
 
@@ -366,7 +440,15 @@ export default function DoctorDetailScreen({
         </View>
       </View>
 
-      {slots.length === 0 ? (
+      {dayLoadError ? (
+        <TouchableOpacity onPress={() => setScheduleRetry((value) => value + 1)}>
+          <Text style={styles.emptyText}>{dayLoadError}</Text>
+        </TouchableOpacity>
+      ) : scheduleError ? (
+        <TouchableOpacity onPress={() => setScheduleRetry((value) => value + 1)}>
+          <Text style={styles.emptyText}>{scheduleError}</Text>
+        </TouchableOpacity>
+      ) : slots.length === 0 ? (
         <Text style={styles.emptyText}>Chưa có khung giờ trống trong ngày này.</Text>
       ) : (
         <ScrollView
@@ -382,7 +464,16 @@ export default function DoctorDetailScreen({
                 key={slot.id}
                 style={[styles.slotCard, isSelected && styles.slotCardSelected]}
                 activeOpacity={0.85}
-                onPress={() => setSelectedSlotId(slot.id)}
+                onPress={() => {
+                  if (!profile || !selectedDateKey) return;
+                  setSelectedSlotId(slot.id);
+                  onPressBook?.({
+                    doctorId: profile.id,
+                    specialtyId: profile.specialtyId,
+                    dateKey: selectedDateKey,
+                    slotId: slot.id,
+                  });
+                }}
               >
                 <Text style={[styles.slotTime, isSelected && styles.slotTimeSelected]}>
                   {slot.startTime} - {slot.endTime}
@@ -402,8 +493,8 @@ export default function DoctorDetailScreen({
         <MapPinIcon size={20} color={COLORS.PRIMARY_LIGHT} />
       </View>
       <View style={styles.flex}>
-        <Text style={styles.locationTitle}>{doctor.clinicName}</Text>
-        <Text style={styles.locationAddress}>{doctor.clinicAddress}</Text>
+        <Text style={styles.locationTitle}>{doctor.clinicName ?? 'Chưa cập nhật phòng khám'}</Text>
+        <Text style={styles.locationAddress}>{doctor.clinicAddress ?? 'Chưa cập nhật địa chỉ'}</Text>
       </View>
     </View>
   );
@@ -419,7 +510,11 @@ export default function DoctorDetailScreen({
     if (!profile) {
       return (
         <View style={styles.centered}>
-          <Text style={styles.emptyText}>Không tìm thấy thông tin bác sĩ.</Text>
+          <TouchableOpacity onPress={() => setProfileRetry((value) => value + 1)}>
+            <Text style={styles.emptyText}>
+              {loadError ?? 'Không tìm thấy thông tin bác sĩ.'}
+            </Text>
+          </TouchableOpacity>
         </View>
       );
     }
@@ -465,7 +560,19 @@ export default function DoctorDetailScreen({
           >
             <MessageIcon size={22} color={COLORS.PRIMARY_LIGHT} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.flex} activeOpacity={0.85} onPress={onPressBook}>
+          <TouchableOpacity
+            style={styles.flex}
+            activeOpacity={0.85}
+            onPress={() => {
+              if (!profile) return;
+              onPressBook?.({
+                doctorId: profile.id,
+                specialtyId: profile.specialtyId,
+                dateKey: selectedDateKey ?? undefined,
+                slotId: selectedSlotId ?? undefined,
+              });
+            }}
+          >
             <LinearGradient
               colors={BOOK_GRADIENT}
               start={{ x: 0, y: 0 }}

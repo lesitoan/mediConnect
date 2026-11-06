@@ -13,6 +13,13 @@ type ApiEnvelope<T> = {
   };
 };
 
+export type PublicApiPage<T> = {
+  items: T[];
+  totalItems: number;
+  currentPage: number;
+  totalPages: number;
+};
+
 export type PatientSession = {
   accessToken: string;
   refreshToken: string;
@@ -22,6 +29,7 @@ export class ApiRequestError extends Error {
   constructor(
     message: string,
     readonly status: number,
+    readonly responseData?: unknown,
   ) {
     super(message);
   }
@@ -33,7 +41,11 @@ const API_BASE_URL = (
   process.env.EXPO_PUBLIC_API_URL ??
   `http://${DEFAULT_HOST}:4000/api/v1`
 ).replace(/\/+$/, '');
+console.log('API_BASE_URL', API_BASE_URL, 'ENV', process.env.EXPO_PUBLIC_API_URL);
 
+export function getApiBaseUrl(): string {
+  return API_BASE_URL;
+}
 let refreshRequest: Promise<PatientSession> | null = null;
 
 function getErrorMessage(payload: unknown, status: number): string {
@@ -54,7 +66,12 @@ function getErrorMessage(payload: unknown, status: number): string {
 async function parseEnvelope<T>(response: Response): Promise<ApiEnvelope<T>> {
   let payload: unknown;
   try {
-    payload = await response.json();
+    const responseText = await response.text();
+    try {
+      payload = JSON.parse(responseText) as unknown;
+    } catch {
+      payload = responseText;
+    }
   } catch {
     throw new Error('API trả về dữ liệu không hợp lệ.');
   }
@@ -63,6 +80,7 @@ async function parseEnvelope<T>(response: Response): Promise<ApiEnvelope<T>> {
     throw new ApiRequestError(
       getErrorMessage(payload, response.status),
       response.status,
+      payload,
     );
   }
   if (
@@ -103,6 +121,7 @@ async function fetchApi(
     throw new Error(
       `Không thể kết nối API tại ${API_BASE_URL}. Kiểm tra backend và cấu hình EXPO_PUBLIC_API_URL.`,
     );
+    console.log('API_ERROR', String(error));
   }
 }
 
@@ -233,6 +252,31 @@ export async function getPublicApiItems<T>(
   return items;
 }
 
+export async function getPublicApiPage<T>(
+  path: string,
+  signal?: AbortSignal,
+): Promise<PublicApiPage<T>> {
+  const response = await parseEnvelope<T[]>(
+    await fetchApi(path, { signal }),
+  );
+  if (
+    !Array.isArray(response.data) ||
+    !response.pagination ||
+    !Number.isInteger(response.pagination.totalItems) ||
+    !Number.isInteger(response.pagination.itemsPerPage) ||
+    !Number.isInteger(response.pagination.currentPage) ||
+    !Number.isInteger(response.pagination.totalPages)
+  ) {
+    throw new Error('API trả về danh sách không hợp lệ.');
+  }
+  return {
+    items: response.data,
+    totalItems: response.pagination.totalItems,
+    currentPage: response.pagination.currentPage,
+    totalPages: response.pagination.totalPages,
+  };
+}
+
 export async function getPublicAvailability<T>(
   query: URLSearchParams,
   signal?: AbortSignal,
@@ -250,7 +294,7 @@ export async function getPublicAvailability<T>(
       total: number;
       page: number;
       limit: number;
-    }>(`/appointments/availability?${query}`, { signal });
+    }>(`/schedules/ai-availability?${query}`, { signal });
     if (
       !Array.isArray(response.items) ||
       !Number.isInteger(response.total) ||

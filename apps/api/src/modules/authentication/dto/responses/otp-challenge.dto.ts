@@ -2,7 +2,8 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class OtpChallengeDto {
   @ApiProperty() challengeId: string;
-  @ApiProperty({ enum: ['EMAIL', 'ZALO'] }) channel: 'EMAIL' | 'ZALO';
+  @ApiProperty({ enum: ['EMAIL', 'ZALO', 'SMS'] })
+  channel: 'EMAIL' | 'ZALO' | 'SMS';
   @ApiProperty() expiresIn: number;
   @ApiProperty() retryAfter: number;
   @ApiProperty() message: string;

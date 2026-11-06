@@ -3,9 +3,10 @@ import { AUTH_ROUTES, MAIN_TABS, ROOT_ROUTES } from './routes';
 import type { Profile } from '../services/profileService';
 import type { Specialty } from '../services/specialtyService';
 import type { Doctor, ScheduleDay, TimeSlot } from '../services/scheduleService';
+import type { SpecialtyService } from '../services/specialtyService';
 type OtpChallengeParams = {
   challengeId: string;
-  channel: 'EMAIL' | 'ZALO';
+  channel: 'EMAIL' | 'ZALO' | 'SMS';
   expiresIn: number;
   retryAfter: number;
 };
@@ -32,22 +33,41 @@ export type MainTabParamList = {
 export type RootStackParamList = {
   [ROOT_ROUTES.AUTH]: NavigatorScreenParams<AuthStackParamList>;
   [ROOT_ROUTES.MAIN]: NavigatorScreenParams<MainTabParamList>;
-  [ROOT_ROUTES.BOOKING_PROFILE]: undefined;
+  [ROOT_ROUTES.BOOKING_PROFILE]:
+    | {
+        doctorId?: string;
+        specialtyId?: string;
+        dateKey?: string;
+        slotId?: string;
+      }
+    | undefined;
   [ROOT_ROUTES.CREATE_PROFILE]: undefined;
-  [ROOT_ROUTES.SELECT_SPECIALTY]: { profile: Profile };
+  [ROOT_ROUTES.SELECT_SPECIALTY]: {
+    profile: Profile;
+    initialSpecialtyId?: string;
+    preferredDoctorId?: string;
+    preferredDateKey?: string;
+    preferredSlotId?: string;
+  };
   [ROOT_ROUTES.SELECT_DOCTOR]: {
     profile: Profile;
     specialty: Specialty;
+    preferredDoctorId?: string;
+    preferredDateKey?: string;
+    preferredSlotId?: string;
   };
   [ROOT_ROUTES.SELECT_TIME_SLOT]: {
     profile: Profile;
     specialty: Specialty;
+    service: SpecialtyService;
     doctor: Doctor;
     day: ScheduleDay;
+    preferredSlotId?: string;
   };
   [ROOT_ROUTES.CONFIRM_BOOKING]: {
     profile: Profile;
     specialty: Specialty;
+    service: SpecialtyService;
     doctor: Doctor;
     day: ScheduleDay;
     slot: TimeSlot;

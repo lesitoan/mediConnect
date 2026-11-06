@@ -22,6 +22,7 @@ import { SendOtpDto } from './dto/requests/send-otp.dto';
 import { VerifyOtpDto } from './dto/requests/verify-otp.dto';
 import { VerifyOtpResponseDto } from './dto/responses/verify-otp-response.dto';
 import { ResetPasswordDto } from './dto/requests/reset-password.dto';
+import { ChangePasswordDto } from './dto/requests/password.dto';
 import { AuthenticationService } from './services/authentication.service';
 import { AuthenticationTransportService } from './services/authentication-transport.service';
 import { Public } from './decorators/public.decorator';
@@ -145,6 +146,24 @@ export class AuthenticationController {
         input.resetToken,
         input.password,
         request.ip ?? 'UNKNOWN',
+      ),
+    );
+  }
+
+  @Auth()
+  @Post('change-password')
+  @HttpCode(HttpStatus.OK)
+  @Header('Cache-Control', 'no-store')
+  @ApiOkResponse({ description: 'Changes the authenticated user password.' })
+  async changePassword(
+    @Body() input: ChangePasswordDto,
+    @Req() request: AuthenticatedRequest,
+  ): Promise<HttpResponseBodySuccessDto<{ message: string }>> {
+    return new HttpResponseBodySuccessDto(
+      await this.authenticationService.changePassword(
+        request.user!.id,
+        input.currentPassword,
+        input.newPassword,
       ),
     );
   }

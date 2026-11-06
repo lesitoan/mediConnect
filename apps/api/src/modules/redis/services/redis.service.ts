@@ -59,7 +59,8 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
           ),
         ),
       );
-    } catch {
+    } catch (err) {
+      console.log('REDIS_ERROR', err instanceof Error ? err.message : String(err));
       throw new ServiceUnavailableException(
         'OTP verification is temporarily unavailable',
       );

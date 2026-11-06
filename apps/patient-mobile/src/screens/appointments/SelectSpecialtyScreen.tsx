@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ComponentRef } from 'react';
+import { useEffect, useRef, useState, type ComponentRef } from 'react';
 import {
   ActivityIndicator,
   ScrollView,
@@ -53,22 +53,22 @@ const SUCCESS_BACKGROUND = '#E3F7EE';
 const NEUTRAL_CHIP_TEXT = '#6B7A90';
 const NEUTRAL_CHIP_BACKGROUND = '#EAEFF6';
 
-const normalizeText = (value: string) =>
-  value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/đ/g, 'd')
-    .toLowerCase();
-
 const formatFee = (value: number | null) =>
   value === null ? 'Chưa cập nhật' : `${String(value).replace(/\B(?=(\d{3})+(?!\d))/g, '.')}đ`;
 
 export type SpecialtySelection = {
   specialty: Specialty;
+  preferredDoctorId?: string;
+  preferredDateKey?: string;
+  preferredSlotId?: string;
 };
 
 type SelectSpecialtyScreenProps = {
   profile: Profile;
+  initialSpecialtyId?: string;
+  preferredDoctorId?: string;
+  preferredDateKey?: string;
+  preferredSlotId?: string;
   onPressBack?: () => void;
   onPressHome?: () => void;
   onPressChangeProfile?: () => void;
@@ -80,6 +80,10 @@ type SelectSpecialtyScreenProps = {
 
 export default function SelectSpecialtyScreen({
   profile,
+  initialSpecialtyId,
+  preferredDoctorId,
+  preferredDateKey,
+  preferredSlotId,
   onPressBack,
   onPressHome,
   onPressChangeProfile,
@@ -98,39 +102,39 @@ export default function SelectSpecialtyScreen({
   const [loadError, setLoadError] = useState('');
   const [searchText, setSearchText] = useState('');
   const [selectedSpecialtyId, setSelectedSpecialtyId] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
     let isActive = true;
-    getSpecialtyCatalog()
-      .then((data) => {
-        if (isActive) setCatalog(data);
-      })
-      .catch((error: unknown) => {
-        if (isActive) {
-          setLoadError(
-            error instanceof Error ? error.message : 'Không thể tải chuyên khoa.',
-          );
-        }
-      })
-      .finally(() => {
-        if (isActive) setIsLoading(false);
-      });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => {
+      setIsLoading(true);
+      setLoadError('');
+      getSpecialtyCatalog(searchText, controller.signal)
+        .then((data) => {
+          if (!isActive) return;
+          setCatalog(data);
+          if (initialSpecialtyId) setSelectedSpecialtyId(initialSpecialtyId);
+        })
+        .catch((error: unknown) => {
+          if (isActive && !controller.signal.aborted) {
+            setLoadError(
+              error instanceof Error ? error.message : 'Không thể tải chuyên khoa.',
+            );
+          }
+        })
+        .finally(() => {
+          if (isActive) setIsLoading(false);
+        });
+    }, 250);
     return () => {
       isActive = false;
+      clearTimeout(timeout);
+      controller.abort();
     };
-  }, []);
+  }, [searchText, initialSpecialtyId, retryCount]);
 
-  const query = normalizeText(searchText.trim());
-
-  const visibleSpecialties = useMemo(() => {
-    const items = catalog?.items ?? [];
-    if (!query) return items;
-    return items.filter(
-      (specialty) =>
-        normalizeText(specialty.name).includes(query) ||
-        normalizeText(specialty.description ?? '').includes(query),
-    );
-  }, [catalog, query]);
+  const visibleSpecialties = catalog?.items ?? [];
 
   const selectedSpecialty = catalog?.items.find((item) => item.id === selectedSpecialtyId);
   const canContinue = !!selectedSpecialty;
@@ -150,7 +154,14 @@ export default function SelectSpecialtyScreen({
   };
 
   const handleContinue = () => {
-    if (selectedSpecialty) onContinue?.({ specialty: selectedSpecialty });
+    if (selectedSpecialty) {
+      onContinue?.({
+        specialty: selectedSpecialty,
+        preferredDoctorId,
+        preferredDateKey,
+        preferredSlotId,
+      });
+    }
   };
 
   const renderSpecialtyGrid = () => {
@@ -230,18 +241,7 @@ export default function SelectSpecialtyScreen({
           <TouchableOpacity
             style={styles.retryButton}
             onPress={() => {
-              setIsLoading(true);
-              setLoadError('');
-              getSpecialtyCatalog()
-                .then(setCatalog)
-                .catch((error: unknown) => {
-                  setLoadError(
-                    error instanceof Error
-                      ? error.message
-                      : 'Không thể tải chuyên khoa.',
-                  );
-                })
-                .finally(() => setIsLoading(false));
+              setRetryCount((current) => current + 1);
             }}
           >
             <Text style={styles.sectionLink}>Thử lại</Text>
@@ -289,7 +289,10 @@ export default function SelectSpecialtyScreen({
             placeholder="Tìm chuyên khoa, triệu chứng, bác sĩ..."
             placeholderTextColor={COLORS.PLACEHOLDER}
           />
-          <TouchableOpacity hitSlop={8} onPress={onPressFilter}>
+          <TouchableOpacity
+            hitSlop={8}
+            onPress={onPressFilter ?? (() => setSearchText(''))}
+          >
             <SlidersIcon size={18} color={COLORS.PRIMARY_LIGHT} />
           </TouchableOpacity>
         </View>
@@ -309,7 +312,11 @@ export default function SelectSpecialtyScreen({
           <BadgeCheckIcon size={20} color={COLORS.PRIMARY_LIGHT} />
           <Text style={styles.sectionTitle}>Chuyên khoa đang hoạt động</Text>
           <View style={styles.flex} />
-          <Text style={styles.sectionLink}>Tổng: {catalog?.totalCount ?? 0}</Text>
+          <TouchableOpacity
+            onPress={onPressAllSpecialties ?? (() => setSearchText(''))}
+          >
+            <Text style={styles.sectionLink}>Tổng: {catalog?.totalCount ?? 0}</Text>
+          </TouchableOpacity>
         </View>
 
         {renderSpecialtyGrid()}

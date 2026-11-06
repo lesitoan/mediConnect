@@ -1,10 +1,11 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { TextbeeSmsService } from './textbee-sms.service';
 
 export interface OtpDelivery {
   challengeId: string;
   destination: string;
-  channel: 'EMAIL' | 'ZALO';
+  channel: 'EMAIL' | 'ZALO' | 'SMS';
   purpose: 'REGISTER' | 'RESET_PASSWORD';
   code: string;
   expiresInSeconds: number;
@@ -12,14 +13,35 @@ export interface OtpDelivery {
 
 @Injectable()
 export class OtpDeliveryService {
-  constructor(private readonly config: ConfigService) {}
+  constructor(
+    private readonly config: ConfigService,
+    private readonly textbeeSms: TextbeeSmsService,
+  ) {}
 
-  assertConfigured(channel: 'EMAIL' | 'ZALO'): void {
+  private getConfigurationKeys(channel: 'EMAIL' | 'ZALO' | 'SMS'): string[] {
     const keys =
       channel === 'EMAIL'
         ? ['RESEND_API_KEY', 'RESEND_FROM_EMAIL']
-        : ['ZALO_ACCESS_TOKEN', 'ZALO_OTP_TEMPLATE_ID', 'ZALO_OTP_CODE_PARAM'];
-    if (keys.some((key) => !this.config.get<string>(key)?.trim())) {
+        : channel === 'ZALO'
+          ? ['ZALO_ACCESS_TOKEN', 'ZALO_OTP_TEMPLATE_ID', 'ZALO_OTP_CODE_PARAM']
+          : ['textbee.apiKey', 'textbee.deviceId', 'textbee.apiUrl'];
+    return keys;
+  }
+
+  private isConfigured(channel: 'EMAIL' | 'ZALO' | 'SMS'): boolean {
+    return this.getConfigurationKeys(channel).every((key) =>
+      this.config.get<string>(key)?.trim(),
+    );
+  }
+
+  getPhoneChannel(): 'ZALO' | 'SMS' {
+    if (this.isConfigured('ZALO')) return 'ZALO';
+    this.assertConfigured('SMS');
+    return 'SMS';
+  }
+
+  assertConfigured(channel: 'EMAIL' | 'ZALO' | 'SMS'): void {
+    if (!this.isConfigured(channel)) {
       throw new ServiceUnavailableException(
         channel + ' OTP delivery is not configured',
       );
@@ -30,10 +52,18 @@ export class OtpDeliveryService {
     this.assertConfigured(input.channel);
     try {
       const isEmail = input.channel === 'EMAIL';
+      const isSms = input.channel === 'SMS';
       const action =
         input.purpose === 'REGISTER'
           ? 'kích hoạt tài khoản'
           : 'đặt lại mật khẩu';
+      if (isSms) {
+        await this.textbeeSms.sendSms({
+          recipients: [input.destination],
+          message: `Mã ${action} MediConnect của bạn là ${input.code}. Mã có hiệu lực ${Math.ceil(input.expiresInSeconds / 60)} phút. Không chia sẻ mã này với bất kỳ ai.`,
+        });
+        return;
+      }
       const response = await fetch(
         isEmail
           ? 'https://api.resend.com/emails'

@@ -8,7 +8,7 @@ import {
 
 type OtpChallenge = {
   challengeId: string;
-  channel: 'EMAIL' | 'ZALO';
+  channel: 'EMAIL' | 'ZALO' | 'SMS';
   expiresIn: number;
   retryAfter: number;
   developmentCode?: string;
@@ -89,17 +89,33 @@ export async function resetPatientPassword(
   });
 }
 
+export async function changePassword(
+  currentPassword: string,
+  newPassword: string,
+): Promise<void> {
+  await requestApi(
+    '/authentication/change-password',
+    {
+      method: 'POST',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    },
+    true,
+  );
+}
+
 export async function authenticatePatient(
   phone: string,
   password: string,
 ): Promise<PatientUser> {
+  const loginPayload = {
+    phone: phone.trim(),
+    password,
+    clientType: 'MOBILE',
+    email: undefined,
+  };
   const result = await requestApi<LoginResponse>('/authentication/login', {
     method: 'POST',
-    body: JSON.stringify({
-      phone: phone.trim(),
-      password,
-      clientType: 'MOBILE',
-    }),
+    body: JSON.stringify(loginPayload),
   });
   if (!result.accessToken || !result.refreshToken) {
     throw new Error('API không trả về token đăng nhập cho ứng dụng mobile.');
@@ -114,7 +130,9 @@ export async function authenticatePatient(
     const user = await requestApi<PatientUser>('/me', {}, true);
     if (user.role !== 'PATIENT') {
       await requestApi('/authentication/logout', { method: 'POST' }, true);
-      throw new Error('Tài khoản này không có quyền truy cập ứng dụng bệnh nhân.');
+      throw new Error(
+        'Tài khoản này không có quyền truy cập ứng dụng bệnh nhân.',
+      );
     }
     return user;
   } catch (error) {

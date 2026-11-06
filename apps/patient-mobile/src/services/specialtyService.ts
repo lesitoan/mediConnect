@@ -1,4 +1,8 @@
-import { getPublicApiItems } from './apiClient';
+import {
+  getPublicApiItems,
+  getPublicApiPage,
+  type PublicApiPage,
+} from './apiClient';
 
 export type SpecialtyIconKey =
   | 'STETHOSCOPE'
@@ -18,6 +22,12 @@ export type Specialty = {
   description: string | null;
   consultationFee: number | null;
   iconKey: SpecialtyIconKey;
+};
+
+export type SpecialtyService = {
+  id: string;
+  name: string;
+  minFee: number | null;
 };
 
 export type SpecialtyCatalog = {
@@ -46,31 +56,62 @@ function getSpecialtyIcon(value: string): SpecialtyIconKey {
   return 'STETHOSCOPE';
 }
 
-export async function getSpecialtyCatalog(
+function mapSpecialty(specialty: PublicSpecialty): Specialty {
+  const consultationFee =
+    specialty.consultationFee === null
+      ? null
+      : Number(specialty.consultationFee);
+  if (consultationFee !== null && !Number.isFinite(consultationFee)) {
+    throw new Error('API trả về phí khám chuyên khoa không hợp lệ.');
+  }
+  return {
+    id: specialty.id,
+    code: specialty.code,
+    name: specialty.name,
+    roomCode: specialty.roomCode,
+    description: specialty.description,
+    consultationFee,
+    iconKey: getSpecialtyIcon(specialty.name),
+  };
+}
+
+export async function getSpecialtyPage(
+  options: { search?: string; page: number; limit: number },
   signal?: AbortSignal,
-): Promise<SpecialtyCatalog> {
-  const specialties = await getPublicApiItems<PublicSpecialty>(
-    '/specialties',
+): Promise<PublicApiPage<Specialty>> {
+  const query = new URLSearchParams({
+    page: String(options.page),
+    limit: String(options.limit),
+  });
+  if (options.search?.trim()) query.set('search', options.search.trim());
+  const response = await getPublicApiPage<PublicSpecialty>(
+    `/specialties?${query}`,
     signal,
   );
-  const items = specialties.map((specialty) => {
-    const consultationFee =
-      specialty.consultationFee === null
-        ? null
-        : Number(specialty.consultationFee);
-    if (consultationFee !== null && !Number.isFinite(consultationFee)) {
-      throw new Error('API trả về phí khám chuyên khoa không hợp lệ.');
-    }
-    return {
-      id: specialty.id,
-      code: specialty.code,
-      name: specialty.name,
-      roomCode: specialty.roomCode,
-      description: specialty.description,
-      consultationFee,
-      iconKey: getSpecialtyIcon(specialty.name),
-    };
-  });
+  return { ...response, items: response.items.map(mapSpecialty) };
+}
+
+export async function getSpecialtyCatalog(
+  search?: string,
+  signal?: AbortSignal,
+): Promise<SpecialtyCatalog> {
+  const query = new URLSearchParams();
+  if (search?.trim()) query.set('search', search.trim());
+  const queryString = query.toString();
+  const path = queryString ? `/specialties?${queryString}` : '/specialties';
+  const specialties = await getPublicApiItems<PublicSpecialty>(
+    path,
+    signal,
+  );
+  const items = specialties.map(mapSpecialty);
 
   return { totalCount: items.length, items };
+}
+
+export function getSpecialtyService(specialty: Specialty): SpecialtyService {
+  return {
+    id: specialty.id,
+    name: specialty.name,
+    minFee: specialty.consultationFee,
+  };
 }

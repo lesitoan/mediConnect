@@ -1144,7 +1144,13 @@ export class ExaminationsService {
     dto: RecordLabResultDto,
     user: CurrentUserDto,
   ) {
-    await this.assertDoctorWrite(careSessionId, user);
+    if (user.role === UserRole.DOCTOR)
+      await this.assertDoctorWrite(careSessionId, user);
+    else if (
+      user.role !== UserRole.RECEPTIONIST &&
+      user.role !== UserRole.ADMIN
+    )
+      throw new ForbiddenException('Role cannot record diagnostic results');
     if (!dto.expectedUpdatedAt)
       throw new BadRequestException(['expectedUpdatedAt should not be empty']);
     try {
@@ -1176,6 +1182,7 @@ export class ExaminationsService {
             throw new BadRequestException(
               'orderRef does not match an ordered service',
             );
+          const orderWasCompleted = order.status === 'COMPLETED';
           if (
             session.consultation.updatedAt.toISOString() !==
             dto.expectedUpdatedAt
@@ -1187,36 +1194,66 @@ export class ExaminationsService {
           const previousResults = readUnknownArray(current.results).filter(
             isRecord,
           );
+          const existingResult = previousResults.findIndex(
+            (entry) => entry.orderRef === dto.orderRef,
+          );
+          const images =
+            dto.images ??
+            (existingResult < 0
+              ? []
+              : readUnknownArray(previousResults[existingResult].images));
           const nextResult = {
             orderRef: dto.orderRef,
             result: dto.result,
             source: dto.source,
             returnedAt,
             recordedBy: user.id,
+            images,
           };
-          const existingResult = previousResults.findIndex(
-            (entry) => entry.orderRef === dto.orderRef,
-          );
           const results =
             existingResult < 0
               ? [...previousResults, nextResult]
               : previousResults.map((entry, index) =>
                   index === existingResult ? nextResult : entry,
                 );
+          if (dto.completeOrder) {
+            order.status = 'COMPLETED';
+            order.completedAt = returnedAt;
+            order.recordedByName = user.name;
+          }
           const isUnchanged =
             existingResult >= 0 &&
             JSON.stringify(previousResults[existingResult]) ===
               JSON.stringify(nextResult);
-          if (isUnchanged) return;
+          if (isUnchanged && (!dto.completeOrder || orderWasCompleted)) return;
           await tx.consultation.update({
             where: { id: session.consultation.id },
             data: {
               labOrderNotes: JSON.stringify({
                 ...current,
+                orders,
                 results,
               }),
             },
           });
+          await this.auditLogs?.record(
+            {
+              actor: {
+                type: 'USER',
+                id: user.id,
+                name: user.name,
+                role: user.role as UserRole,
+              },
+              actionCode: dto.completeOrder
+                ? 'DIAGNOSTIC_ORDER_COMPLETED'
+                : 'DIAGNOSTIC_RESULT_RECORDED',
+              module: 'DIAGNOSTIC_RESULTS',
+              targetType: 'CARE_SESSION',
+              targetId: careSessionId,
+              result: AuditLogResult.SUCCESS,
+            },
+            tx,
+          );
         },
         { isolationLevel: 'Serializable', timeout: 15000 },
       );
@@ -1228,7 +1265,19 @@ export class ExaminationsService {
         throw new ConflictException('Examination was updated concurrently');
       throw error;
     }
-    return this.get(careSessionId, user);
+    if (user.role === UserRole.DOCTOR) return this.get(careSessionId, user);
+    const consultation = await this.prisma.consultation.findUnique({
+      where: { careSessionId },
+      select: { id: true, labOrderNotes: true, updatedAt: true },
+    });
+    return {
+      careSessionId,
+      consultationId: consultation?.id,
+      updatedAt: consultation?.updatedAt.toISOString(),
+      labResults: consultation
+        ? (this.readLabData(consultation.labOrderNotes).results ?? [])
+        : [],
+    };
   }
 
   async history(careSessionId: string, user: CurrentUserDto) {

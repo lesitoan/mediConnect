@@ -23,9 +23,11 @@ import { OtpChallengeDto } from '../dto/responses/otp-challenge.dto';
 import { VerifyOtpResponseDto } from '../dto/responses/verify-otp-response.dto';
 import {
   OtpStoreService,
+  type OtpChannel,
   type OtpRecord,
   type OtpPurpose,
 } from './otp-store.service';
+import { normalizePhone } from '../../../common/utils/normalize-phone';
 
 const INVALID_OTP = 'Invalid or expired OTP';
 const INVALID_RESET_TOKEN = 'Invalid or expired reset token';
@@ -42,8 +44,13 @@ export class OtpService {
   assertConfigured(contact: ContactDto): void {
     this.store.assertReady();
     if (!this.isDevelopmentMode()) {
-      this.delivery.assertConfigured(contact.email ? 'EMAIL' : 'ZALO');
+      this.delivery.assertConfigured(this.getChannel(contact));
     }
+  }
+
+  private getChannel(contact: ContactDto): OtpChannel {
+    if (contact.email) return 'EMAIL';
+    return this.isDevelopmentMode() ? 'ZALO' : this.delivery.getPhoneChannel();
   }
 
   private isDevelopmentMode(): boolean {
@@ -124,8 +131,11 @@ export class OtpService {
   ): Promise<OtpChallengeDto> {
     this.assertConfigured(contact);
     if (!knownUserId) await this.throttle(ip, 'SEND');
-    const channel = contact.email ? 'EMAIL' : 'ZALO';
-    const destination = contact.email ?? contact.phone!;
+    const channel = this.getChannel(contact);
+    const destination = contact.email ?? normalizePhone(contact.phone);
+    if (typeof destination !== 'string' || !destination) {
+      throw new BadRequestException('Invalid OTP destination');
+    }
     const id = randomUUID();
     const response: OtpChallengeDto = {
       challengeId: id,
@@ -175,6 +185,9 @@ export class OtpService {
     } catch (error) {
       await this.store.revoke(record);
       throw error;
+    }
+    if (this.isDevelopmentMode()) {
+    console.log('====== [DEV MODE] MA OTP CUA BAN LA:', code);
     }
     return {
       ...response,
