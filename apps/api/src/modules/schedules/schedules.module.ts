@@ -14,7 +14,6 @@ import { SchedulesRepository } from './schedules.repository';
 import { SchedulesService } from './schedules.service';
 import { PublicSchedulesController } from './public-schedules.controller';
 import { PatientScheduleExceptionsController } from './patient-schedule-exceptions.controller';
-import { ScheduleExceptionWorkflowService } from './schedule-exception-workflow.service';
 
 @Module({
   imports: [DatabaseModule, AuditLogsModule],
@@ -27,11 +26,7 @@ import { ScheduleExceptionWorkflowService } from './schedule-exception-workflow.
     StaffLeaveRequestsController,
     PatientScheduleExceptionsController,
   ],
-  providers: [
-    SchedulesRepository,
-    SchedulesService,
-    ScheduleExceptionWorkflowService,
-  ],
+  providers: [SchedulesRepository, SchedulesService],
   exports: [SchedulesService],
 })
 export class SchedulesModule {}

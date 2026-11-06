@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import {
-  ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -85,7 +85,7 @@ type RegisterScreenProps = {
   onPressBack?: () => void;
   onPressLogin?: () => void;
   onPressTerms?: () => void;
-  onSubmit?: (input: { name: string; phone: string; password: string }) => Promise<void>;
+  onSubmitPhone?: (phone: string) => void; // FIX
 };
 
 const PHONE_PATTERN = /^(0|\+84)\d{9}$/;
@@ -94,59 +94,29 @@ export default function RegisterScreen({
   onPressBack,
   onPressLogin,
   onPressTerms,
-  onSubmit,
+  onSubmitPhone, // FIX
 }: RegisterScreenProps) {
-  const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [hasAcceptedTerms, setHasAcceptedTerms] = useState(false);
   const [isFocusedPhone, setIsFocusedPhone] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [requestError, setRequestError] = useState('');
-  const [nameError, setNameError] = useState('');
   const [phoneError, setPhoneError] = useState('');
-  const [passwordError, setPasswordError] = useState('');
-  const [confirmPasswordError, setConfirmPasswordError] = useState('');
   const [termsError, setTermsError] = useState('');
 
   const validate = () => {
-    const nextNameError = name.trim().length >= 2 ? '' : 'Vui lòng nhập họ và tên';
     const nextPhoneError = PHONE_PATTERN.test(phone) ? '' : 'Số điện thoại không hợp lệ';
-    const nextPasswordError =
-      /^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^a-zA-Z0-9]).{8,}$/.test(password)
-        ? ''
-        : 'Mật khẩu cần 8 ký tự, gồm chữ hoa, chữ thường, số và ký tự đặc biệt';
-    const nextConfirmPasswordError =
-      confirmPassword === password ? '' : 'Mật khẩu xác nhận không khớp';
     const nextTermsError = hasAcceptedTerms ? '' : 'Bạn cần đồng ý với điều khoản sử dụng';
-    setNameError(nextNameError);
     setPhoneError(nextPhoneError);
-    setPasswordError(nextPasswordError);
-    setConfirmPasswordError(nextConfirmPasswordError);
     setTermsError(nextTermsError);
-    return (
-      !nextNameError &&
-      !nextPhoneError &&
-      !nextPasswordError &&
-      !nextConfirmPasswordError &&
-      !nextTermsError
-    );
+    return !nextPhoneError && !nextTermsError;
   };
 
-  const handleRegister = async () => {
-    if (!validate() || isSubmitting) return;
-    setIsSubmitting(true);
-    setRequestError('');
-    try {
-      await onSubmit?.({ name: name.trim(), phone: phone.trim(), password });
-    } catch (error) {
-      setRequestError(
-        error instanceof Error ? error.message : 'Không thể đăng ký tài khoản.',
-      );
-    } finally {
-      setIsSubmitting(false);
-    }
+  const handleRegister = () => {
+    if (!validate()) return;
+    if (onSubmitPhone) { // FIX
+      onSubmitPhone(phone); // FIX
+      return; // FIX
+    } // FIX
+    Alert.alert('Đăng ký tài khoản', `Số điện thoại: ${phone}`);
   };
 
   return (
@@ -187,28 +157,10 @@ export default function RegisterScreen({
 
             <View style={styles.heading}>
               <Text style={styles.title}>Đăng ký tài khoản</Text>
-              <Text style={styles.subtitle}>Tạo tài khoản bệnh nhân và xác thực bằng OTP</Text>
+              <Text style={styles.subtitle}>Đăng ký bằng số điện thoại của bạn</Text>
             </View>
 
             <View style={styles.card}>
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Họ và tên</Text>
-                <View style={[styles.inputWrapper, !!nameError && styles.inputWrapperError]}>
-                  <TextInput
-                    style={styles.textInput}
-                    placeholder="Nhập họ và tên"
-                    placeholderTextColor={COLORS.PLACEHOLDER}
-                    value={name}
-                    onChangeText={(value) => {
-                      setName(value);
-                      setNameError('');
-                    }}
-                    autoCapitalize="words"
-                    maxLength={100}
-                  />
-                </View>
-                {!!nameError && <Text style={styles.errorText}>{nameError}</Text>}
-              </View>
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Số điện thoại</Text>
                 <View
@@ -225,62 +177,12 @@ export default function RegisterScreen({
                     placeholderTextColor={COLORS.PLACEHOLDER}
                     keyboardType="phone-pad"
                     value={phone}
-                    onChangeText={(value) => {
-                      setPhone(value);
-                      setPhoneError('');
-                    }}
+                    onChangeText={setPhone}
                     onFocus={() => setIsFocusedPhone(true)}
                     onBlur={() => setIsFocusedPhone(false)}
                   />
                 </View>
                 {!!phoneError && <Text style={styles.errorText}>{phoneError}</Text>}
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Mật khẩu</Text>
-                <View style={[styles.inputWrapper, !!passwordError && styles.inputWrapperError]}>
-                  <TextInput
-                    style={styles.textInput}
-                    placeholder="Tạo mật khẩu an toàn"
-                    placeholderTextColor={COLORS.PLACEHOLDER}
-                    value={password}
-                    onChangeText={(value) => {
-                      setPassword(value);
-                      setPasswordError('');
-                    }}
-                    secureTextEntry
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
-                </View>
-                {!!passwordError && <Text style={styles.errorText}>{passwordError}</Text>}
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Nhập lại mật khẩu</Text>
-                <View
-                  style={[
-                    styles.inputWrapper,
-                    !!confirmPasswordError && styles.inputWrapperError,
-                  ]}
-                >
-                  <TextInput
-                    style={styles.textInput}
-                    placeholder="Nhập lại mật khẩu"
-                    placeholderTextColor={COLORS.PLACEHOLDER}
-                    value={confirmPassword}
-                    onChangeText={(value) => {
-                      setConfirmPassword(value);
-                      setConfirmPasswordError('');
-                    }}
-                    secureTextEntry
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
-                </View>
-                {!!confirmPasswordError && (
-                  <Text style={styles.errorText}>{confirmPasswordError}</Text>
-                )}
               </View>
 
               <View style={styles.termsGroup}>
@@ -303,24 +205,14 @@ export default function RegisterScreen({
                 {!!termsError && <Text style={styles.errorText}>{termsError}</Text>}
               </View>
 
-              {!!requestError && <Text style={styles.errorText}>{requestError}</Text>}
-
-              <TouchableOpacity
-                activeOpacity={0.85}
-                onPress={handleRegister}
-                disabled={isSubmitting}
-              >
+              <TouchableOpacity activeOpacity={0.85} onPress={handleRegister}>
                 <LinearGradient
                   colors={[COLORS.BUTTON_GRADIENT_START, COLORS.BUTTON_GRADIENT_END]}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
                   style={styles.primaryButton}
                 >
-                  {isSubmitting ? (
-                    <ActivityIndicator color={COLORS.SURFACE} />
-                  ) : (
-                    <Text style={styles.primaryButtonText}>Đăng ký tài khoản</Text>
-                  )}
+                  <Text style={styles.primaryButtonText}>Đăng ký tài khoản</Text>
                 </LinearGradient>
               </TouchableOpacity>
             </View>

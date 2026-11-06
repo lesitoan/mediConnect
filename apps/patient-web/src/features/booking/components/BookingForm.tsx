@@ -671,7 +671,7 @@ export default function BookingForm() {
                     </p>
                                     )}
                                     {availabilityError && (
-                                        <p role="alert" className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs text-rose-600">
+                                        <p className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs text-rose-600">
                                             {availabilityError}
                                         </p>
                                     )}

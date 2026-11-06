@@ -1,7 +1,6 @@
 import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   ScrollView,
   StyleSheet,
   Text as RNText,
@@ -62,14 +61,6 @@ export default function BookingProfileScreen({
       getProfiles()
         .then((data) => {
           if (isActive) setProfiles(data);
-        })
-        .catch((error: unknown) => {
-          if (isActive) {
-            Alert.alert(
-              'Không thể tải hồ sơ',
-              error instanceof Error ? error.message : 'Vui lòng thử lại sau.',
-            );
-          }
         })
         .finally(() => {
           if (isActive) setIsLoading(false);

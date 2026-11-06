@@ -17,15 +17,7 @@ interface MyScheduleCalendarProps {
   };
 }
 
-const WEEKDAY_LABELS = [
-  "Thứ 2",
-  "Thứ 3",
-  "Thứ 4",
-  "Thứ 5",
-  "Thứ 6",
-  "Thứ 7",
-  "CN",
-];
+const WEEKDAY_LABELS = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "CN"];
 const MONTH_FORMATTER = new Intl.DateTimeFormat("vi-VN", {
   month: "long",
   year: "numeric",
@@ -36,12 +28,6 @@ const DAY_FORMATTER = new Intl.DateTimeFormat("vi-VN", {
   day: "numeric",
   month: "long",
   timeZone: "UTC",
-});
-const SHIFT_TIME_FORMATTER = new Intl.DateTimeFormat("vi-VN", {
-  timeZone: "Asia/Ho_Chi_Minh",
-  hour: "2-digit",
-  minute: "2-digit",
-  hourCycle: "h23",
 });
 
 function getMonthRange(monthKey: string): ScheduleDateRange {
@@ -79,27 +65,16 @@ function getCalendarDays(monthKey: string) {
     dates: Array.from({ length: cellCount }, (_, index) => {
       const day = index - offset + 1;
       return day > 0 && day <= count
-        ? new Date(Date.UTC(year, month - 1, day)).toISOString().slice(0, 10)
+        ? new Date(Date.UTC(year, month - 1, day))
+            .toISOString()
+            .slice(0, 10)
         : null;
     }),
   };
 }
 
 function getShiftStatusLabel(status: string) {
-  switch (status) {
-    case "ABSENT":
-      return "Vắng";
-    case "RESOLVING":
-      return "Chờ xử lý";
-    case "DRAFT":
-      return "Bản nháp";
-    default:
-      return "Có lịch";
-  }
-}
-
-function getShiftTimeRange(startsAt: string, endsAt: string) {
-  return `${SHIFT_TIME_FORMATTER.format(new Date(startsAt))}–${SHIFT_TIME_FORMATTER.format(new Date(endsAt))}`;
+  return status === "ABSENT" ? "Vắng" : "Có lịch";
 }
 
 export function MyScheduleCalendar({ user }: MyScheduleCalendarProps) {
@@ -117,8 +92,12 @@ export function MyScheduleCalendar({ user }: MyScheduleCalendarProps) {
   >(null);
 
   const staff = currentData?.staff.find((item) => item.userId === user.id);
-  const shifts =
-    staff?.shifts.filter((shift) => shift.date === selectedDate) ?? [];
+  const shifts = staff?.shifts.filter((shift) => shift.date === selectedDate) ?? [];
+  const approvedAbsenceDates = new Set(
+    (staff?.shifts ?? [])
+      .filter((shift) => shift.status === "ABSENT")
+      .map((shift) => shift.date),
+  );
 
   const selectedDateLabel = selectedDate
     ? DAY_FORMATTER.format(new Date(`${selectedDate}T00:00:00Z`))
@@ -185,10 +164,7 @@ export function MyScheduleCalendar({ user }: MyScheduleCalendarProps) {
         </div>
 
         {isLoading ? (
-          <Loading
-            label="Đang tải lịch cá nhân..."
-            className="min-h-0 flex-1"
-          />
+          <Loading label="Đang tải lịch cá nhân..." className="min-h-0 flex-1" />
         ) : isError ? (
           <Empty
             role="alert"
@@ -248,29 +224,7 @@ export function MyScheduleCalendar({ user }: MyScheduleCalendarProps) {
                   );
                 }
                 const day = Number(date.slice(-2));
-                const dayShifts = staff.shifts.filter(
-                  (shift) => shift.date === date,
-                );
-                const hasAbsence = dayShifts.some(
-                  (shift) => shift.status === "ABSENT",
-                );
-                const isAbsent =
-                  dayShifts.length > 0 &&
-                  dayShifts.every((shift) => shift.status === "ABSENT");
-                const dayStatusLabel =
-                  dayShifts.length === 0
-                    ? "Không có lịch"
-                    : dayShifts.some((shift) => shift.status === "RESOLVING")
-                      ? "Chờ xử lý"
-                      : isAbsent
-                        ? "Vắng"
-                        : hasAbsence
-                          ? "Có ca vắng"
-                          : dayShifts.some(
-                                (shift) => shift.status === "PUBLISHED",
-                              )
-                            ? "Có lịch"
-                            : "Bản nháp";
+                const isAbsent = approvedAbsenceDates.has(date);
                 const isSelected = selectedDate === date;
                 return (
                   <button
@@ -281,7 +235,7 @@ export function MyScheduleCalendar({ user }: MyScheduleCalendarProps) {
                     className={`flex min-h-0 flex-col gap-1 border-b border-r border-border p-1 text-left transition-colors sm:gap-1.5 sm:p-2 ${
                       isSelected
                         ? "bg-primary-light ring-2 ring-inset ring-primary"
-                        : hasAbsence
+                        : isAbsent
                           ? "bg-destructive/10 hover:bg-destructive/15"
                           : "bg-surface hover:bg-secondary/40"
                     }`}
@@ -291,14 +245,12 @@ export function MyScheduleCalendar({ user }: MyScheduleCalendarProps) {
                     </span>
                     <span
                       className={`block truncate rounded px-0.5 py-0.5 text-center text-[9px] font-semibold leading-3 sm:px-1 sm:text-caption sm:leading-4 ${
-                        hasAbsence
+                        isAbsent
                           ? "bg-destructive text-white"
-                          : dayShifts.length
-                            ? "bg-primary-light text-primary"
-                            : "bg-secondary text-muted"
+                          : "bg-primary-light text-primary"
                       }`}
                     >
-                      {dayStatusLabel}
+                      {isAbsent ? "Vắng" : "Có lịch"}
                     </span>
                   </button>
                 );
@@ -307,52 +259,43 @@ export function MyScheduleCalendar({ user }: MyScheduleCalendarProps) {
             {selectedDate && (
               <section
                 aria-live="polite"
-                className="mt-2 grid shrink-0 grid-cols-1 gap-2 sm:mt-3 sm:grid-cols-[minmax(120px,0.8fr)_repeat(2,minmax(0,1fr))] sm:gap-3"
+                className="mt-2 grid shrink-0 grid-cols-[minmax(90px,0.8fr)_repeat(2,minmax(0,1fr))] gap-2 sm:mt-3 sm:gap-3"
               >
                 <div className="flex min-w-0 items-center">
                   <h2 className="truncate text-caption font-semibold capitalize text-foreground sm:text-body">
                     {selectedDateLabel}
                   </h2>
                 </div>
-                {shifts.length === 0 ? (
-                  <p className="text-caption text-muted">
-                    Không có ca làm việc.
-                  </p>
-                ) : (
-                  shifts.map((shift) => {
-                    const isShiftAbsent = shift.status === "ABSENT";
-                    return (
-                      <article
-                        key={shift.key}
-                        className={`flex min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-1 rounded-app-md border px-2 py-1.5 sm:px-3 ${
-                          isShiftAbsent
-                            ? "border-destructive/30 bg-destructive/10"
-                            : "border-border bg-secondary/20"
+                {(["MORNING", "AFTERNOON"] as const).map((key) => {
+                  const shift = shifts.find((item) => item.key === key);
+                  const isShiftAbsent = shift?.status === "ABSENT";
+                  return (
+                    <article
+                      key={key}
+                      className={`flex min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-1 rounded-app-md border px-2 py-1.5 sm:px-3 ${
+                        isShiftAbsent
+                          ? "border-destructive/30 bg-destructive/10"
+                          : "border-border bg-secondary/20"
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <h3 className="truncate text-caption font-semibold text-foreground">
+                          {key === "MORNING" ? "Ca sáng" : "Ca chiều"}
+                        </h3>
+                        <p className="text-[10px] text-muted sm:text-caption">
+                          {key === "MORNING" ? "08:00–12:00" : "13:00–18:00"}
+                        </p>
+                      </div>
+                      <span
+                        className={`shrink-0 text-[10px] font-semibold sm:text-caption ${
+                          isShiftAbsent ? "text-destructive" : "text-primary"
                         }`}
                       >
-                        <div className="min-w-0">
-                          <h3 className="truncate text-caption font-semibold text-foreground">
-                            Ca làm
-                          </h3>
-                          <p className="text-[10px] text-muted sm:text-caption">
-                            {getShiftTimeRange(shift.startsAt, shift.endsAt)}
-                          </p>
-                        </div>
-                        <span
-                          className={`shrink-0 text-[10px] font-semibold sm:text-caption ${
-                            isShiftAbsent
-                              ? "text-destructive"
-                              : shift.status === "RESOLVING"
-                                ? "text-warning"
-                                : "text-primary"
-                          }`}
-                        >
-                          {getShiftStatusLabel(shift.status)}
-                        </span>
-                      </article>
-                    );
-                  })
-                )}
+                        {getShiftStatusLabel(shift?.status ?? "PUBLISHED")}
+                      </span>
+                    </article>
+                  );
+                })}
               </section>
             )}
           </div>

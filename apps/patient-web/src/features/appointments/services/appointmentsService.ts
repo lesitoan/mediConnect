@@ -257,9 +257,6 @@ function mapPatientAppointment(
         : appointment.status === "PENDING_RESOLUTION"
           ? "pending"
           : "confirmed";
-  const canModify =
-    appointment.status === "CONFIRMED" &&
-    session?.status === "SCHEDULED";
   const invoice = appointment.invoices[0];
   const amount = invoice ? Number(invoice.totalAmount) : Number.NaN;
 
@@ -268,7 +265,6 @@ function mapPatientAppointment(
     appointmentSlotId: slot?.id,
     doctorId: doctor?.id,
     startsAt,
-    canModify,
     code: appointment.appointmentCode,
     kind,
     daysFromNow: getDaysFromNow(startsAtDate, now),

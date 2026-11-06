@@ -21,7 +21,10 @@ import {
   ArrowRightIcon,
   BadgeCheckIcon,
   BotIcon,
+  CheckIcon,
+  ClockIcon,
   SearchIcon,
+  ShieldCheckIcon,
   SlidersIcon,
   SparklesIcon,
   SPECIALTY_ICONS,
@@ -33,14 +36,22 @@ import {
   getSpecialtyCatalog,
   type Specialty,
   type SpecialtyCatalog,
+  type SpecialtyService,
 } from '../../services/specialtyService';
 
 function Text(props: TextProps) {
   return <RNText allowFontScaling={false} {...props} />;
 }
 
+type SpecialtyTab = 'SPECIALTY' | 'SERVICE' | 'GENERAL';
+
 const BOOKING_STEPS = ['Hồ sơ', 'Khoa khám', 'Bác sĩ & Giờ', 'Xác nhận'];
 const CURRENT_STEP_INDEX = 1;
+const TABS: { value: SpecialtyTab; label: string }[] = [
+  { value: 'SPECIALTY', label: 'Chuyên khoa' },
+  { value: 'SERVICE', label: 'Dịch vụ' },
+  { value: 'GENERAL', label: 'Tổng quát' },
+];
 
 const SCREEN_PADDING = 16;
 const GRID_COLUMNS = 4;
@@ -60,11 +71,11 @@ const normalizeText = (value: string) =>
     .replace(/đ/g, 'd')
     .toLowerCase();
 
-const formatFee = (value: number | null) =>
-  value === null ? 'Chưa cập nhật' : `${String(value).replace(/\B(?=(\d{3})+(?!\d))/g, '.')}đ`;
+const formatFee = (value: number) => `${String(value).replace(/\B(?=(\d{3})+(?!\d))/g, '.')}đ`;
 
 export type SpecialtySelection = {
   specialty: Specialty;
+  service: SpecialtyService;
 };
 
 type SelectSpecialtyScreenProps = {
@@ -95,22 +106,16 @@ export default function SelectSpecialtyScreen({
 
   const [catalog, setCatalog] = useState<SpecialtyCatalog | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [loadError, setLoadError] = useState('');
   const [searchText, setSearchText] = useState('');
+  const [activeTab, setActiveTab] = useState<SpecialtyTab>('SPECIALTY');
   const [selectedSpecialtyId, setSelectedSpecialtyId] = useState<string | null>(null);
+  const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
 
   useEffect(() => {
     let isActive = true;
     getSpecialtyCatalog()
       .then((data) => {
         if (isActive) setCatalog(data);
-      })
-      .catch((error: unknown) => {
-        if (isActive) {
-          setLoadError(
-            error instanceof Error ? error.message : 'Không thể tải chuyên khoa.',
-          );
-        }
       })
       .finally(() => {
         if (isActive) setIsLoading(false);
@@ -123,17 +128,18 @@ export default function SelectSpecialtyScreen({
   const query = normalizeText(searchText.trim());
 
   const visibleSpecialties = useMemo(() => {
-    const items = catalog?.items ?? [];
-    if (!query) return items;
-    return items.filter(
+    const popular = catalog?.popular ?? [];
+    if (!query) return popular;
+    return popular.filter(
       (specialty) =>
         normalizeText(specialty.name).includes(query) ||
-        normalizeText(specialty.description ?? '').includes(query),
+        specialty.services.some((service) => normalizeText(service.name).includes(query)),
     );
   }, [catalog, query]);
 
-  const selectedSpecialty = catalog?.items.find((item) => item.id === selectedSpecialtyId);
-  const canContinue = !!selectedSpecialty;
+  const selectedSpecialty = catalog?.popular.find((item) => item.id === selectedSpecialtyId);
+  const selectedService = selectedSpecialty?.services.find((item) => item.id === selectedServiceId);
+  const canContinue = !!selectedSpecialty && !!selectedService;
 
   const itemWidth =
     (width - SCREEN_PADDING * 2 - GRID_GAP * (GRID_COLUMNS - 1)) / GRID_COLUMNS;
@@ -141,6 +147,7 @@ export default function SelectSpecialtyScreen({
   const handleSelectSpecialty = (specialty: Specialty) => {
     hasPendingScrollRef.current = true;
     setSelectedSpecialtyId(specialty.id);
+    setSelectedServiceId(null);
   };
 
   const handleDetailLayout = (event: LayoutChangeEvent) => {
@@ -150,7 +157,9 @@ export default function SelectSpecialtyScreen({
   };
 
   const handleContinue = () => {
-    if (selectedSpecialty) onContinue?.({ specialty: selectedSpecialty });
+    if (selectedSpecialty && selectedService) {
+      onContinue?.({ specialty: selectedSpecialty, service: selectedService });
+    }
   };
 
   const renderSpecialtyGrid = () => {
@@ -176,7 +185,7 @@ export default function SelectSpecialtyScreen({
                 {specialty.name}
               </Text>
               <Text style={styles.gridCount} numberOfLines={1}>
-                Mã {specialty.code}
+                {specialty.doctorCount} bác sĩ
               </Text>
             </TouchableOpacity>
           );
@@ -185,32 +194,73 @@ export default function SelectSpecialtyScreen({
     );
   };
 
-  const renderSpecialtyDetails = (specialty: Specialty) => (
+  const renderDetailList = (specialty: Specialty) => (
     <View key={specialty.id} style={styles.detailSection} onLayout={handleDetailLayout}>
       <View style={styles.detailHeader}>
-        <Text style={styles.detailTitle}>Thông tin chuyên khoa</Text>
+        <Text style={styles.detailTitle}>Danh sách chi tiết</Text>
+        <Text style={styles.detailSort}>Sắp xếp: Phổ biến nhất</Text>
       </View>
-      <View style={styles.serviceCard}>
-        <View style={styles.serviceTop}>
-          <View style={styles.serviceIcon}>
-            {(() => {
-              const Icon = SPECIALTY_ICONS[specialty.iconKey];
-              return <Icon size={22} color={COLORS.PRIMARY_LIGHT} strokeWidth={1.8} />;
-            })()}
-          </View>
-          <View style={styles.flex}>
-            <Text style={styles.serviceName}>{specialty.name}</Text>
-            <Text style={styles.serviceDescription} numberOfLines={3}>
-              {specialty.description ?? `Thông tin khám chuyên khoa ${specialty.name} chưa được cập nhật.`}
-            </Text>
-            <Text style={styles.serviceDescription}>Mã phòng: {specialty.roomCode}</Text>
-          </View>
-        </View>
-        <View style={styles.serviceDivider} />
-        <View style={styles.serviceBottom}>
-          <Text style={styles.feeLabel}>Phí khám tham khảo:</Text>
-          <Text style={styles.feeValue}>{formatFee(specialty.consultationFee)}</Text>
-        </View>
+
+      {specialty.services.map((service) => {
+        const isSelected = service.id === selectedServiceId;
+        const Icon = SPECIALTY_ICONS[service.iconKey];
+        return (
+          <TouchableOpacity
+            key={service.id}
+            style={[
+              styles.serviceCard,
+              isSelected && styles.serviceCardSelected,
+              !service.isAvailable && styles.serviceCardDisabled,
+            ]}
+            activeOpacity={0.85}
+            disabled={!service.isAvailable}
+            onPress={() => setSelectedServiceId(service.id)}
+          >
+            <View style={styles.serviceTop}>
+              <View style={[styles.serviceIcon, isSelected && styles.serviceIconSelected]}>
+                <Icon
+                  size={22}
+                  color={isSelected ? COLORS.SURFACE : COLORS.PRIMARY_LIGHT}
+                  strokeWidth={1.8}
+                />
+              </View>
+              <View style={styles.flex}>
+                <Text style={styles.serviceName}>{service.name}</Text>
+                <Text style={styles.serviceDescription} numberOfLines={3}>
+                  {service.description}
+                </Text>
+              </View>
+              <View style={[styles.radio, isSelected && styles.radioSelected]}>
+                {isSelected && <CheckIcon size={12} color={COLORS.SURFACE} strokeWidth={3} />}
+              </View>
+            </View>
+
+            <View style={styles.serviceDivider} />
+
+            <View style={styles.serviceBottom}>
+              <Text style={styles.feeLabel}>Phí khám từ:</Text>
+              <Text style={styles.feeValue}>{formatFee(service.minFee)}</Text>
+              {service.isAvailable ? (
+                <View style={[styles.statusChip, styles.statusChipAvailable]}>
+                  <View style={styles.statusDot} />
+                  <Text style={[styles.statusText, { color: SUCCESS_TEXT }]}>Có lịch</Text>
+                </View>
+              ) : (
+                <View style={[styles.statusChip, styles.statusChipUnavailable]}>
+                  <ClockIcon size={11} color={NEUTRAL_CHIP_TEXT} />
+                  <Text style={[styles.statusText, { color: NEUTRAL_CHIP_TEXT }]}>Đã hết lịch</Text>
+                </View>
+              )}
+            </View>
+          </TouchableOpacity>
+        );
+      })}
+
+      <View style={styles.noteCard}>
+        <ShieldCheckIcon size={18} color={COLORS.PRIMARY_LIGHT} />
+        <Text style={styles.noteText}>
+          Đội ngũ bác sĩ chuyên khoa giàu kinh nghiệm từ các bệnh viện tuyến đầu.
+        </Text>
       </View>
     </View>
   );
@@ -220,32 +270,6 @@ export default function SelectSpecialtyScreen({
       return (
         <View style={styles.centered}>
           <ActivityIndicator color={COLORS.PRIMARY_LIGHT} />
-        </View>
-      );
-    }
-    if (loadError) {
-      return (
-        <View style={styles.centered}>
-          <Text style={styles.noticeText}>{loadError}</Text>
-          <TouchableOpacity
-            style={styles.retryButton}
-            onPress={() => {
-              setIsLoading(true);
-              setLoadError('');
-              getSpecialtyCatalog()
-                .then(setCatalog)
-                .catch((error: unknown) => {
-                  setLoadError(
-                    error instanceof Error
-                      ? error.message
-                      : 'Không thể tải chuyên khoa.',
-                  );
-                })
-                .finally(() => setIsLoading(false));
-            }}
-          >
-            <Text style={styles.sectionLink}>Thử lại</Text>
-          </TouchableOpacity>
         </View>
       );
     }
@@ -294,6 +318,22 @@ export default function SelectSpecialtyScreen({
           </TouchableOpacity>
         </View>
 
+        <View style={styles.tabs}>
+          {TABS.map((tab) => {
+            const isActive = tab.value === activeTab;
+            return (
+              <TouchableOpacity
+                key={tab.value}
+                style={[styles.tab, isActive && styles.tabActive]}
+                activeOpacity={0.8}
+                onPress={() => setActiveTab(tab.value)}
+              >
+                <Text style={[styles.tabText, isActive && styles.tabTextActive]}>{tab.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
         <View style={styles.aiBanner}>
           <View style={styles.aiIcon}>
             <SparklesIcon size={20} color={COLORS.PRIMARY_LIGHT} />
@@ -305,15 +345,23 @@ export default function SelectSpecialtyScreen({
           </TouchableOpacity>
         </View>
 
-        <View style={styles.sectionHeader}>
-          <BadgeCheckIcon size={20} color={COLORS.PRIMARY_LIGHT} />
-          <Text style={styles.sectionTitle}>Chuyên khoa đang hoạt động</Text>
-          <View style={styles.flex} />
-          <Text style={styles.sectionLink}>Tổng: {catalog?.totalCount ?? 0}</Text>
-        </View>
+        {activeTab === 'SPECIALTY' ? (
+          <>
+            <View style={styles.sectionHeader}>
+              <BadgeCheckIcon size={20} color={COLORS.PRIMARY_LIGHT} />
+              <Text style={styles.sectionTitle}>Chuyên khoa phổ biến</Text>
+              <View style={styles.flex} />
+              <TouchableOpacity onPress={onPressAllSpecialties}>
+                <Text style={styles.sectionLink}>Tất cả ({catalog?.totalCount ?? 0})</Text>
+              </TouchableOpacity>
+            </View>
 
-        {renderSpecialtyGrid()}
-        {selectedSpecialty ? renderSpecialtyDetails(selectedSpecialty) : null}
+            {renderSpecialtyGrid()}
+            {selectedSpecialty ? renderDetailList(selectedSpecialty) : null}
+          </>
+        ) : (
+          <Text style={styles.noticeText}>Nội dung đang được cập nhật.</Text>
+        )}
       </ScrollView>
     );
   };
@@ -327,13 +375,13 @@ export default function SelectSpecialtyScreen({
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
         <View style={styles.footerInfo}>
-          {selectedSpecialty ? (
+          {selectedService ? (
             <Text style={styles.footerLabel} numberOfLines={1}>
-              Đã chọn: <Text style={styles.footerValue}>{selectedSpecialty.name}</Text>
+              Đã chọn: <Text style={styles.footerValue}>{selectedService.name}</Text>
             </Text>
           ) : (
             <Text style={styles.footerLabel} numberOfLines={1}>
-              Chọn chuyên khoa để tiếp tục
+              Chọn một chuyên khoa và dịch vụ để tiếp tục
             </Text>
           )}
           <Text style={styles.footerStep}>
@@ -372,7 +420,6 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   screen: { backgroundColor: COLORS.BACKGROUND, paddingBottom: 0 },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  retryButton: { marginTop: 16, paddingHorizontal: 18, paddingVertical: 10 },
   content: { paddingHorizontal: SCREEN_PADDING, paddingTop: 16, paddingBottom: 24 },
   profileBar: {
     flexDirection: 'row',
