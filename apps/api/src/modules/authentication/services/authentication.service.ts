@@ -68,6 +68,10 @@ export class AuthenticationService {
         !current ||
         !this.usersService.isAllowedToAuthenticate(current) ||
         current.passwordHash !== user.passwordHash ||
+        current.contactVersion !== user.contactVersion ||
+        (input.email !== undefined
+          ? current.email !== input.email
+          : current.phone !== input.phone) ||
         (current.passwordChangedAt?.toISOString() ?? null) !==
           (user.passwordChangedAt?.toISOString() ?? null)
       ) {

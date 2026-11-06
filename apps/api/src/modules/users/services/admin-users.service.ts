@@ -267,13 +267,6 @@ export class AdminUsersService {
         const data: Prisma.UserUncheckedUpdateInput = {};
         const before: AuditEvent['before'] = {};
         const after: AuditEvent['after'] = {};
-        for (const field of ['fullName', 'phone'] as const) {
-          if (input[field] !== undefined && input[field] !== user[field]) {
-            data[field] = input[field] as string;
-            before[field] = user[field];
-            after[field] = input[field]!;
-          }
-        }
         if (roleChanged) {
           if (actor.id.toLowerCase() === id)
             throw new ForbiddenException(
@@ -318,35 +311,20 @@ export class AdminUsersService {
             );
           }
         }
-        const synchronized = await this.users.synchronizePatientAccount(
+        if (Object.keys(data).length)
+          await tx.user.update({ where: { id }, data, select: USER_SELECT });
+        const identity = await this.users.updateIdentity(
           tx,
           id,
           { fullName, phone },
+          roleChanged,
         );
-        if ('fullName' in synchronized && !('fullName' in after))
-          after.patientNameSynchronized = true;
-        if ('phone' in synchronized && !('phone' in after))
-          after.patientPhoneSynchronized = true;
-        const contactChanged = 'phone' in after;
-        if ('phone' in after) data.phoneVerifiedAt = null;
-        const updated = Object.keys(data).length
-          ? await tx.user.update({ where: { id }, data, select: USER_SELECT })
-          : await tx.user.findUniqueOrThrow({
-              where: { id },
-              select: USER_SELECT,
-            });
-        if (roleChanged || contactChanged) {
-          const revoked = await tx.authSession.updateMany({
-            where: { userId: id, revokedAt: null },
-            data: {
-              revokedAt: new Date(),
-              revocationReason: roleChanged
-                ? 'ROLE_CHANGED'
-                : 'CONTACT_CHANGED',
-            },
-          });
-          after.revokedSessions = revoked.count;
-        }
+        Object.assign(before, identity.before);
+        Object.assign(after, identity.after);
+        const updated = await tx.user.findUniqueOrThrow({
+          where: { id },
+          select: USER_SELECT,
+        });
         const patientProfile = hasPatientChanges
           ? await this.patients.updateProfile(id, profileInput, actor, tx)
           : undefined;

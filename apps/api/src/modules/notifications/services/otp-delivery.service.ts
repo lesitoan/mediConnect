@@ -1,25 +1,41 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { TextbeeSmsService } from './textbee-sms.service';
+
+const UNABLE_TO_SEND_OTP = 'Unable to send OTP. Try again later';
 
 export interface OtpDelivery {
   challengeId: string;
   destination: string;
-  channel: 'EMAIL' | 'ZALO';
-  purpose: 'REGISTER' | 'RESET_PASSWORD';
+  channel: 'EMAIL' | 'PHONE';
+  purpose: 'REGISTER' | 'RESET_PASSWORD' | 'CHANGE_CONTACT';
   code: string;
   expiresInSeconds: number;
 }
 
 @Injectable()
 export class OtpDeliveryService {
-  constructor(private readonly config: ConfigService) {}
+  constructor(
+    private readonly config: ConfigService,
+    private readonly sms: TextbeeSmsService,
+  ) {}
 
-  assertConfigured(channel: 'EMAIL' | 'ZALO'): void {
-    const keys =
+  private isZaloConfigured(): boolean {
+    return [
+      'ZALO_ACCESS_TOKEN',
+      'ZALO_OTP_TEMPLATE_ID',
+      'ZALO_OTP_CODE_PARAM',
+    ].every((key) => this.config.get<string>(key)?.trim());
+  }
+
+  assertConfigured(channel: OtpDelivery['channel']): void {
+    const isConfigured =
       channel === 'EMAIL'
-        ? ['RESEND_API_KEY', 'RESEND_FROM_EMAIL']
-        : ['ZALO_ACCESS_TOKEN', 'ZALO_OTP_TEMPLATE_ID', 'ZALO_OTP_CODE_PARAM'];
-    if (keys.some((key) => !this.config.get<string>(key)?.trim())) {
+        ? ['RESEND_API_KEY', 'RESEND_FROM_EMAIL'].every((key) =>
+            this.config.get<string>(key)?.trim(),
+          )
+        : this.sms.isConfigured() || this.isZaloConfigured();
+    if (!isConfigured) {
       throw new ServiceUnavailableException(
         channel + ' OTP delivery is not configured',
       );
@@ -28,12 +44,29 @@ export class OtpDeliveryService {
 
   async send(input: OtpDelivery): Promise<void> {
     this.assertConfigured(input.channel);
+    if (input.channel === 'PHONE' && this.sms.isConfigured()) {
+      try {
+        // Reuse the code if a timed-out SMS was already accepted by the provider.
+        await this.sms.sendSms({
+          recipients: [input.destination],
+          message: `MediConnect: Ma OTP cua ban la ${input.code}. Hieu luc ${Math.ceil(input.expiresInSeconds / 60)} phut. Khong chia se ma nay.`,
+        });
+        // shortcut: TextBee acceptance can precede delivery, add receipt handling if fallback must cover later failures.
+        return;
+      } catch (error) {
+        if (!(error instanceof ServiceUnavailableException)) throw error;
+        if (!this.isZaloConfigured())
+          throw new ServiceUnavailableException(UNABLE_TO_SEND_OTP);
+      }
+    }
     try {
       const isEmail = input.channel === 'EMAIL';
       const action =
         input.purpose === 'REGISTER'
           ? 'kích hoạt tài khoản'
-          : 'đặt lại mật khẩu';
+          : input.purpose === 'CHANGE_CONTACT'
+            ? 'đổi liên hệ đăng nhập'
+            : 'đặt lại mật khẩu';
       const response = await fetch(
         isEmail
           ? 'https://api.resend.com/emails'
@@ -84,9 +117,7 @@ export class OtpDeliveryService {
         throw new Error('Delivery rejected');
     } catch {
       // Provider errors may include tokens, contacts or message content; never log them.
-      throw new ServiceUnavailableException(
-        'Unable to send OTP. Try again later',
-      );
+      throw new ServiceUnavailableException(UNABLE_TO_SEND_OTP);
     }
   }
 }

@@ -9,6 +9,7 @@ import { RedisModule } from '../redis/redis.module';
 import { OtpStoreService } from './services/otp-store.service';
 import { UsersModule } from '../users/users.module';
 import { AuthenticationController } from './authentication.controller';
+import { PatientContactChangeController } from './patient-contact-change.controller';
 import { AuthenticationService } from './services/authentication.service';
 import { AuthenticationTransportService } from './services/authentication-transport.service';
 import { AuthGuard } from './guards/auth.guard';
@@ -39,7 +40,7 @@ import { RolesGuard } from './guards/roles.guard';
       }),
     }),
   ],
-  controllers: [AuthenticationController],
+  controllers: [AuthenticationController, PatientContactChangeController],
   providers: [
     AuthenticationService,
     OtpService,

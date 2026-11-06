@@ -1,5 +1,7 @@
 import {
+  BadRequestException,
   ForbiddenException,
+  NotFoundException,
   Injectable,
   ServiceUnavailableException,
   UnauthorizedException,
@@ -233,40 +235,94 @@ export class UsersService {
     return current;
   }
 
-  async updateName(
+  async updatePersonalInfo(
     tx: Prisma.TransactionClient,
     current: CurrentUserDto,
-    fullName: string,
+    fullName?: string,
+    phone?: string,
   ) {
-    const isNameChanged = current.name !== fullName;
-    if (isNameChanged)
-      await tx.user.update({
-        where: { id: current.id },
-        data: { fullName },
-      });
-    const patientUpdate = await this.synchronizePatientAccount(tx, current.id, {
+    const identity = await this.updateIdentity(tx, current.id, {
       fullName,
+      phone,
     });
-    if (!isNameChanged && !Object.keys(patientUpdate).length) return current;
-    await this.audit.record(
-      {
-        actor: {
-          type: 'USER',
-          id: current.id,
-          name: current.name,
-          role: current.role as UserRole,
+    if (Object.keys(identity.after).length)
+      await this.audit.record(
+        {
+          actor: {
+            type: 'USER',
+            id: current.id,
+            name: current.name,
+            role: current.role as UserRole,
+          },
+          actionCode: 'USER_UPDATE',
+          module: 'USERS',
+          targetType: 'USER',
+          targetId: current.id,
+          result: AuditLogResult.SUCCESS,
+          ...identity,
         },
-        actionCode: 'USER_UPDATE',
-        module: 'USERS',
-        targetType: 'USER',
-        targetId: current.id,
-        result: AuditLogResult.SUCCESS,
-        before: isNameChanged ? { fullName: current.name } : undefined,
-        after: isNameChanged ? { fullName } : { patientNameSynchronized: true },
-      },
+        tx,
+      );
+    return {
+      ...current,
+      name: fullName ?? current.name,
+      phone: phone ?? current.phone,
+    };
+  }
+
+  async updateIdentity(
+    tx: Prisma.TransactionClient,
+    userId: string,
+    input: { fullName?: string; phone?: string },
+    isRoleChanged = false,
+  ) {
+    const current = await tx.user.findUnique({
+      where: { id: userId },
+      select: { fullName: true, phone: true, role: { select: { name: true } } },
+    });
+    if (!current) throw new NotFoundException('Không tìm thấy tài khoản.');
+    if (current.role?.name === RoleEnum.PATIENT && input.phone !== undefined)
+      throw new BadRequestException(
+        'Số điện thoại đăng nhập của bệnh nhân chỉ đọc cho đến khi có xác minh OTP.',
+      );
+    if (input.phone !== undefined && !/^\+84[35789]\d{8}$/.test(input.phone))
+      throw new BadRequestException('Cần số điện thoại Việt Nam hợp lệ.');
+    const before: NonNullable<AuditEvent['before']> = {};
+    const after: NonNullable<AuditEvent['after']> = {};
+    const data: Prisma.UserUpdateInput = {};
+    for (const field of ['fullName', 'phone'] as const) {
+      if (input[field] !== undefined && input[field] !== current[field]) {
+        data[field] = input[field];
+        before[field] = current[field];
+        after[field] = input[field];
+      }
+    }
+    const synchronized = await this.synchronizePatientAccount(
       tx,
+      userId,
+      input,
     );
-    return { ...current, name: fullName };
+    if ('fullName' in synchronized && !('fullName' in after))
+      after.patientNameSynchronized = true;
+    if ('phone' in synchronized && !('phone' in after))
+      after.patientPhoneSynchronized = true;
+    if ('phone' in after) {
+      data.phoneVerifiedAt = null;
+      data.contactVersion = { increment: 1 };
+    }
+    if (Object.keys(data).length)
+      await tx.user.update({ where: { id: userId }, data });
+    if ('phone' in after || isRoleChanged) {
+      const revoked = await tx.authSession.updateMany({
+        where: { userId, revokedAt: null },
+        data: {
+          revokedAt: new Date(),
+          revocationReason: isRoleChanged ? 'ROLE_CHANGED' : 'CONTACT_CHANGED',
+        },
+      });
+      after.revokedSessions = revoked.count;
+    }
+    return { before, after };
   }
 
   async synchronizePatientAccount(
@@ -305,7 +361,7 @@ export class UsersService {
   async activateAccount(
     tx: Prisma.TransactionClient,
     userId: string,
-    channel: 'EMAIL' | 'ZALO',
+    channel: 'EMAIL' | 'PHONE' | 'ZALO',
     now: Date,
   ): Promise<void> {
     await tx.user.update({
