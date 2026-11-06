@@ -33,6 +33,11 @@ interface TextbeeApiResponse {
 export class TextbeeSmsService {
   constructor(private readonly config: ConfigService) {}
 
+  isConfigured(): boolean {
+    return ['apiKey', 'apiUrl', 'deviceId'].every((key) =>
+      this.config.get<string>('textbee.' + key)?.trim(),
+    );
+  }
 
   // gửi SMS đơn lẻ
   sendSms(input: SendSmsInput): Promise<TextbeeSmsResult> {
@@ -105,9 +110,16 @@ export class TextbeeSmsService {
       });
       if (!response.ok) throw new Error('Delivery rejected');
 
-      const result = (await response.json()) as TextbeeApiResponse;
-      if (!result.data?.success) throw new Error('Delivery rejected');
-      return result.data;
+      const { data } = (await response.json()) as TextbeeApiResponse;
+      if (data?.success === true) return data;
+      if (
+        data?.success === undefined &&
+        typeof data?.successCount === 'number' &&
+        data.successCount > 0 &&
+        data.failureCount === 0
+      )
+        return { ...data, success: true };
+      throw new Error('Delivery rejected');
     } catch {
       // Provider responses can contain credentials, phone numbers or message content.
       throw new ServiceUnavailableException(

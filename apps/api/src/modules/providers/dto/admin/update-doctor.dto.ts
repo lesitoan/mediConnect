@@ -12,7 +12,9 @@ import {
 import { AutoTrim } from '../../../../common/decorators/auto-trim.decorator';
 import { AcademicTitle } from '../../../../generated/prisma/enums';
 
-export class UpdateDoctorDto {
+import { UpdateAccountIdentityDto } from '../../../users/dto/update-account-identity.dto';
+
+export class UpdateDoctorDto extends UpdateAccountIdentityDto {
   @ApiPropertyOptional({ format: 'uuid' })
   @ValidateIf((_object, value: unknown) => value !== undefined)
   @IsUUID('4')

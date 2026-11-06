@@ -1,11 +1,16 @@
 import { type INestApplication, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import cookieParser from 'cookie-parser';
+import type { Express } from 'express';
 import { HttpExceptionFilter } from '../common/filters/http-exception.filter';
 import { ValidationException } from '../common/exceptions/validation.exception';
 
 export function configureApp(app: INestApplication): void {
   const config = app.get(ConfigService);
+  if (config.get<string>('TRUST_PROXY') === '1') {
+    const express = app.getHttpAdapter().getInstance() as Express;
+    express.set('trust proxy', 1);
+  }
   app.setGlobalPrefix('api/v1');
   app.enableCors({
     origin: config.getOrThrow<string[]>('authentication.corsOrigins'),

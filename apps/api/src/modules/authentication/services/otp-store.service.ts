@@ -3,8 +3,15 @@ import { ConfigService } from '@nestjs/config';
 import { createHmac } from 'node:crypto';
 import { RedisService } from '../../redis/services/redis.service';
 
-export type OtpPurpose = 'REGISTER' | 'RESET_PASSWORD';
-export type OtpChannel = 'EMAIL' | 'ZALO';
+export type OtpPurpose = 'REGISTER' | 'RESET_PASSWORD' | 'CHANGE_CONTACT';
+export type OtpChannel = 'EMAIL' | 'PHONE' | 'ZALO';
+export type OtpThrottleOperation =
+  | 'SEND'
+  | 'VERIFY'
+  | 'RESET'
+  | 'CONTACT_CHANGE'
+  | 'CONTACT_CHANGE_SEND'
+  | 'CONTACT_CHANGE_VERIFY';
 export interface OtpRecord {
   id: string;
   scope: string;
@@ -13,6 +20,8 @@ export interface OtpRecord {
   channel: OtpChannel;
   destination: string;
   credentialVersion: string | null;
+  contactVersion?: number;
+  sessionId?: string;
   codeDigest: string;
   status: 'PENDING' | 'READY' | 'LOCKED' | 'VERIFIED';
   resetTokenHash?: string;
@@ -56,7 +65,7 @@ const VERIFY_SCRIPT = `
     end
     return false
   end
-  if record.purpose == 'REGISTER' then
+  if record.purpose ~= 'RESET_PASSWORD' then
     redis.call('DEL', KEYS[1])
   else
     record.status = 'VERIFIED'
@@ -110,19 +119,21 @@ export class OtpStoreService {
   }
 
   async throttle(
-    ip: string,
-    operation: 'SEND' | 'VERIFY' | 'RESET',
+    subject: string,
+    operation: OtpThrottleOperation,
   ): Promise<boolean> {
     const [limit, ttl] =
-      operation === 'SEND'
+      operation === 'SEND' || operation === 'CONTACT_CHANGE_SEND'
         ? [30, 3600]
-        : operation === 'VERIFY'
+        : operation === 'VERIFY' || operation === 'CONTACT_CHANGE_VERIFY'
           ? [60, 60]
-          : [20, 60];
+          : operation === 'CONTACT_CHANGE'
+            ? [5, 900]
+            : [20, 60];
     return (
       (await this.redis.eval(
         THROTTLE_SCRIPT,
-        [this.key(`ip:${this.digest(ip)}:${operation}`)],
+        [this.key(`ip:${this.digest(subject)}:${operation}`)],
         [String(limit), String(ttl)],
       )) === 1
     );
@@ -179,8 +190,13 @@ export class OtpStoreService {
         typeof record.id !== 'string' ||
         typeof record.scope !== 'string' ||
         !/^[a-f0-9]{64}$/.test(record.scope) ||
-        !['REGISTER', 'RESET_PASSWORD'].includes(record.purpose) ||
-        !['EMAIL', 'ZALO'].includes(record.channel) ||
+        !['REGISTER', 'RESET_PASSWORD', 'CHANGE_CONTACT'].includes(
+          record.purpose,
+        ) ||
+        (record.purpose === 'CHANGE_CONTACT' &&
+          (typeof record.sessionId !== 'string' ||
+            !Number.isSafeInteger(record.contactVersion))) ||
+        !['EMAIL', 'PHONE', 'ZALO'].includes(record.channel) ||
         typeof record.destination !== 'string' ||
         typeof record.codeDigest !== 'string' ||
         !(
@@ -237,7 +253,9 @@ export class OtpStoreService {
   }
   async getResetGrant(tokenHash: string): Promise<OtpRecord | null> {
     const record = await this.readIndex('reset', tokenHash);
-    return record?.status === 'VERIFIED' && record.resetTokenHash === tokenHash
+    return record?.purpose === 'RESET_PASSWORD' &&
+      record.status === 'VERIFIED' &&
+      record.resetTokenHash === tokenHash
       ? record
       : null;
   }

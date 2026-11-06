@@ -4,7 +4,7 @@ import { axiosBaseQuery } from "./axiosBaseQuery";
 export const baseApi = createApi({
   reducerPath: "api",
   baseQuery: axiosBaseQuery,
-  tagTypes: ["USERS"],
+  tagTypes: ["USERS", "DOCTORS", "SPECIALTIES"],
   keepUnusedDataFor: 60,
   refetchOnFocus: true,
   refetchOnReconnect: true,

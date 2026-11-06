@@ -65,4 +65,4 @@ import { ExaminationsModule } from './modules/examinations/examinations.module';
     ExaminationsModule,
   ],
 })
-export class AppModule {}
+export class AppModule { }
