@@ -3,6 +3,7 @@ export const AUTH_ROUTES = {
   REGISTER: 'Register',
   OTP: 'Otp',
   SET_PASSWORD: 'SetPassword',
+  FORGOT_PASSWORD: 'ForgotPassword',
 } as const;
 
 export const MAIN_TABS = {

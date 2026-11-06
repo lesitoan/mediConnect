@@ -12,6 +12,7 @@ export type Appointment = {
   appointmentSlotId?: string;
   doctorId?: string;
   startsAt?: string;
+  canModify?: boolean;
   code: string;
   kind: ApptKind;
   daysFromNow: number; // âm = đã qua

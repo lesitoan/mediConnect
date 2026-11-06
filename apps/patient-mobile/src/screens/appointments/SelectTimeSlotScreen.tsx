@@ -24,7 +24,6 @@ import {
   CreditCardIcon,
   InfoIcon,
   ShieldCheckIcon,
-  StarIcon,
   SunIcon,
   SunsetIcon,
   type BookingIconProps,
@@ -57,7 +56,6 @@ const NAVY = '#12395C';
 const MUTED_TEXT = '#8A96A8';
 const DANGER_TEXT = '#E5484D';
 const VERIFIED_GREEN = '#2EAD6B';
-const RATING_COLOR = '#F5A524';
 const SLOT_AVAILABLE_BACKGROUND = '#E8F2FC';
 const SLOT_AVAILABLE_BORDER = '#B9D6F0';
 const SLOT_BOOKED_BACKGROUND = '#F1F4F8';
@@ -221,10 +219,6 @@ export default function SelectTimeSlotScreen({
               </View>
             </View>
             <View style={styles.flex}>
-              <View style={styles.ratingRow}>
-                <StarIcon size={13} color={RATING_COLOR} />
-                <Text style={styles.ratingText}>{doctor.rating.toFixed(1)}</Text>
-              </View>
               <Text style={styles.doctorName}>{doctor.fullName.toUpperCase()}</Text>
               <Text style={styles.doctorPosition}>{doctor.position}</Text>
             </View>
@@ -327,8 +321,12 @@ export default function SelectTimeSlotScreen({
           <View style={styles.priceBox}>
             <Text style={styles.priceLabel}>Giá khám tạm tính</Text>
             <View style={styles.priceRow}>
-              <Text style={styles.priceValue}>{formatNumber(service.minFee)}</Text>
-              <Text style={styles.priceUnit}>đ</Text>
+              <Text style={styles.priceValue}>
+                {service.minFee === null
+                  ? 'Chưa cập nhật'
+                  : formatNumber(service.minFee)}
+              </Text>
+              {service.minFee !== null && <Text style={styles.priceUnit}>đ</Text>}
             </View>
           </View>
         </View>

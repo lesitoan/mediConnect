@@ -10,11 +10,15 @@ const DEMO_PATIENT_PREFIX = 'Q-DEMO-P-';
 const DEMO_APPOINTMENT_PREFIX = 'Q-DEMO-A-';
 const DEMO_USER_EMAIL_PREFIX = 'q-demo-p-';
 const E2E_DOCTOR_CODE = 'STAFF-DEMO-01';
-const DEMO_DOCTOR_CODES = [
-  'SEED-GEN-01',
+const GENERAL_DOCTOR_CODE_CANDIDATES = ['BS01', 'SEED-GEN-01'] as const;
+const REQUIRED_DEMO_DOCTOR_CODES = [
   'SEED-GEN-02',
   'SEED-SUR-01',
   E2E_DOCTOR_CODE,
+] as const;
+const DEMO_DOCTOR_CODES = [
+  ...GENERAL_DOCTOR_CODE_CANDIDATES,
+  ...REQUIRED_DEMO_DOCTOR_CODES,
 ] as const;
 const BOARD_STATUSES = [
   CareSessionStatus.CHECKED_IN,
@@ -197,16 +201,53 @@ async function cleanup(prisma: PrismaClient): Promise<void> {
     select: {
       id: true,
       patientId: true,
-      careSessions: { select: { id: true, appointmentSlotId: true } },
+      careSessions: {
+        select: {
+          id: true,
+          appointmentSlotId: true,
+          appointmentSlot: { select: { startsAt: true, endsAt: true } },
+        },
+      },
     },
   });
   const appointmentIds = appointments.map(({ id }) => id);
-  const patientIds = [...new Set(appointments.map(({ patientId }) => patientId))];
+  const demoPatients = await prisma.patient.findMany({
+    where: { patientCode: { startsWith: DEMO_PATIENT_PREFIX } },
+    select: { id: true, userId: true },
+  });
+  const patientIds = [
+    ...new Set([
+      ...appointments.map(({ patientId }) => patientId),
+      ...demoPatients.map(({ id }) => id),
+    ]),
+  ];
+  const patientUserIds = demoPatients.flatMap(({ userId }) =>
+    userId ? [userId] : [],
+  );
+  const nonDemoAppointments = await prisma.appointment.findMany({
+    where: {
+      patientId: { in: demoPatients.map(({ id }) => id) },
+      NOT: { appointmentCode: { startsWith: DEMO_APPOINTMENT_PREFIX } },
+    },
+    select: { appointmentCode: true },
+  });
+  if (nonDemoAppointments.length) {
+    throw new Error(
+      `Q-DEMO patients have non-demo appointments (${nonDemoAppointments.map(({ appointmentCode }) => appointmentCode).join(', ')}); cleanup stopped to preserve external visits.`,
+    );
+  }
   const sessionIds = appointments.flatMap(({ careSessions }) =>
     careSessions.map(({ id }) => id),
   );
-  const slotIds = appointments.flatMap(({ careSessions }) =>
-    careSessions.map(({ appointmentSlotId }) => appointmentSlotId),
+  const legacySlotIds = appointments.flatMap(({ careSessions }) =>
+    careSessions
+      .filter(
+        ({ appointmentSlot }) =>
+          appointmentSlot.endsAt.getTime() -
+            appointmentSlot.startsAt.getTime() !==
+          30 * 60_000,
+      )
+      .map(({ appointmentSlotId }) => appointmentSlotId),
   );
   const consultations = await prisma.consultation.findMany({
     where: { careSessionId: { in: sessionIds } },
@@ -279,8 +320,14 @@ async function cleanup(prisma: PrismaClient): Promise<void> {
       await tx.appointment.deleteMany({
         where: { id: { in: appointmentIds } },
       });
-    if (slotIds.length)
-      await tx.appointmentSlot.deleteMany({ where: { id: { in: slotIds } } });
+    if (legacySlotIds.length)
+      await tx.appointmentSlot.deleteMany({
+        where: { id: { in: legacySlotIds } },
+      });
+    if (patientIds.length)
+      await tx.patient.deleteMany({ where: { id: { in: patientIds } } });
+    if (patientUserIds.length)
+      await tx.user.deleteMany({ where: { id: { in: patientUserIds } } });
   });
 }
 
@@ -293,7 +340,13 @@ type QueueFixtureScenario =
   | 'START'
   | 'SKIP_READY'
   | 'SKIP_WAIT'
+  | 'SKIP_179'
+  | 'SKIP_180'
+  | 'SKIP_THIRD'
   | 'RESTORE'
+  | 'PRIORITY'
+  | 'CALL_BLOCKED_CALLED'
+  | 'CALL_BLOCKED_IN_CONSULTATION'
   | 'IN_CONSULTATION_INCOMPLETE'
   | 'COMPLETED'
   | 'NO_SHOW'
@@ -321,7 +374,13 @@ function getQueueScenario(): QueueFixtureScenario {
     scenario !== 'START' &&
     scenario !== 'SKIP_READY' &&
     scenario !== 'SKIP_WAIT' &&
+    scenario !== 'SKIP_179' &&
+    scenario !== 'SKIP_180' &&
+    scenario !== 'SKIP_THIRD' &&
     scenario !== 'RESTORE' &&
+    scenario !== 'PRIORITY' &&
+    scenario !== 'CALL_BLOCKED_CALLED' &&
+    scenario !== 'CALL_BLOCKED_IN_CONSULTATION' &&
     scenario !== 'IN_CONSULTATION_INCOMPLETE' &&
     scenario !== 'COMPLETED' &&
     scenario !== 'NO_SHOW' &&
@@ -356,11 +415,21 @@ async function seed(
       select: { id: true },
     }));
   if (!admin) throw new Error('Không tìm thấy tài khoản ADMIN đang hoạt động.');
+  const now = requireE2EClock();
+  const queueDate = clinicDate();
+  const previousDate = new Date(queueDate.getTime() - 24 * 60 * 60_000);
+  const queueDateEnd = new Date(queueDate.getTime() + 24 * 60 * 60_000);
   const doctors = await prisma.doctor.findMany({
     where: {
       doctorCode: { in: [...DEMO_DOCTOR_CODES] },
       user: { status: 'ACTIVE' },
-      schedules: { some: { status: 'PUBLISHED' } },
+      schedules: {
+        some: {
+          status: 'PUBLISHED',
+          startsAt: { gte: queueDate, lt: queueDateEnd },
+          slotDurationMinutes: 30,
+        },
+      },
     },
     orderBy: { doctorCode: 'asc' },
     select: {
@@ -368,31 +437,111 @@ async function seed(
       doctorCode: true,
       specialtyId: true,
       schedules: {
-        where: { status: 'PUBLISHED' },
+        where: {
+          status: 'PUBLISHED',
+          startsAt: { gte: queueDate, lt: queueDateEnd },
+          slotDurationMinutes: 30,
+        },
         orderBy: { startsAt: 'asc' },
-        take: 1,
-        select: { id: true },
+        select: {
+          id: true,
+          startsAt: true,
+          endsAt: true,
+          slotDurationMinutes: true,
+        },
       },
     },
   });
+  const primaryGeneralDoctor =
+    doctors.find((doctor) => doctor.doctorCode === 'BS01') ??
+    doctors.find((doctor) => doctor.doctorCode === 'SEED-GEN-01');
+  const missingDoctorCodes = REQUIRED_DEMO_DOCTOR_CODES.filter(
+    (code) => !doctors.some((doctor) => doctor.doctorCode === code),
+  );
   if (
-    doctors.length !== DEMO_DOCTOR_CODES.length ||
-    doctors.some((doctor) => !doctor.schedules[0])
+    !primaryGeneralDoctor ||
+    primaryGeneralDoctor.schedules.length === 0 ||
+    missingDoctorCodes.some(
+      (code) =>
+        !doctors.some(
+          (doctor) => doctor.doctorCode === code && doctor.schedules.length > 0,
+        ),
+    )
   )
     throw new Error(
-      `Missing published schedules for ${DEMO_DOCTOR_CODES.filter((code) => !doctors.some((doctor) => doctor.doctorCode === code && doctor.schedules[0])).join(', ') || 'a required demo doctor'}. Run "npx.cmd tsx prisma\\seed-local-schedules.ts" before the queue seed.`,
+      `Missing published 30-minute schedules for ${[
+        ...missingDoctorCodes,
+        ...(!primaryGeneralDoctor || primaryGeneralDoctor.schedules.length === 0
+          ? ['SEED-GEN-01 (or legacy BS01)']
+          : []),
+      ].join(
+        ', ',
+      )} on ${clinicDate().toISOString().slice(0, 10)}. Set E2E_NOW and run "npm run prisma:seed:local-schedules" before the queue seed.`,
     );
   const patientRole = await prisma.role.findUnique({
     where: { name: 'PATIENT' },
   });
   if (!patientRole) throw new Error('Không tìm thấy role bệnh nhân.');
-  const now = requireE2EClock();
   const patientPasswordHash = await hash('123456', 12);
-  const queueDate = clinicDate();
   const queueNumbers = new Map<string, number>();
   const doctorsByCode = new Map(
     doctors.map((doctor) => [doctor.doctorCode, doctor]),
   );
+  doctorsByCode.set('SEED-GEN-01', primaryGeneralDoctor);
+  const scheduleById = new Map<
+    string,
+    {
+      doctor: (typeof doctors)[number];
+      schedule: (typeof doctors)[number]['schedules'][number];
+    }
+  >();
+  for (const doctor of doctors) {
+    for (const schedule of doctor.schedules) {
+      scheduleById.set(schedule.id, { doctor, schedule });
+    }
+  }
+  const availableSlots = await prisma.appointmentSlot.findMany({
+    where: {
+      doctorScheduleId: { in: [...scheduleById.keys()] },
+      startsAt: { gte: now, lt: queueDateEnd },
+      isBlocked: false,
+      careSessions: { none: {} },
+    },
+    orderBy: { startsAt: 'asc' },
+    select: {
+      id: true,
+      doctorScheduleId: true,
+      startsAt: true,
+      endsAt: true,
+    },
+  });
+  const slotsByDoctorCode = new Map<string, typeof availableSlots>();
+  for (const slot of availableSlots) {
+    const schedule = scheduleById.get(slot.doctorScheduleId)?.schedule;
+    const doctorCode = scheduleById.get(slot.doctorScheduleId)?.doctor
+      .doctorCode;
+    if (
+      doctorCode === 'SEED-GEN-01' &&
+      primaryGeneralDoctor.doctorCode !== 'SEED-GEN-01'
+    ) {
+      continue;
+    }
+    const mappedDoctorCode =
+      doctorCode === primaryGeneralDoctor.doctorCode
+        ? 'SEED-GEN-01'
+        : doctorCode;
+    if (
+      !schedule ||
+      !mappedDoctorCode ||
+      slot.endsAt.getTime() - slot.startsAt.getTime() !==
+        schedule.slotDurationMinutes * 60_000
+    ) {
+      continue;
+    }
+    const doctorSlots = slotsByDoctorCode.get(mappedDoctorCode) ?? [];
+    doctorSlots.push(slot);
+    slotsByDoctorCode.set(mappedDoctorCode, doctorSlots);
+  }
   if (scenario !== 'FULL') {
     const doctor = doctorsByCode.get(E2E_DOCTOR_CODE);
     if (!doctor)
@@ -486,13 +635,25 @@ async function seed(
                               : scenario === 'EMPTY'
                                 ? []
                                 : scenario === 'START' ||
-                                    scenario === 'SKIP_WAIT'
+                                    scenario === 'SKIP_WAIT' ||
+                                    scenario === 'SKIP_179' ||
+                                    scenario === 'SKIP_180' ||
+                                    scenario === 'SKIP_THIRD'
                                   ? [
                                       {
                                         ...DEMO_QUEUE[9],
                                         doctorCode: E2E_DOCTOR_CODE,
                                         calledAgoSeconds:
-                                          scenario === 'START' ? 30 : 60,
+                                          scenario === 'START'
+                                            ? 30
+                                            : scenario === 'SKIP_WAIT'
+                                              ? 60
+                                              : scenario === 'SKIP_179'
+                                                ? 179
+                                                : 180,
+                                        ...(scenario === 'SKIP_THIRD'
+                                          ? { skipCount: 2 }
+                                          : {}),
                                       },
                                     ]
                                   : scenario === 'SKIP_READY'
@@ -516,16 +677,109 @@ async function seed(
                                             doctorCode: E2E_DOCTOR_CODE,
                                           },
                                         ]
+                                      : scenario === 'PRIORITY'
+                                        ? DEMO_QUEUE.slice(0, 4).map((item) => ({
+                                            ...item,
+                                            doctorCode: E2E_DOCTOR_CODE,
+                                          }))
+                                        : scenario === 'CALL_BLOCKED_CALLED'
+                                          ? [
+                                              {
+                                                ...DEMO_QUEUE[9],
+                                                doctorCode: E2E_DOCTOR_CODE,
+                                                calledAgoSeconds: 60,
+                                              },
+                                              {
+                                                ...DEMO_QUEUE[0],
+                                                doctorCode: E2E_DOCTOR_CODE,
+                                              },
+                                            ]
+                                          : scenario ===
+                                              'CALL_BLOCKED_IN_CONSULTATION'
+                                            ? [
+                                                {
+                                                  ...DEMO_QUEUE[11],
+                                                  doctorCode: E2E_DOCTOR_CODE,
+                                                },
+                                                {
+                                                  ...DEMO_QUEUE[0],
+                                                  doctorCode: E2E_DOCTOR_CODE,
+                                                },
+                                              ]
                                       : [
                                           {
                                             ...DEMO_QUEUE[0],
                                             doctorCode: E2E_DOCTOR_CODE,
                                           },
                                         ];
+  const hasPastAppointment = queueFixtures.some(
+    (item) => 'isPastAppointment' in item && item.isPastAppointment,
+  );
+  let pastAppointmentSlot: (typeof availableSlots)[number] | null = null;
+  if (hasPastAppointment) {
+    const pastDoctor = doctorsByCode.get('SEED-GEN-01');
+    if (!pastDoctor)
+      throw new Error(
+        'Không tìm thấy bác sĩ nội tổng quát cho fixture quá giờ.',
+      );
+    const pastSchedule = await prisma.doctorSchedule.findFirst({
+      where: {
+        doctorId: pastDoctor.id,
+        status: 'PUBLISHED',
+        startsAt: { gte: previousDate, lt: queueDate },
+        slotDurationMinutes: 30,
+      },
+      orderBy: { startsAt: 'asc' },
+      select: { id: true, slotDurationMinutes: true },
+    });
+    if (!pastSchedule) {
+      throw new Error(
+        `Missing published 30-minute schedule for ${pastDoctor.doctorCode} on ${previousDate.toISOString().slice(0, 10)}. Rerun "npm run prisma:seed:local-schedules".`,
+      );
+    }
+    pastAppointmentSlot =
+      (await prisma.appointmentSlot.findFirst({
+        where: {
+          doctorScheduleId: pastSchedule.id,
+          startsAt: { gte: previousDate, lt: queueDate },
+          isBlocked: false,
+          careSessions: { none: {} },
+        },
+        orderBy: { startsAt: 'asc' },
+        select: {
+          id: true,
+          doctorScheduleId: true,
+          startsAt: true,
+          endsAt: true,
+        },
+      })) ?? null;
+    if (
+      !pastAppointmentSlot ||
+      pastAppointmentSlot.endsAt.getTime() -
+        pastAppointmentSlot.startsAt.getTime() !==
+        pastSchedule.slotDurationMinutes * 60_000
+    ) {
+      throw new Error(
+        `No available 30-minute appointment slot for ${pastDoctor.doctorCode} on ${previousDate.toISOString().slice(0, 10)}.`,
+      );
+    }
+  }
   for (const [index, item] of queueFixtures.entries()) {
     const doctor = doctorsByCode.get(item.doctorCode);
-    if (!doctor || !doctor.schedules[0])
-      throw new Error('Không tìm thấy lịch bác sĩ để tạo lượt demo.');
+    const isPastAppointment =
+      'isPastAppointment' in item && item.isPastAppointment;
+    const slot = isPastAppointment
+      ? pastAppointmentSlot
+      : slotsByDoctorCode.get(item.doctorCode)?.shift();
+    if (!doctor)
+      throw new Error(
+        `Không tìm thấy bác sĩ ${item.doctorCode} để tạo lượt demo.`,
+      );
+    if (!slot) {
+      throw new Error(
+        `Không còn slot lịch 30 phút đã xuất bản cho ${item.doctorCode} trong ngày ${queueDate.toISOString().slice(0, 10)}. Chạy seed local-schedules và kiểm tra các lịch hẹn chiếm slot.`,
+      );
+    }
     const queueNumber = queueNumbers.get(doctor.specialtyId);
     if (queueNumber === undefined)
       throw new Error('Không thể cấp STT demo theo chuyên khoa.');
@@ -592,9 +846,10 @@ async function seed(
       },
       select: { id: true },
     });
-    const patientMedicalRecords = DEMO_PATIENT_MEDICAL_RECORDS.filter(
-      ({ patientNumber }) => patientNumber === item.patientNumber,
-    ).map(({ patientNumber, ...record }) => record);
+    const patientMedicalRecords = DEMO_PATIENT_MEDICAL_RECORDS.flatMap(
+      ({ patientNumber, ...record }) =>
+        patientNumber === item.patientNumber ? [record] : [],
+    );
     for (const record of patientMedicalRecords) {
       await prisma.patientMedicalRecord.upsert({
         where: { id: record.id },
@@ -615,19 +870,6 @@ async function seed(
         },
       });
     }
-    const isPastAppointment =
-      'isPastAppointment' in item && item.isPastAppointment;
-    const startsAt = isPastAppointment
-      ? new Date(now.getTime() - 24 * 60 * 60_000)
-      : new Date(now.getTime() + (index + 1) * 60_000);
-    const appointmentSlot = await prisma.appointmentSlot.create({
-      data: {
-        doctorScheduleId: doctor.schedules[0].id,
-        startsAt,
-        endsAt: new Date(startsAt.getTime() + 15 * 60_000),
-      },
-      select: { id: true },
-    });
     const appointment = await prisma.appointment.create({
       data: {
         appointmentCode: `${DEMO_APPOINTMENT_PREFIX}${String(item.appointmentNumber).padStart(3, '0')}`,
@@ -655,7 +897,7 @@ async function seed(
     const careSession = await prisma.careSession.create({
       data: {
         appointmentId: appointment.id,
-        appointmentSlotId: appointmentSlot.id,
+        appointmentSlotId: slot.id,
         specialtyId: doctor.specialtyId,
         status: item.status as CareSessionStatus,
         checkedInAt: isScheduled ? null : now,
@@ -664,7 +906,12 @@ async function seed(
         queueNumber: isScheduled ? null : queueNumber,
         queuePosition: isScheduled ? null : queueNumber,
         priorityType: item.priorityType,
-        skipCount: item.status === 'SKIPPED' ? 1 : 0,
+        skipCount:
+          'skipCount' in item && typeof item.skipCount === 'number'
+            ? item.skipCount
+            : item.status === 'SKIPPED'
+              ? 1
+              : 0,
         calledAt:
           'calledAgoSeconds' in item
             ? new Date(now.getTime() - item.calledAgoSeconds * 1000)
@@ -734,7 +981,8 @@ async function seed(
                       ? [
                           {
                             orderRef: 'XN-SH-09',
-                            result: 'Q-DEMO Troponin T: within reference range.',
+                            result:
+                              'Q-DEMO Troponin T: within reference range.',
                             source: 'Q-DEMO local laboratory',
                             returnedAt: now.toISOString(),
                             recordedBy: admin.id,
@@ -763,7 +1011,8 @@ async function seed(
                     diagnosisCode: 'I10',
                     diagnosisName: 'Tăng huyết áp vô căn (nguyên phát)',
                     isPrimary: true,
-                    notes: 'Q-DEMO seeded primary diagnosis for examination tests.',
+                    notes:
+                      'Q-DEMO seeded primary diagnosis for examination tests.',
                   },
                 },
               }),

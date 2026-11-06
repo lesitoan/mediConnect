@@ -10,6 +10,7 @@ import {
   AppointmentStatus,
   CareSessionStatus,
   LeaveRequestPriority,
+  LeaveRequestSource,
   LeaveRequestStatus,
   LeaveRequestType,
   ScheduleExceptionResolution,
@@ -26,6 +27,9 @@ import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import type { CurrentUserDto } from '../users/dto/responses/current-user.dto';
 import {
   CRITICAL_CARE_SESSION_STATUSES,
+  DEFAULT_DOCTOR_SLOT_DURATION_MINUTES,
+  DEFAULT_WORKING_DAYS,
+  DEFAULT_WORK_WINDOWS,
   MIN_PLANNED_LEAVE_NOTICE_HOURS,
   WORKING_DAYS_PER_WEEK,
 } from './constants/schedules.constant';
@@ -42,6 +46,7 @@ import type { WorkScheduleMatrixQueryDto } from './dto/staff/work-schedule-matri
 import type { ProposeScheduleExceptionDto } from './dto/admin/propose-schedule-exception.dto';
 import type { RespondScheduleExceptionDto } from './dto/patient/respond-schedule-exception.dto';
 import { SchedulesRepository } from './schedules.repository';
+import { ScheduleExceptionWorkflowService } from './schedule-exception-workflow.service';
 import type { AvailabilityQueryDto } from './dto/availability-query.dto';
 
 function clinicDateStart(value: string): Date {
@@ -56,11 +61,23 @@ function clinicDateStart(value: string): Date {
   return date;
 }
 
+const CLINIC_TIME_FORMATTER = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Asia/Ho_Chi_Minh',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hourCycle: 'h23',
+});
+
+const MINUTES_PER_DAY = 24 * 60;
+const MINUTES_PER_WEEK = WORKING_DAYS_PER_WEEK * MINUTES_PER_DAY;
+
 @Injectable()
 export class SchedulesService {
   constructor(
     private readonly repository: SchedulesRepository,
     private readonly auditLogs: AuditLogsService,
+    private readonly scheduleExceptionWorkflow: ScheduleExceptionWorkflowService,
   ) {}
 
   async availability(query: AvailabilityQueryDto) {
@@ -72,7 +89,7 @@ export class SchedulesService {
       throw new BadRequestException('Khoảng tra cứu phải từ 1 đến 31 ngày.');
     }
 
-    await this.ensureDefaultDoctorSlots(from, until);
+    await this.ensureDoctorSlotsFromWorkSchedules(from, until);
 
     const now = getCurrentTime();
     const timeRanges: Record<string, [number, number]> = {
@@ -116,11 +133,51 @@ export class SchedulesService {
     return `${year}-${month}-${day}`;
   }
 
-  private clinicDateTime(date: Date, time: string) {
-    return new Date(`${this.clinicDateString(date)}T${time}:00+07:00`);
+  private clinicTime(value: Date) {
+    const parts = CLINIC_TIME_FORMATTER.formatToParts(value);
+    const hour = parts.find((part) => part.type === 'hour')?.value;
+    const minute = parts.find((part) => part.type === 'minute')?.value;
+    const second = parts.find((part) => part.type === 'second')?.value;
+    if (!hour || !minute || !second)
+      throw new Error('Unable to format clinic-local time');
+    return `${hour}:${minute}:${second}`;
   }
 
-  private async ensureDefaultDoctorSlots(from: Date, until: Date) {
+  private addClinicDays(date: string, days: number) {
+    const value = new Date(`${date}T00:00:00Z`);
+    value.setUTCDate(value.getUTCDate() + days);
+    return value.toISOString().slice(0, 10);
+  }
+
+  private getScheduleOccurrence(
+    schedule: {
+      startsAt: Date;
+      endsAt: Date;
+    },
+    date: string,
+  ) {
+    const scheduleStartDate = this.clinicDateString(schedule.startsAt);
+    const scheduleEndDate = this.clinicDateString(schedule.endsAt);
+    const endDayOffset = Math.round(
+      (new Date(`${scheduleEndDate}T00:00:00Z`).getTime() -
+        new Date(`${scheduleStartDate}T00:00:00Z`).getTime()) /
+        86400000,
+    );
+    const startsAt = new Date(
+      `${date}T${this.clinicTime(schedule.startsAt)}+07:00`,
+    );
+    const endsAt = new Date(
+      `${this.addClinicDays(date, endDayOffset)}T${this.clinicTime(schedule.endsAt)}+07:00`,
+    );
+    return { startsAt, endsAt };
+  }
+
+  private clinicWeekday(date: string) {
+    const day = new Date(`${date}T00:00:00Z`).getUTCDay();
+    return day === 0 ? 7 : day;
+  }
+
+  private async ensureDoctorSlotsFromWorkSchedules(from: Date, until: Date) {
     const doctors = await this.repository.findActiveDoctors();
     const now = getCurrentTime();
     for (const doctor of doctors) {
@@ -135,31 +192,44 @@ export class SchedulesService {
             doctor.id,
             day,
           );
-          for (const [shiftStart, shiftEnd] of [
-            ['08:00', '12:00'],
-            ['13:00', '18:00'],
-          ]) {
-            const startsAt = this.clinicDateTime(day, shiftStart);
-            const endsAt = this.clinicDateTime(day, shiftEnd);
+          const date = this.clinicDateString(day);
+          const workSchedules =
+            await this.repository.findPublishedDoctorWorkSchedules(
+              client,
+              doctor.userId,
+              this.clinicWeekday(date),
+              new Date(`${date}T00:00:00Z`),
+            );
+          for (const workSchedule of workSchedules) {
+            if (!workSchedule.slotDurationMinutes) continue;
+            const { startsAt, endsAt } = this.getScheduleOccurrence(
+              workSchedule,
+              date,
+            );
+            if (endsAt <= now) continue;
             let schedule = await this.repository.findDoctorSchedule(
               client,
               doctor.id,
               startsAt,
               endsAt,
             );
-            if (schedule?.status === 'ABSENT') continue;
+            if (
+              schedule?.status === 'ABSENT' ||
+              schedule?.status === 'CANCELLED'
+            )
+              continue;
             if (!schedule) {
               schedule = await this.repository.createDoctorSchedule(client, {
                 doctorId: doctor.id,
                 startsAt,
                 endsAt,
-                scheduleType: 'REGULAR',
+                scheduleType: workSchedule.scheduleType,
                 status: 'PUBLISHED',
-                slotDurationMinutes: 30,
+                slotDurationMinutes: workSchedule.slotDurationMinutes,
                 createdBy: doctor.userId,
                 publishedAt: now,
               });
-            } else if (schedule.status !== 'PUBLISHED') {
+            } else if (schedule.status === 'DRAFT') {
               schedule = await client.doctorSchedule.update({
                 where: { id: schedule.id },
                 data: { status: 'PUBLISHED', publishedAt: now },
@@ -178,15 +248,28 @@ export class SchedulesService {
             const slots: Prisma.AppointmentSlotCreateManyInput[] = [];
             for (
               let slotStart = new Date(startsAt);
-              slotStart.getTime() + 30 * 60000 <= endsAt.getTime();
-              slotStart = new Date(slotStart.getTime() + 30 * 60000)
+              slotStart < endsAt;
+              slotStart = new Date(
+                slotStart.getTime() + workSchedule.slotDurationMinutes * 60000,
+              )
             ) {
-              if (slotStart <= now || existingStarts.has(slotStart.getTime()))
+              const slotEnd = new Date(
+                Math.min(
+                  slotStart.getTime() +
+                    workSchedule.slotDurationMinutes * 60000,
+                  endsAt.getTime(),
+                ),
+              );
+              if (
+                slotStart <= now ||
+                slotEnd <= slotStart ||
+                existingStarts.has(slotStart.getTime())
+              )
                 continue;
               slots.push({
                 doctorScheduleId: schedule.id,
                 startsAt: slotStart,
-                endsAt: new Date(slotStart.getTime() + 30 * 60000),
+                endsAt: slotEnd,
               });
             }
             if (slots.length)
@@ -228,54 +311,141 @@ export class SchedulesService {
     input: CreateWorkScheduleDto,
     admin: CurrentUserDto,
   ) {
-    this.assertWeekday(input.dayOfWeek);
-    const startsAt = this.parseDate(input.startsAt, 'startsAt');
-    const endsAt = this.parseDate(input.endsAt, 'endsAt');
     const effectiveFrom = this.parseDate(input.effectiveFrom, 'effectiveFrom');
     const effectiveTo = input.effectiveTo
       ? this.parseDate(input.effectiveTo, 'effectiveTo')
       : null;
-    if (endsAt <= startsAt)
-      throw new BadRequestException('Invalid schedule range');
     if (effectiveTo && effectiveTo < effectiveFrom)
       throw new BadRequestException('Invalid effective date range');
-    if (input.staffType === StaffType.DOCTOR && !input.slotDurationMinutes)
-      throw new BadRequestException(
-        'slotDurationMinutes is required for doctors',
-      );
-    if (input.staffType === StaffType.RECEPTIONIST && input.slotDurationMinutes)
-      throw new BadRequestException(
-        'Receptionist schedules cannot create appointment slots',
-      );
+    return this.repository.transaction((client) =>
+      this.createDefaultWorkSchedules(
+        client,
+        input,
+        effectiveFrom,
+        effectiveTo,
+        admin,
+      ),
+    );
+  }
 
+  private async createDefaultWorkSchedules(
+    client: Prisma.TransactionClient,
+    input: CreateWorkScheduleDto,
+    effectiveFrom: Date,
+    effectiveTo: Date | null,
+    admin: CurrentUserDto,
+  ) {
     const staff = await this.repository.findStaffUser(input.staffUserId);
     if (!staff || staff.status !== UserStatus.ACTIVE || staff.deletedAt)
       throw new NotFoundException('Staff account not found or inactive');
     if (staff.role?.name !== input.staffType)
       throw new BadRequestException('Staff type does not match account role');
 
-    const overlap = await this.repository.findOverlappingWorkSchedules(
-      input.staffUserId,
-      startsAt,
-      endsAt,
+    const effectiveDate = this.clinicDateString(effectiveFrom);
+    const schedules = DEFAULT_WORKING_DAYS.flatMap((dayOfWeek) =>
+      DEFAULT_WORK_WINDOWS.map((window) => ({
+        dayOfWeek,
+        startsAt: new Date(
+          effectiveDate + 'T' + window.startsAt + ':00+07:00',
+        ),
+        endsAt: new Date(
+          effectiveDate + 'T' + window.endsAt + ':00+07:00',
+        ),
+      })),
     );
-    if (overlap.length)
+    const overlappingSchedules =
+      await this.repository.findOverlappingRecurringWorkSchedules({
+        staffUserId: input.staffUserId,
+        effectiveFrom,
+        effectiveTo,
+      });
+    if (
+      schedules.some((schedule) =>
+        overlappingSchedules.some((existing) =>
+          this.doRecurringSchedulesOverlap(
+            { ...schedule, effectiveFrom, effectiveTo },
+            existing,
+          ),
+        ),
+      )
+    )
       throw new ConflictException(
         'Schedule overlaps an existing work schedule',
       );
 
-    return this.repository.createWorkSchedule({
-      staffUserId: input.staffUserId,
-      staffType: input.staffType,
-      startsAt,
-      endsAt,
-      dayOfWeek: input.dayOfWeek,
-      effectiveFrom,
-      effectiveTo,
-      isRecurring: true,
-      scheduleType: input.scheduleType ?? 'REGULAR',
-      slotDurationMinutes: input.slotDurationMinutes,
-      createdBy: admin.id,
+    return Promise.all(
+      schedules.map((schedule) =>
+        this.repository.createWorkSchedule(
+          {
+            staffUserId: input.staffUserId,
+            staffType: input.staffType,
+            startsAt: schedule.startsAt,
+            endsAt: schedule.endsAt,
+            dayOfWeek: schedule.dayOfWeek,
+            effectiveFrom,
+            effectiveTo,
+            isRecurring: true,
+            scheduleType: 'REGULAR',
+            slotDurationMinutes:
+              input.staffType === StaffType.DOCTOR
+                ? DEFAULT_DOCTOR_SLOT_DURATION_MINUTES
+                : null,
+            createdBy: admin.id,
+          },
+          client,
+        ),
+      ),
+    );
+  }
+
+  private doRecurringSchedulesOverlap(
+    left: {
+      dayOfWeek: number;
+      startsAt: Date;
+      endsAt: Date;
+      effectiveFrom: Date;
+      effectiveTo: Date | null;
+    },
+    right: {
+      dayOfWeek: number;
+      startsAt: Date;
+      endsAt: Date;
+      effectiveFrom: Date;
+      effectiveTo: Date | null;
+    },
+  ) {
+    if (
+      (left.effectiveTo &&
+        this.clinicDateString(left.effectiveTo) <
+          this.clinicDateString(right.effectiveFrom)) ||
+      (right.effectiveTo &&
+        this.clinicDateString(right.effectiveTo) <
+          this.clinicDateString(left.effectiveFrom))
+    )
+      return false;
+
+    const getWeeklyStartMinute = (schedule: {
+      dayOfWeek: number;
+      startsAt: Date;
+    }) => {
+      const [hour, minute] = this.clinicTime(schedule.startsAt)
+        .split(':')
+        .map(Number);
+      return (schedule.dayOfWeek - 1) * MINUTES_PER_DAY + hour * 60 + minute;
+    };
+    const leftStart = getWeeklyStartMinute(left);
+    const rightStart = getWeeklyStartMinute(right);
+    const leftDuration =
+      (left.endsAt.getTime() - left.startsAt.getTime()) / 60000;
+    const rightDuration =
+      (right.endsAt.getTime() - right.startsAt.getTime()) / 60000;
+
+    return [-MINUTES_PER_WEEK, 0, MINUTES_PER_WEEK].some((offset) => {
+      const shiftedRightStart = rightStart + offset;
+      return (
+        leftStart < shiftedRightStart + rightDuration &&
+        leftStart + leftDuration > shiftedRightStart
+      );
     });
   }
 
@@ -283,11 +453,30 @@ export class SchedulesService {
     input: CreateWorkSchedulesDto,
     admin: CurrentUserDto,
   ) {
-    const created = [];
-    for (const schedule of input.schedules) {
-      created.push(await this.createWorkSchedule(schedule, admin));
-    }
-    return created;
+    return this.repository.transaction(async (client) => {
+      const created = [];
+      for (const schedule of input.schedules) {
+        const effectiveFrom = this.parseDate(
+          schedule.effectiveFrom,
+          'effectiveFrom',
+        );
+        const effectiveTo = schedule.effectiveTo
+          ? this.parseDate(schedule.effectiveTo, 'effectiveTo')
+          : null;
+        if (effectiveTo && effectiveTo < effectiveFrom)
+          throw new BadRequestException('Invalid effective date range');
+        created.push(
+          ...(await this.createDefaultWorkSchedules(
+            client,
+            schedule,
+            effectiveFrom,
+            effectiveTo,
+            admin,
+          )),
+        );
+      }
+      return created;
+    });
   }
 
   listWorkSchedules(query: WorkScheduleQueryDto) {
@@ -320,12 +509,19 @@ export class SchedulesService {
       (item) =>
         item.role && (!query.staffType || item.role.name === query.staffType),
     );
-    const leaves = await this.repository.findApprovedLeaveRequests(
-      users.map((item) => item.id),
-      users.flatMap((item) => (item.doctor ? [item.doctor.id] : [])),
-      startDate,
-      until,
-    );
+    const [workSchedules, leaveRequests] = await Promise.all([
+      this.repository.findWorkSchedulesForMatrix(
+        users.map((item) => item.id),
+        startDate,
+        until,
+      ),
+      this.repository.findScheduleLeaveRequests(
+        users.map((item) => item.id),
+        users.flatMap((item) => (item.doctor ? [item.doctor.id] : [])),
+        startDate,
+        until,
+      ),
+    ]);
     const dates: string[] = [];
     for (
       let date = new Date(startDate);
@@ -345,33 +541,50 @@ export class SchedulesService {
           staffMember.doctor?.doctorCode ??
           staffMember.id.slice(0, 8).toUpperCase(),
         specialtyName: staffMember.doctor?.specialty.name ?? 'Lễ tân',
-        shifts: dates.flatMap((date) =>
-          [
-            { key: 'MORNING', startsAt: '08:00', endsAt: '12:00' },
-            { key: 'AFTERNOON', startsAt: '13:00', endsAt: '18:00' },
-          ].map((shift) => {
-            const shiftStartsAt = new Date(
-              `${date}T${shift.startsAt}:00+07:00`,
+        shifts: dates.flatMap((date) => {
+          const dateDay = this.clinicWeekday(date);
+          const dateSchedules = workSchedules.filter(
+            (schedule) =>
+              schedule.staffUserId === staffMember.id &&
+              schedule.dayOfWeek === dateDay &&
+              this.clinicDateString(schedule.effectiveFrom) <= date &&
+              (!schedule.effectiveTo ||
+                this.clinicDateString(schedule.effectiveTo) >= date),
+          );
+          return dateSchedules.map((schedule) => {
+            const { startsAt, endsAt } = this.getScheduleOccurrence(
+              schedule,
+              date,
             );
-            const shiftEndsAt = new Date(`${date}T${shift.endsAt}:00+07:00`);
-            const hasApprovedLeave = leaves.some(
+            const matchingLeaveRequests = leaveRequests.filter(
               (leaveRequest) =>
                 (leaveRequest.staffUserId === staffMember.id ||
                   (staffMember.doctor &&
                     leaveRequest.doctorId === staffMember.doctor.id)) &&
-                leaveRequest.startsAt < shiftEndsAt &&
-                leaveRequest.endsAt !== null &&
-                leaveRequest.endsAt > shiftStartsAt,
+                leaveRequest.startsAt < endsAt &&
+                (leaveRequest.endsAt === null ||
+                  leaveRequest.endsAt > startsAt),
             );
+            const status = matchingLeaveRequests.some(
+              (leaveRequest) =>
+                leaveRequest.status === LeaveRequestStatus.APPROVED,
+            )
+              ? 'ABSENT'
+              : matchingLeaveRequests.some(
+                    (leaveRequest) =>
+                      leaveRequest.status === LeaveRequestStatus.RESOLVING,
+                  )
+                ? 'RESOLVING'
+                : schedule.status;
             return {
               date,
-              key: shift.key,
-              startsAt: shiftStartsAt.toISOString(),
-              endsAt: shiftEndsAt.toISOString(),
-              status: hasApprovedLeave ? 'ABSENT' : 'PUBLISHED',
+              key: schedule.id,
+              startsAt: startsAt.toISOString(),
+              endsAt: endsAt.toISOString(),
+              status,
             };
-          }),
-        ),
+          });
+        }),
       })),
     };
   }
@@ -394,56 +607,94 @@ export class SchedulesService {
     if (schedule.status === StaffWorkScheduleStatus.CANCELLED)
       throw new ConflictException('Cancelled schedule cannot be published');
     return this.repository.transaction(async (client) => {
-      const published = await client.staffWorkSchedule.update({
-        where: { id },
+      const weeklySchedules = await client.staffWorkSchedule.findMany({
+        where: {
+          staffUserId: schedule.staffUserId,
+          staffType: schedule.staffType,
+          effectiveFrom: schedule.effectiveFrom,
+          effectiveTo: schedule.effectiveTo,
+          status: {
+            in: [
+              StaffWorkScheduleStatus.DRAFT,
+              StaffWorkScheduleStatus.PUBLISHED,
+            ],
+          },
+        },
+        include: {
+          staffUser: { include: { doctor: true, role: true } },
+        },
+      });
+
+      await client.staffWorkSchedule.updateMany({
+        where: { id: { in: weeklySchedules.map((item) => item.id) } },
         data: {
           status: StaffWorkScheduleStatus.PUBLISHED,
           publishedAt: getCurrentTime(),
         },
       });
-      if (
-        schedule.staffType === StaffType.DOCTOR &&
-        schedule.staffUser.doctor &&
-        schedule.slotDurationMinutes
-      ) {
+
+      for (const weeklySchedule of weeklySchedules) {
         await this.materializeDoctorSchedules(
           client,
-          schedule,
-          admin?.id ?? schedule.createdBy,
+          weeklySchedule,
+          admin?.id ?? weeklySchedule.createdBy,
         );
       }
-      return published;
+
+      return client.staffWorkSchedule.findUniqueOrThrow({ where: { id } });
     });
   }
 
   private async materializeDoctorSchedules(
     client: import('../../generated/prisma/client').Prisma.TransactionClient,
-    schedule: Awaited<ReturnType<SchedulesService['getWorkSchedule']>>,
+    schedule: {
+      dayOfWeek: number;
+      startsAt: Date;
+      endsAt: Date;
+      effectiveFrom: Date;
+      effectiveTo: Date | null;
+      scheduleType: import('../../generated/prisma/enums').ScheduleType;
+      slotDurationMinutes: number | null;
+      staffType: StaffType;
+      staffUser: { doctor: { id: string } | null };
+    },
     createdBy: string,
   ) {
     const doctorId = schedule.staffUser.doctor!.id;
     const slotDurationMinutes = schedule.slotDurationMinutes;
-    if (!slotDurationMinutes) return;
-    const startDate = this.startOfDay(
-      schedule.effectiveFrom > getCurrentTime()
-        ? schedule.effectiveFrom
-        : getCurrentTime(),
+    if (
+      schedule.staffType !== StaffType.DOCTOR ||
+      slotDurationMinutes !== DEFAULT_DOCTOR_SLOT_DURATION_MINUTES
+    )
+      return;
+    const now = getCurrentTime();
+    const today = this.clinicDateString(now);
+    const effectiveFrom = this.clinicDateString(schedule.effectiveFrom);
+    const weekAnchor = effectiveFrom > today ? effectiveFrom : today;
+    const weekStart = this.addClinicDays(
+      weekAnchor,
+      -(this.clinicWeekday(weekAnchor) - 1),
     );
-    const configuredEnd = schedule.effectiveTo
-      ? this.startOfDay(schedule.effectiveTo)
-      : this.addDays(startDate, 90);
-    const endDate = configuredEnd < startDate ? startDate : configuredEnd;
+    const weekEnd = this.addClinicDays(weekStart, WORKING_DAYS_PER_WEEK - 1);
+    const firstDate =
+      effectiveFrom > weekStart
+        ? effectiveFrom > today
+          ? effectiveFrom
+          : today
+        : weekStart;
+    const configuredEndDate = schedule.effectiveTo
+      ? this.clinicDateString(schedule.effectiveTo)
+      : weekEnd;
+    const endDate = configuredEndDate < weekEnd ? configuredEndDate : weekEnd;
 
     for (
-      const date = new Date(startDate);
+      let date = firstDate;
       date <= endDate;
-      date.setDate(date.getDate() + 1)
+      date = this.addClinicDays(date, 1)
     ) {
-      const dayOfWeek = date.getDay() === 0 ? 7 : date.getDay();
-      if (dayOfWeek !== schedule.dayOfWeek) continue;
+      if (this.clinicWeekday(date) !== schedule.dayOfWeek) continue;
 
-      const startsAt = this.withTime(date, schedule.startsAt);
-      const endsAt = this.withTime(date, schedule.endsAt);
+      const { startsAt, endsAt } = this.getScheduleOccurrence(schedule, date);
       if (endsAt <= getCurrentTime()) continue;
 
       const existing = await this.repository.findDoctorSchedule(
@@ -491,29 +742,6 @@ export class SchedulesService {
     }
   }
 
-  private startOfDay(value: Date) {
-    const date = new Date(value);
-    date.setHours(0, 0, 0, 0);
-    return date;
-  }
-
-  private addDays(value: Date, days: number) {
-    const date = new Date(value);
-    date.setDate(date.getDate() + days);
-    return date;
-  }
-
-  private withTime(date: Date, time: Date) {
-    const result = new Date(date);
-    result.setHours(
-      time.getHours(),
-      time.getMinutes(),
-      time.getSeconds(),
-      time.getMilliseconds(),
-    );
-    return result;
-  }
-
   async cancelWorkSchedule(id: string) {
     await this.getWorkSchedule(id);
     return this.repository.updateWorkSchedule(id, {
@@ -546,6 +774,7 @@ export class SchedulesService {
         'Only doctors and receptionists can preview leave impact',
       );
 
+    await this.getWorkSchedulesAffectedByLeave(user.id, startsAt, endsAt);
     if (!staff.doctor) return { affectedSessions: [] };
 
     const affectedSessions = await this.repository.findAffectedCareSessions(
@@ -578,11 +807,11 @@ export class SchedulesService {
     const endsAt = this.parseDate(input.endsAt, 'endsAt');
     if (endsAt <= startsAt)
       throw new BadRequestException('Invalid leave range');
-    const affectedShifts = this.getOverlappingClinicShifts(startsAt, endsAt);
-    if (!affectedShifts.length)
-      throw new BadRequestException(
-        'Khoảng nghỉ không giao với ca làm việc 08:00–12:00 hoặc 13:00–18:00.',
-      );
+    if (startsAt <= getCurrentTime())
+      throw new BadRequestException('Leave must start in the future');
+    const reason = input.reason.trim();
+    if (!reason)
+      throw new BadRequestException('Reason must contain non-whitespace text');
     const noticeHours = Math.floor(
       (startsAt.getTime() - getCurrentTime().getTime()) / 3_600_000,
     );
@@ -611,6 +840,12 @@ export class SchedulesService {
       throw new ForbiddenException(
         'Only doctors and receptionists can request leave',
       );
+    const affectedSchedules = await this.getWorkSchedulesAffectedByLeave(
+      user.id,
+      startsAt,
+      endsAt,
+    );
+
     const request = await this.repository.transaction(async (client) => {
       const created = await this.repository.createLeaveRequest(client, {
         doctorId: staff.doctor?.id ?? null,
@@ -622,7 +857,7 @@ export class SchedulesService {
             : LeaveRequestPriority.NORMAL,
         startsAt,
         endsAt,
-        reason: input.reason.trim(),
+        reason,
         status: LeaveRequestStatus.PENDING,
         noticeHours,
       });
@@ -634,35 +869,88 @@ export class SchedulesService {
         created.id,
         {
           requestType: input.requestType,
-          scheduleCount: affectedShifts.length,
+          scheduleCount: affectedSchedules.length,
         },
+      );
+      await this.repository.createLeaveRequestSchedules(
+        client,
+        affectedSchedules.map((schedule) => ({
+          leaveRequestId: created.id,
+          staffWorkScheduleId: schedule.id,
+        })),
       );
       return created;
     });
     return request;
   }
 
-  private getOverlappingClinicShifts(startsAt: Date, endsAt: Date) {
-    const shifts: Array<{ startsAt: Date; endsAt: Date }> = [];
-    const firstDate = clinicDateStart(this.clinicDateString(startsAt));
-    const lastDate = clinicDateStart(this.clinicDateString(endsAt));
-    for (
-      let date = new Date(firstDate);
-      date <= lastDate;
-      date = new Date(date.getTime() + 86400000)
-    ) {
-      for (const [shiftStart, shiftEnd] of [
-        ['08:00', '12:00'],
-        ['13:00', '18:00'],
-      ]) {
-        const shiftStartsAt = this.clinicDateTime(date, shiftStart);
-        const shiftEndsAt = this.clinicDateTime(date, shiftEnd);
-        if (shiftStartsAt < endsAt && shiftEndsAt > startsAt) {
-          shifts.push({ startsAt: shiftStartsAt, endsAt: shiftEndsAt });
-        }
-      }
+  private hasRecurringOccurrenceOverlap(
+    schedule: {
+      dayOfWeek: number;
+      startsAt: Date;
+      endsAt: Date;
+      effectiveFrom: Date;
+      effectiveTo: Date | null;
+    },
+    startsAt: Date,
+    endsAt: Date,
+  ) {
+    const requestStartDate = this.clinicDateString(startsAt);
+    const requestEndDate = this.clinicDateString(endsAt);
+    const earliestOccurrence = this.addClinicDays(requestStartDate, -1);
+    const effectiveStartDate = this.clinicDateString(schedule.effectiveFrom);
+    const effectiveEndDate = schedule.effectiveTo
+      ? this.clinicDateString(schedule.effectiveTo)
+      : requestEndDate;
+    const startDate =
+      earliestOccurrence > effectiveStartDate
+        ? earliestOccurrence
+        : effectiveStartDate;
+    const endDate =
+      requestEndDate < effectiveEndDate ? requestEndDate : effectiveEndDate;
+    if (startDate > endDate) return false;
+
+    const weekdayOffset =
+      (schedule.dayOfWeek - this.clinicWeekday(startDate) + 7) %
+      WORKING_DAYS_PER_WEEK;
+    let occurrenceDate = this.addClinicDays(startDate, weekdayOffset);
+    if (occurrenceDate > endDate) return false;
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const occurrence = this.getScheduleOccurrence(schedule, occurrenceDate);
+      if (occurrence.startsAt < endsAt && occurrence.endsAt > startsAt)
+        return true;
+      if (occurrence.startsAt >= endsAt) return false;
+      occurrenceDate = this.addClinicDays(
+        occurrenceDate,
+        WORKING_DAYS_PER_WEEK,
+      );
+      if (occurrenceDate > endDate) return false;
     }
-    return shifts;
+    return false;
+  }
+
+  private async getWorkSchedulesAffectedByLeave(
+    staffUserId: string,
+    startsAt: Date,
+    endsAt: Date,
+  ) {
+    const requestStartDate = this.clinicDateString(startsAt);
+    const requestEndDate = this.clinicDateString(endsAt);
+    const workSchedules =
+      await this.repository.findPublishedWorkSchedulesForStaff(
+        staffUserId,
+        clinicDateStart(this.addClinicDays(requestStartDate, -1)),
+        clinicDateStart(this.addClinicDays(requestEndDate, 1)),
+      );
+    const affectedSchedules = workSchedules.filter((schedule) =>
+      this.hasRecurringOccurrenceOverlap(schedule, startsAt, endsAt),
+    );
+    if (!affectedSchedules.length)
+      throw new BadRequestException(
+        'Khoảng nghỉ không giao với ca làm việc đã công bố của nhân viên.',
+      );
+    return affectedSchedules;
   }
 
   listOwnLeaveRequests(user: CurrentUserDto) {
@@ -689,6 +977,7 @@ export class SchedulesService {
       ...(query.status ? { status: query.status } : {}),
       ...(query.requestType ? { requestType: query.requestType } : {}),
       ...(query.priority ? { priority: query.priority } : {}),
+      source: LeaveRequestSource.DOCTOR_REQUEST,
     });
   }
 
@@ -737,6 +1026,11 @@ export class SchedulesService {
     input: RejectLeaveRequestDto,
     admin: CurrentUserDto,
   ) {
+    const rejectionReason = input.rejectionReason.trim();
+    if (!rejectionReason)
+      throw new BadRequestException(
+        'Rejection reason must contain non-whitespace text',
+      );
     const request = await this.getLeaveRequest(id);
     if (
       request.status !== LeaveRequestStatus.PENDING &&
@@ -793,7 +1087,7 @@ export class SchedulesService {
       }
       const updated = await this.repository.updateLeaveRequest(client, id, {
         status: LeaveRequestStatus.REJECTED,
-        rejectionReason: input.rejectionReason.trim(),
+        rejectionReason,
         reviewedBy: admin.id,
         reviewedAt: getCurrentTime(),
       });
@@ -855,6 +1149,7 @@ export class SchedulesService {
         }
       }
 
+      const exceptionIds: string[] = [];
       for (const session of affected) {
         const exception = await this.repository.createScheduleException(
           client,
@@ -866,6 +1161,7 @@ export class SchedulesService {
             reason: 'Chờ quản trị viên đề xuất phương án cho bệnh nhân',
           },
         );
+        exceptionIds.push(exception.id);
         if (replacementDoctor) {
           await this.repository.createScheduleReassignment(client, {
             exceptionId: exception.id,
@@ -878,9 +1174,19 @@ export class SchedulesService {
         }
       }
       if (affected.length) {
-        await this.repository.markAppointmentsPendingResolution(client, [
+        const appointmentIds = [
           ...new Set(affected.map((session) => session.appointmentId)),
-        ]);
+        ];
+        await this.repository.markAppointmentsPendingResolution(
+          client,
+          appointmentIds,
+        );
+        await this.scheduleExceptionWorkflow.startResolution({
+          leaveRequestId: id,
+          exceptionIds,
+          appointmentIds,
+          actorId: admin.id,
+        });
       }
       const nextStatus = affected.length
         ? LeaveRequestStatus.RESOLVING
@@ -969,7 +1275,7 @@ export class SchedulesService {
       const shiftDate = clinicDateStart(
         this.clinicDateString(originalSlot.startsAt),
       );
-      await this.ensureDefaultDoctorSlots(
+      await this.ensureDoctorSlotsFromWorkSchedules(
         shiftDate,
         new Date(shiftDate.getTime() + 86400000),
       );

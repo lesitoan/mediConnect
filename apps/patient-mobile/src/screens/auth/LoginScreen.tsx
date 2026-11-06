@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import {
-  Alert,
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -122,7 +122,7 @@ type LoginScreenProps = {
   onPressHelp?: () => void;
   onPressRegister?: () => void;
   onPressForgotPassword?: () => void;
-  onLoginSuccess?: (phone: string) => void; // FIX
+  onLogin?: (phone: string, password: string) => Promise<void>;
 };
 
 const LANGUAGES: Language[] = ['VIE', 'EN'];
@@ -133,7 +133,7 @@ export default function LoginScreen({
   onPressHelp,
   onPressRegister,
   onPressForgotPassword,
-  onLoginSuccess, // FIX
+  onLogin,
 }: LoginScreenProps) {
   const [language, setLanguage] = useState<Language>('VIE');
   const [phone, setPhone] = useState('');
@@ -144,6 +144,8 @@ export default function LoginScreen({
   const [isFocusedPassword, setIsFocusedPassword] = useState(false);
   const [phoneError, setPhoneError] = useState('');
   const [passwordError, setPasswordError] = useState('');
+  const [requestError, setRequestError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const validate = () => {
     const nextPhoneError = PHONE_PATTERN.test(phone) ? '' : 'Số điện thoại không hợp lệ';
@@ -153,13 +155,20 @@ export default function LoginScreen({
     return !nextPhoneError && !nextPasswordError;
   };
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (!validate()) return;
-    if (onLoginSuccess) { // FIX
-      onLoginSuccess(phone); // FIX
-      return; // FIX
-    } // FIX
-    Alert.alert('Đăng nhập', `Số điện thoại: ${phone}`);
+    if (!onLogin || isSubmitting) return;
+    setIsSubmitting(true);
+    setRequestError('');
+    try {
+      await onLogin(phone.trim(), password);
+    } catch (error) {
+      setRequestError(
+        error instanceof Error ? error.message : 'Không thể đăng nhập.',
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -239,7 +248,11 @@ export default function LoginScreen({
                     placeholderTextColor={COLORS.PLACEHOLDER}
                     keyboardType="phone-pad"
                     value={phone}
-                    onChangeText={setPhone}
+                    onChangeText={(value) => {
+                      setPhone(value);
+                      setRequestError('');
+                      setPhoneError('');
+                    }}
                     onFocus={() => setIsFocusedPhone(true)}
                     onBlur={() => setIsFocusedPhone(false)}
                   />
@@ -264,7 +277,11 @@ export default function LoginScreen({
                     secureTextEntry={isPasswordHidden}
                     autoCapitalize="none"
                     value={password}
-                    onChangeText={setPassword}
+                    onChangeText={(value) => {
+                      setPassword(value);
+                      setRequestError('');
+                      setPasswordError('');
+                    }}
                     onFocus={() => setIsFocusedPassword(true)}
                     onBlur={() => setIsFocusedPassword(false)}
                   />
@@ -298,6 +315,8 @@ export default function LoginScreen({
                 </TouchableOpacity>
               </View>
 
+              {!!requestError && <Text style={styles.errorText}>{requestError}</Text>}
+
               <TouchableOpacity activeOpacity={0.85} onPress={handleLogin}>
                 <LinearGradient
                   colors={[COLORS.BUTTON_GRADIENT_START, COLORS.BUTTON_GRADIENT_END]}
@@ -305,7 +324,11 @@ export default function LoginScreen({
                   end={{ x: 1, y: 0 }}
                   style={styles.primaryButton}
                 >
-                  <Text style={styles.primaryButtonText}>Đăng nhập</Text>
+                  {isSubmitting ? (
+                    <ActivityIndicator color={COLORS.SURFACE} />
+                  ) : (
+                    <Text style={styles.primaryButtonText}>Đăng nhập</Text>
+                  )}
                 </LinearGradient>
               </TouchableOpacity>
             </View>

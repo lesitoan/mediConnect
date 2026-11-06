@@ -41,18 +41,19 @@ type AccountProfile = Profile & {
   birthDate?: string;
   gender?: string;
   email?: string;
+  address?: string;
 };
 
 const SCREEN_PADDING = 16;
 const NAVY = '#12395C';
 const FIELD_BACKGROUND = '#EEF3F8';
 const BACKGROUND_GRADIENT = ['#E3EFFB', COLORS.BACKGROUND] as const;
-const EMAIL_PATTERN = /^\S+@\S+\.\S+$/;
 const BIRTH_DATE_PATTERN = /^(\d{2})\/(\d{2})\/(\d{4})$/;
 
 const GENDER_OPTIONS: { value: AccountGender; label: string }[] = [
   { value: 'MALE', label: 'Nam' },
   { value: 'FEMALE', label: 'Nữ' },
+  { value: 'OTHER', label: 'Khác' },
 ];
 
 const maskPhone = (phone: string) =>
@@ -82,7 +83,7 @@ const isValidBirthDate = (value: string) => {
 };
 
 const parseGender = (value?: string): AccountGender | '' =>
-  value === 'MALE' || value === 'FEMALE' ? value : '';
+  value === 'MALE' || value === 'FEMALE' || value === 'OTHER' ? value : '';
 
 type FieldProps = {
   label: string;
@@ -118,6 +119,7 @@ export default function PersonalInfoScreen({ onPressBack }: PersonalInfoScreenPr
   const [birthDate, setBirthDate] = useState('');
   const [gender, setGender] = useState<AccountGender | ''>('');
   const [email, setEmail] = useState('');
+  const [address, setAddress] = useState('');
   const [errors, setErrors] = useState<Partial<Record<string, string>>>({});
   const [isGenderSheetOpen, setIsGenderSheetOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -131,11 +133,20 @@ export default function PersonalInfoScreen({ onPressBack }: PersonalInfoScreenPr
         if (!current) return;
         const names = splitFullName(current.fullName);
         setProfile(current);
-        setLastName(names.lastName.toUpperCase());
-        setFirstName(names.firstName.toUpperCase());
+        setLastName(names.lastName);
+        setFirstName(names.firstName);
         setBirthDate(BIRTH_DATE_PATTERN.test(current.birthDate ?? '') ? (current.birthDate ?? '') : '');
         setGender(parseGender(current.gender));
         setEmail(current.email ?? '');
+        setAddress(current.address ?? '');
+      })
+      .catch((error: unknown) => {
+        if (isActive) {
+          Alert.alert(
+            'Không thể tải hồ sơ',
+            error instanceof Error ? error.message : 'Vui lòng thử lại sau.',
+          );
+        }
       })
       .finally(() => {
         if (isActive) setIsLoading(false);
@@ -151,29 +162,35 @@ export default function PersonalInfoScreen({ onPressBack }: PersonalInfoScreenPr
     const nextErrors: Partial<Record<string, string>> = {};
     if (!lastName.trim()) nextErrors.lastName = 'Vui lòng nhập họ và tên lót';
     if (!firstName.trim()) nextErrors.firstName = 'Vui lòng nhập tên';
-    if (!isValidBirthDate(birthDate)) nextErrors.birthDate = 'Ngày sinh không hợp lệ';
-    if (!gender) nextErrors.gender = 'Chọn giới tính';
-    if (email.trim() && !EMAIL_PATTERN.test(email.trim())) nextErrors.email = 'Email không hợp lệ';
+    if (birthDate && !isValidBirthDate(birthDate)) {
+      nextErrors.birthDate = 'Ngày sinh không hợp lệ';
+    }
     setErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
   };
 
   const handleSubmit = async () => {
-    if (isSubmitting || !validate() || !gender) return;
+    if (isSubmitting || !validate()) return;
     try {
       setIsSubmitting(true);
+      const dateParts = birthDate.split('/');
       await updatePersonalInfo({
-        lastName: lastName.trim(),
-        firstName: firstName.trim(),
-        birthDate,
-        gender,
-        email: email.trim(),
+        fullName: `${lastName.trim()} ${firstName.trim()}`.trim(),
+        dateOfBirth:
+          dateParts.length === 3
+            ? `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}`
+            : null,
+        gender: gender || null,
+        address,
       });
       Alert.alert('Thành công', 'Thông tin cá nhân đã được cập nhật.', [
         { text: 'OK', onPress: () => onPressBack?.() },
       ]);
-    } catch {
-      Alert.alert('Không thể cập nhật', 'Vui lòng thử lại sau.');
+    } catch (error: unknown) {
+      Alert.alert(
+        'Không thể cập nhật',
+        error instanceof Error ? error.message : 'Vui lòng thử lại sau.',
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -239,16 +256,16 @@ export default function PersonalInfoScreen({ onPressBack }: PersonalInfoScreenPr
         </Field>
 
         <Field label="Họ và tên lót" error={errors.lastName}>
-          {renderInput('lastName', lastName, (text) => setLastName(text.toUpperCase()), {
+          {renderInput('lastName', lastName, setLastName, {
             placeholder: 'Họ và tên lót',
-            autoCapitalize: 'characters',
+            autoCapitalize: 'words',
           })}
         </Field>
 
         <Field label="Tên" error={errors.firstName}>
-          {renderInput('firstName', firstName, (text) => setFirstName(text.toUpperCase()), {
+          {renderInput('firstName', firstName, setFirstName, {
             placeholder: 'Tên',
-            autoCapitalize: 'characters',
+            autoCapitalize: 'words',
           })}
         </Field>
 
@@ -277,11 +294,16 @@ export default function PersonalInfoScreen({ onPressBack }: PersonalInfoScreenPr
           </Field>
         </View>
 
-        <Field label="Email" error={errors.email}>
-          {renderInput('email', email, setEmail, {
-            placeholder: 'Email...',
-            keyboardType: 'email-address',
-            autoCapitalize: 'none',
+        <Field label="Email" labelAdornment={<LockIcon size={14} color={COLORS.ICON_MUTED} />}>
+          <View style={[styles.inputBox, styles.inputBoxLocked]}>
+            <Text style={styles.lockedText}>{email || 'Chưa cập nhật'}</Text>
+          </View>
+        </Field>
+
+        <Field label="Địa chỉ">
+          {renderInput('address', address, setAddress, {
+            placeholder: 'Nhập địa chỉ',
+            autoCapitalize: 'sentences',
           })}
         </Field>
       </ScrollView>

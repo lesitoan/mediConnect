@@ -20,8 +20,6 @@ import { getVietnamDate } from "@/lib/dateUtils";
 
 interface CreateScheduleFormValues
   extends Omit<CreateScheduleInput, "startsAt" | "endsAt" | "effectiveTo"> {
-  startsAt: string;
-  endsAt: string;
   effectiveTo: string;
 }
 
@@ -65,13 +63,8 @@ export function CreateScheduleModal({
     defaultValues: {
       staffUserId: "",
       staffType: "DOCTOR",
-      dayOfWeek: 1,
-      startsAt: "07:30",
-      endsAt: "12:00",
       effectiveFrom: getVietnamDate(),
       effectiveTo: "",
-      scheduleType: "REGULAR",
-      slotDurationMinutes: 30,
     },
   });
 
@@ -81,13 +74,8 @@ export function CreateScheduleModal({
     reset({
       staffUserId: activeDoctors[0]?.userId ?? "",
       staffType: "DOCTOR",
-      dayOfWeek: 1,
-      startsAt: "07:30",
-      endsAt: "12:00",
       effectiveFrom: dates[0] ?? getVietnamDate(),
       effectiveTo: "",
-      scheduleType: "REGULAR",
-      slotDurationMinutes: 30,
     });
   }, [activeDoctors, dates, isOpen, reset, resetMutation]);
 
@@ -97,13 +85,8 @@ export function CreateScheduleModal({
       await createSchedule({
         staffUserId: values.staffUserId,
         staffType: "DOCTOR",
-        dayOfWeek: values.dayOfWeek,
-        startsAt: `${values.effectiveFrom}T${values.startsAt}:00+07:00`,
-        endsAt: `${values.effectiveFrom}T${values.endsAt}:00+07:00`,
         effectiveFrom: values.effectiveFrom,
         ...(values.effectiveTo ? { effectiveTo: values.effectiveTo } : {}),
-        scheduleType: values.scheduleType,
-        slotDurationMinutes: values.slotDurationMinutes,
       }).unwrap();
       toast.success("Đã tạo lịch lặp theo tuần.");
       onClose();

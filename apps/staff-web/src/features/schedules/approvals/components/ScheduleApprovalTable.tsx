@@ -31,7 +31,7 @@ export function ScheduleApprovalTable({
       <TableHeader>
         <TableRow>
           <TableHead className="w-[35%] px-6 py-3.5">
-            Yêu cầu & Bác sĩ
+            Yêu cầu & Nhân viên
           </TableHead>
           <TableHead className="w-[25%] px-6 py-3.5">Loại yêu cầu</TableHead>
           <TableHead className="w-[22%] px-6 py-3.5">Ngày / Ca</TableHead>

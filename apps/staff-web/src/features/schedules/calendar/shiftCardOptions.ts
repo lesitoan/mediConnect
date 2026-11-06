@@ -5,6 +5,18 @@ import type {
 
 export const SCHEDULE_SHIFT_CARD_OPTIONS: readonly ScheduleShiftCardOption[] = [
   {
+    statuses: ["DRAFT"],
+    className: "border-border bg-secondary/30",
+    titleClassName: "text-muted",
+    descriptionClassName: "text-muted",
+    badge: {
+      label: "Bản nháp",
+      className:
+        "rounded-app-sm bg-surface px-1 py-0.5 text-label font-semibold text-muted",
+    },
+    getTitle: (shift: ScheduleShift) => shift.shiftName,
+  },
+  {
     statuses: ["PUBLISHED"],
     className: "border-success/30 bg-success-bg",
     titleClassName: "text-success",
