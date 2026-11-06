@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, View } from 'react-native';
+import { useState } from 'react';
+import { Alert } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import BookingProfileScreen from '../screens/appointments/BookingProfileScreen';
@@ -27,57 +27,12 @@ import AuthNavigator from './AuthNavigator';
 import MainTabNavigator from './MainTabNavigator';
 import { ROOT_ROUTES } from './routes';
 import type { RootStackParamList } from './types';
-import { logoutPatient, restorePatientSession } from '../services/authService';
-import { COLORS } from '../constants/theme';
 
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function RootNavigator() {
-  const [isSignedIn, setIsSignedIn] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    let isActive = true;
-    restorePatientSession()
-      .then((isAuthenticated) => {
-        if (isActive) setIsSignedIn(isAuthenticated);
-      })
-      .catch((error: unknown) => {
-        if (isActive) {
-          Alert.alert(
-            'Không thể khôi phục phiên',
-            error instanceof Error ? error.message : 'Vui lòng đăng nhập lại.',
-          );
-          setIsSignedIn(false);
-        }
-      });
-    return () => {
-      isActive = false;
-    };
-  }, []);
-
-  const handleSignOut = async () => {
-    try {
-      await logoutPatient();
-    } catch (error: unknown) {
-      Alert.alert(
-        'Không thể kết thúc phiên trên máy chủ',
-        error instanceof Error
-          ? error.message
-          : 'Phiên trên thiết bị đã bị xóa. Hãy thử lại khi có kết nối.',
-      );
-    } finally {
-      setIsSignedIn(false);
-    }
-  };
-
-  if (isSignedIn === null) {
-    return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator color={COLORS.PRIMARY} />
-      </View>
-    );
-  }
+  const [isSignedIn, setIsSignedIn] = useState(false);
 
   return (
     <NavigationContainer>
@@ -85,7 +40,7 @@ export default function RootNavigator() {
         {isSignedIn ? (
           <>
             <Stack.Screen name={ROOT_ROUTES.MAIN}>
-              {() => <MainTabNavigator onSignOut={handleSignOut} />}
+              {() => <MainTabNavigator onSignOut={() => setIsSignedIn(false)} />}
             </Stack.Screen>
             
             <Stack.Screen name={ROOT_ROUTES.AI_CHAT}>
@@ -190,10 +145,11 @@ export default function RootNavigator() {
                   onPressBack={() => navigation.goBack()}
                   onPressHome={() => navigation.popToTop()}
                   onPressChangeProfile={() => navigation.goBack()}
-                  onContinue={({ specialty }) =>
+                  onContinue={({ specialty, service }) =>
                     navigation.navigate(ROOT_ROUTES.SELECT_DOCTOR, {
                       profile: route.params.profile,
                       specialty,
+                      service,
                     })
                   }
                 />
@@ -205,12 +161,14 @@ export default function RootNavigator() {
                 <SelectDoctorScreen
                   profile={route.params.profile}
                   specialty={route.params.specialty}
+                  service={route.params.service}
                   onPressBack={() => navigation.goBack()}
                   onPressHome={() => navigation.popToTop()}
                   onContinue={({ day, doctor }) =>
                     navigation.navigate(ROOT_ROUTES.SELECT_TIME_SLOT, {
                       profile: route.params.profile,
                       specialty: route.params.specialty,
+                      service: route.params.service,
                       doctor,
                       day,
                     })
@@ -224,6 +182,7 @@ export default function RootNavigator() {
                 <SelectTimeSlotScreen
                   profile={route.params.profile}
                   specialty={route.params.specialty}
+                  service={route.params.service}
                   doctor={route.params.doctor}
                   day={route.params.day}
                   onPressBack={() => navigation.goBack()}
@@ -233,6 +192,7 @@ export default function RootNavigator() {
                     navigation.navigate(ROOT_ROUTES.CONFIRM_BOOKING, {
                       profile: route.params.profile,
                       specialty: route.params.specialty,
+                      service: route.params.service,
                       doctor: route.params.doctor,
                       day: route.params.day,
                       slot,
@@ -247,6 +207,7 @@ export default function RootNavigator() {
                 <ConfirmBookingScreen
                   profile={route.params.profile}
                   specialty={route.params.specialty}
+                  service={route.params.service}
                   doctor={route.params.doctor}
                   day={route.params.day}
                   slot={route.params.slot}

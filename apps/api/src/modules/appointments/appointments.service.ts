@@ -13,14 +13,10 @@ import type { BookAppointmentDto } from './dto/patient/book-appointment.dto';
 import type { CancelAppointmentDto } from './dto/patient/cancel-appointment.dto';
 import type { RescheduleAppointmentDto } from './dto/patient/reschedule-appointment.dto';
 import { AppointmentsRepository } from './appointments.repository';
-import { getCurrentTime } from '../../common/utils/e2e-clock';
 
 const MIN_BOOKING_NOTICE_HOURS = 2;
-const APPOINTMENT_CHANGE_CUTOFF_HOURS = 2;
+const APPOINTMENT_CHANGE_CUTOFF_HOURS = 12;
 const MAX_RESCHEDULE_COUNT = 2;
-const PATIENT_CHANGEABLE_SLOT_SESSION_STATUSES = [
-  CareSessionStatus.SCHEDULED,
-] as const;
 const ACTIVE_SLOT_SESSION_STATUSES = [
   CareSessionStatus.SCHEDULED,
   CareSessionStatus.CHECKED_IN,
@@ -38,7 +34,7 @@ export class AppointmentsService {
 
   async book(input: BookAppointmentDto, user: CurrentUserDto) {
     const patient = await this.requirePatient(user.id);
-    const now = getCurrentTime();
+    const now = new Date();
 
     try {
       const appointmentId = await this.repository.transaction(
@@ -144,7 +140,7 @@ export class AppointmentsService {
         );
         if (!newSlot)
           throw new NotFoundException('New appointment slot not found');
-        this.assertBookableSlot(newSlot, getCurrentTime());
+        this.assertBookableSlot(newSlot, new Date());
         await this.assertSlotOutsideLeave(
           client,
           newSlot.doctorSchedule.doctorId,
@@ -284,20 +280,16 @@ export class AppointmentsService {
     const session = appointment.careSessions[0];
     if (!session?.appointmentSlot)
       throw new ConflictException('Appointment slot not found');
-    if (
-      !PATIENT_CHANGEABLE_SLOT_SESSION_STATUSES.includes(
-        session.status as never,
-      )
-    )
+    if (!ACTIVE_SLOT_SESSION_STATUSES.includes(session.status as never))
       throw new ConflictException(
         'Appointment cannot be changed in its current state',
       );
     if (
-      session.appointmentSlot.startsAt.getTime() - getCurrentTime().getTime() <
+      session.appointmentSlot.startsAt.getTime() - Date.now() <
       APPOINTMENT_CHANGE_CUTOFF_HOURS * 3600000
     )
       throw new ConflictException(
-        'Appointment can only be changed at least 2 hours before examination',
+        'Appointment can only be changed at least 12 hours before examination',
       );
   }
 
@@ -313,20 +305,16 @@ export class AppointmentsService {
     const session = appointment.careSessions[0];
     if (!session?.appointmentSlot)
       throw new ConflictException('Appointment slot not found');
-    if (
-      !PATIENT_CHANGEABLE_SLOT_SESSION_STATUSES.includes(
-        session.status as never,
-      )
-    )
+    if (!ACTIVE_SLOT_SESSION_STATUSES.includes(session.status as never))
       throw new ConflictException(
         'Appointment cannot be cancelled in its current state',
       );
     if (
-      session.appointmentSlot.startsAt.getTime() - getCurrentTime().getTime() <
+      session.appointmentSlot.startsAt.getTime() - Date.now() <
       APPOINTMENT_CHANGE_CUTOFF_HOURS * 3600000
     )
       throw new ConflictException(
-        'Appointment can only be cancelled at least 2 hours before examination',
+        'Appointment can only be cancelled at least 12 hours before examination',
       );
   }
 

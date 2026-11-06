@@ -342,7 +342,7 @@ function buildDays(now: Date) {
   const out: Date[] = [];
   const d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   while (out.length < DAYS_AHEAD) {
-    out.push(new Date(d));
+    if (d.getDay() !== 0 && d.getDay() !== 6) out.push(new Date(d));
     d.setDate(d.getDate() + 1);
   }
   return out;
@@ -489,7 +489,7 @@ export function RescheduleModal({
               }`}
             >
               <span className={`text-[10px] font-bold ${active ? "text-white/80" : "text-slate-400"}`}>
-                {d.getDay() === 0 ? "CN" : `T${d.getDay() + 1}`}
+                T{d.getDay() + 1}
               </span>
               <span className="text-xl font-extrabold leading-tight">{d.getDate()}</span>
               <span className={`text-[10px] ${active ? "text-white/80" : "text-slate-400"}`}>
@@ -595,12 +595,8 @@ export function CancelModal({
     setError("");
     try {
       await onConfirm();
-    } catch (submitError: unknown) {
-      setError(
-        submitError instanceof Error
-          ? submitError.message
-          : "Không thể hủy lịch lúc này. Vui lòng thử lại.",
-      );
+    } catch {
+      setError("Không thể hủy lịch lúc này. Vui lòng thử lại.");
       setBusy(false);
     }
   };

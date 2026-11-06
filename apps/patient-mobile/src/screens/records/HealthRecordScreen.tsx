@@ -106,14 +106,6 @@ export default function HealthRecordScreen({ onPressBack, onPressCategory }: Hea
         const defaultProfile = data.find((item) => item.isSelf) ?? data[0];
         setActiveProfileId(defaultProfile ? defaultProfile.id : null);
       })
-      .catch((error: unknown) => {
-        if (isActive) {
-          Alert.alert(
-            'Không thể tải hồ sơ',
-            error instanceof Error ? error.message : 'Vui lòng thử lại sau.',
-          );
-        }
-      })
       .finally(() => {
         if (isActive) setIsLoadingProfiles(false);
       });

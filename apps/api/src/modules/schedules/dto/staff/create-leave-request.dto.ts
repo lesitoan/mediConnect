@@ -1,7 +1,6 @@
 import {
   IsDateString,
   IsEnum,
-  Matches,
   IsString,
   MaxLength,
   MinLength,
@@ -19,9 +18,6 @@ export class CreateLeaveRequestDto {
   endsAt: string;
 
   @IsString()
-  @Matches(/\S/, {
-    message: 'reason must contain at least one non-whitespace character',
-  })
   @MinLength(1)
   @MaxLength(2000)
   reason: string;

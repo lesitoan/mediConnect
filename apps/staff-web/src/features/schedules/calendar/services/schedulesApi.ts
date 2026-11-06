@@ -94,13 +94,13 @@ export const schedulesApi = baseApi
                 { type: "SCHEDULES", id: "LIST" },
               ],
       }),
-      createSchedule: build.mutation<WorkSchedule[], CreateScheduleInput>({
+      createSchedule: build.mutation<WorkSchedule, CreateScheduleInput>({
         query: (data) => ({
           url: "/admin/work-schedules",
           method: "POST",
           data,
         }),
-        transformResponse: (response: ApiResponse<WorkSchedule[]>) =>
+        transformResponse: (response: ApiResponse<WorkSchedule>) =>
           response.data,
         invalidatesTags: (_result, error) =>
           error ? [] : [{ type: "SCHEDULES", id: "LIST" }],

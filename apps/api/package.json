@@ -35,7 +35,6 @@
     "prisma:seed:clinic": "tsx prisma/seed-clinic.ts",
     "prisma:seed:local-schedules": "tsx prisma/seed-local-schedules.ts",
     "prisma:seed:patient": "tsx prisma/seed-patient.ts",
-    "prisma:seed:appointments-uc06": "tsx prisma/seed-appointments-uc06.ts",
     "prisma:seed:queue-demo": "tsx prisma/seed-queue-demo.ts",
     "prisma:seed:reception-demo": "tsx prisma/seed-reception-demo.ts",
     "prisma:seed:staff": "tsx prisma/seed-staff.ts",
