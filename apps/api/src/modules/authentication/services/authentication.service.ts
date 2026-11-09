@@ -278,6 +278,31 @@ export class AuthenticationService {
     return { message: id ? 'Signed out' : 'Signed out from all devices' };
   }
 
+  async changePassword(
+    userId: string,
+    currentPassword: string,
+    nextPassword: string,
+  ): Promise<{ message: string }> {
+    await this.usersService.withLockedAccount(userId, async (tx) => {
+      const user = await tx.user.findUnique({
+        where: { id: userId },
+        include: { role: true },
+      });
+      if (!user || !this.usersService.isAllowedToAuthenticate(user))
+        throw new UnauthorizedException('Account is unavailable');
+      if (!user.passwordHash || !(await compare(currentPassword, user.passwordHash)))
+        throw new UnauthorizedException('Current password is incorrect');
+      const passwordHash = await hash(nextPassword, 12);
+      await this.usersService.changePassword(
+        tx,
+        userId,
+        passwordHash,
+        new Date(),
+      );
+    });
+    return { message: 'Password updated. Please sign in again' };
+  }
+
   async revokeSession(
     userId: string,
     id: string,

@@ -395,6 +395,25 @@ export class UsersService {
     });
   }
 
+  async changePassword(
+    tx: Prisma.TransactionClient,
+    userId: string,
+    passwordHash: string,
+    now: Date,
+  ): Promise<void> {
+    await tx.user.update({
+      where: { id: userId },
+      data: { passwordHash, passwordChangedAt: now },
+    });
+    const revoked = await tx.authSession.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: now, revocationReason: 'PASSWORD_CHANGE' },
+    });
+    await this.recordAccountEvent(tx, userId, 'ACCOUNT_CHANGE_CREDENTIALS', {
+      revokedSessions: revoked.count,
+    });
+  }
+
   async recordAccountEvent(
     tx: Prisma.TransactionClient,
     userId: string,

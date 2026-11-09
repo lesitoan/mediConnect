@@ -33,6 +33,9 @@ export type Appointment = {
   queue?: string;
   phone: string;
   rescheduleCount?: number; // số lần đã đổi lịch (SRS: tối đa 2 lần/lịch)
+  consultationId?: string;
+  hasReview?: boolean;
+  isPaid?: boolean;
 };
 
 // TODO: thay bằng API lấy lịch hẹn của chính bệnh nhân đang đăng nhập (UC06)

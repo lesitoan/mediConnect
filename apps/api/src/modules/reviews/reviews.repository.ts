@@ -61,6 +61,17 @@ export class ReviewsRepository {
     return client.review.create({ data });
   }
 
+  updateReview(
+    reviewId: string,
+    data: Prisma.ReviewUpdateInput,
+    client: Prisma.TransactionClient,
+  ) {
+    return client.review.updateMany({
+      where: { id: reviewId, editCount: 0 },
+      data,
+    });
+  }
+
   transaction<T>(callback: (client: Prisma.TransactionClient) => Promise<T>) {
     return this.prisma.$transaction(callback, {
       isolationLevel: 'Serializable',

@@ -20,7 +20,7 @@ import {
 const NAV_ITEMS: { label: string; href: string; ai?: boolean }[] = [
   { label: "Trang chủ", href: "/" },
   { label: "Đặt lịch khám", href: "/dat-lich" },
-  { label: "Hồ sơ sức khỏe", href: "/ho-so-suc-khoe" },
+  { label: "Hồ sơ cá nhân", href: "/ho-so-suc-khoe" },
   { label: "Lịch sử & Lịch hẹn", href: "/lich-su-lich-hen" },
   { label: "Trợ lý AI", href: "/tro-ly-ai", ai: true }, // mở popup, không dùng href
   //{ label: "Thanh toán viện phí", href: "/thanh-toan" },
@@ -134,7 +134,7 @@ export default function AuthedHeader({ user }: { user: SessionUser }) {
                       onClick={() => setMenuOpen(false)}
                       className="block rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-blue-50 hover:text-[#0A5A84]"
                     >
-                      Hồ sơ của tôi
+                      Hồ sơ cá nhân
                     </Link>
                     <button
                       type="button"

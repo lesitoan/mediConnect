@@ -12,9 +12,15 @@ import {
   Plus,
   Search,
   ShieldCheck,
+  Star,
+  X,
 } from "@/components/layout/icons";
 import SecurityNotice from "@/components/layout/SecurityNotice";
 import { useAuth } from "@/features/auth/useAuth";
+import ReviewForm from "@/features/review/components/ReviewForm";
+import VisitSummaryCard from "@/features/review/components/VisitSummaryCard";
+import { getVisit } from "@/features/review/data";
+import { getReview, type ReviewDetails } from "@/features/review/services/reviewsService";
 import type { Appointment } from "../data";
 import {
   ApiRequestError,
@@ -110,6 +116,44 @@ export default function AppointmentHistoryPage() {
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [rescheduleCode, setRescheduleCode] = useState<string | null>(null);
   const [cancelCode, setCancelCode] = useState<string | null>(null);
+  const [reviewCode, setReviewCode] = useState<string | null>(null);
+  const [reviewVisit, setReviewVisit] = useState<Awaited<ReturnType<typeof getVisit>>>(null);
+  const [reviewDetails, setReviewDetails] = useState<ReviewDetails | null>(null);
+  const [isReviewEditing, setIsReviewEditing] = useState(false);
+  const [isReviewLoading, setIsReviewLoading] = useState(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!reviewCode) {
+      return;
+    }
+
+    let isCurrent = true;
+    getVisit(reviewCode)
+      .then(async (visit) => {
+        if (isCurrent) setReviewVisit(visit);
+        if (visit?.alreadyReviewed && visit.consultationId) {
+          const details = await getReview(visit.consultationId);
+          if (!details) throw new Error("Không tìm thấy chi tiết đánh giá.");
+          if (isCurrent) setReviewDetails(details);
+        }
+      })
+      .catch((error: unknown) => {
+        if (isCurrent) {
+          setReviewVisit(null);
+          setReviewError(
+            error instanceof Error ? error.message : "Không thể tải thông tin phiên khám.",
+          );
+        }
+      })
+      .finally(() => {
+        if (isCurrent) setIsReviewLoading(false);
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [reviewCode]);
 
   const [notice, setNotice] = useState<string | null>(null);
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -250,6 +294,14 @@ export default function AppointmentHistoryPage() {
         onQr={(x) => setQrCode(x.code)}
         onReschedule={(x) => setRescheduleCode(x.code)}
         onCancel={(x) => setCancelCode(x.code)}
+        onReview={(x) => {
+          setReviewVisit(null);
+          setReviewDetails(null);
+          setIsReviewEditing(false);
+          setIsReviewLoading(true);
+          setReviewError(null);
+          setReviewCode(x.code);
+        }}
       />
     );
 
@@ -576,6 +628,128 @@ export default function AppointmentHistoryPage() {
           onClose={() => setCancelCode(null)}
           onConfirm={confirmCancel}
         />
+      )}
+      {reviewCode && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="review-modal-title"
+          className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/50 px-4 py-8"
+        >
+          <div className="mx-auto max-w-6xl rounded-3xl bg-[#F6FAFE] p-4 shadow-2xl sm:p-6">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#2B6CB0]">
+                  Phiên khám đã hoàn tất
+                </p>
+                <h2 id="review-modal-title" className="mt-1 text-2xl font-extrabold text-slate-900">
+                  Đánh giá phiên khám
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Kiểm tra thông tin phiên khám trước khi gửi đánh giá của bạn.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReviewCode(null)}
+                aria-label="Đóng cửa sổ đánh giá"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {isReviewLoading ? (
+              <div className="mt-6 h-96 animate-pulse rounded-2xl bg-white" />
+            ) : reviewError ? (
+              <p role="alert" className="mt-6 rounded-2xl bg-red-50 p-5 text-sm font-semibold text-red-700">
+                {reviewError}
+              </p>
+            ) : reviewVisit ? (
+              <div className="mt-6 grid items-start gap-6 lg:grid-cols-[320px_minmax(0,1fr)]">
+                <VisitSummaryCard visit={reviewVisit} />
+                {reviewVisit.alreadyReviewed ? (
+                  isReviewEditing ? (
+                    <ReviewForm
+                      visit={reviewVisit}
+                      review={reviewDetails ?? undefined}
+                      onSubmitted={async () => {
+                        if (!reviewVisit.consultationId) return;
+                        const details = await getReview(reviewVisit.consultationId);
+                        setReviewDetails(details);
+                        setIsReviewEditing(false);
+                        reloadAppointments();
+                        flash("Đã cập nhật đánh giá phiên khám thành công.");
+                      }}
+                    />
+                  ) : reviewDetails ? (
+                    <div className="rounded-2xl bg-white p-6 shadow-[0_6px_24px_rgba(10,90,132,0.08)]">
+                      <div className="flex flex-wrap items-start justify-between gap-4">
+                        <div>
+                          <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#2B6CB0]">
+                            Đánh giá của bạn
+                          </p>
+                          <h3 className="mt-1 text-xl font-extrabold text-slate-900">
+                            Chi tiết đánh giá phiên khám
+                          </h3>
+                        </div>
+                        {reviewDetails.canEdit && (
+                          <button
+                            type="button"
+                            onClick={() => setIsReviewEditing(true)}
+                            className="rounded-full bg-[#0A5A84] px-4 py-2 text-xs font-bold text-white transition hover:bg-[#08486B]"
+                          >
+                            Sửa đánh giá
+                          </button>
+                        )}
+                      </div>
+                      <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                        <div className="rounded-xl bg-blue-50/70 p-4">
+                          <p className="text-xs font-semibold text-slate-500">Đánh giá bác sĩ</p>
+                          <p className="mt-1 flex items-center gap-2 text-2xl font-extrabold text-[#0A5A84]">
+                            {reviewDetails.doctorRating}/5
+                            <Star className="h-5 w-5 fill-amber-400 text-amber-400" />
+                          </p>
+                        </div>
+                        <div className="rounded-xl bg-blue-50/70 p-4">
+                          <p className="text-xs font-semibold text-slate-500">Đánh giá dịch vụ</p>
+                          <p className="mt-1 flex items-center gap-2 text-2xl font-extrabold text-[#0A5A84]">
+                            {reviewDetails.serviceRating}/5
+                            <Star className="h-5 w-5 fill-amber-400 text-amber-400" />
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50 p-4">
+                        <p className="text-xs font-semibold text-slate-500">Nhận xét</p>
+                        <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
+                          {reviewDetails.comment || "Bạn chưa để lại nhận xét."}
+                        </p>
+                      </div>
+                      <p className="mt-4 text-xs text-slate-400">
+                        Bạn còn {reviewDetails.canEdit ? 1 : 0} lần chỉnh sửa đánh giá.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="h-72 animate-pulse rounded-2xl bg-white" />
+                  )
+                ) : (
+                  <ReviewForm
+                    visit={reviewVisit}
+                    onSubmitted={() => {
+                      setReviewCode(null);
+                      reloadAppointments();
+                      flash("Đã gửi đánh giá phiên khám thành công.");
+                    }}
+                  />
+                )}
+              </div>
+            ) : (
+              <p className="mt-6 rounded-2xl bg-white p-5 text-sm text-slate-600">
+                Không tìm thấy phiên khám cần đánh giá.
+              </p>
+            )}
+          </div>
+        </div>
       )}
     </section>
   );

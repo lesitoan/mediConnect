@@ -5,12 +5,18 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PaginationUtils } from '../../common/utils/pagination.utils';
-import { Prisma, UserRole } from '../../generated/prisma/client';
+import {
+  AllergySeverity,
+  MedicalRecordType,
+  Prisma,
+  UserRole,
+} from '../../generated/prisma/client';
 import { PermissionEnum } from '../authentication/constants/permissions.constant';
 import { PrismaService } from '../database/services/prisma.service';
 import { CurrentUserDto } from '../users/dto/responses/current-user.dto';
 import { ConsultationQueryDto } from './dto/patient/consultation-query.dto';
 import { MedicalRecordQueryDto } from './dto/patient/medical-record-query.dto';
+import { CreatePatientAllergyDto } from './dto/patient/create-patient-allergy.dto';
 
 const CONSULTATION_CONTEXT_SELECT = {
   id: true,
@@ -150,6 +156,46 @@ export class MedicalRecordsService {
       items,
       pagination: page.convertPaginationResponseDtoFromTotalRecords(total),
     };
+  }
+
+  async createPatientAllergy(
+    input: CreatePatientAllergyDto,
+    user: CurrentUserDto,
+  ) {
+    this.assertPatient(user);
+    if (!user.permissions.includes(PermissionEnum.MEDICAL_RECORDS_WRITE_ME))
+      throw new ForbiddenException(
+        'KhÃ´ng cÃ³ quyá»n cáº­p nháº­t tiá»n sá»­ vÃ  dá»‹ á»©ng cá»§a chÃ­nh mÃ¬nh.',
+      );
+    const patient = await this.prisma.patient.findUnique({
+      where: { userId: user.id },
+      select: { id: true },
+    });
+    if (!patient)
+      throw new NotFoundException('ChÆ°a cÃ³ há»“ sÆ¡ bá»‡nh nhÃ¢n liÃªn káº¿t.');
+    return this.prisma.patientMedicalRecord.create({
+      data: {
+        patientId: patient.id,
+        recordType: MedicalRecordType.ALLERGY,
+        name: input.name,
+        severity: input.severity ?? AllergySeverity.MILD,
+        description: input.description,
+        reaction: input.reaction,
+        createdBy: user.id,
+      },
+      select: {
+        id: true,
+        recordType: true,
+        name: true,
+        description: true,
+        reaction: true,
+        severity: true,
+        status: true,
+        confirmedAt: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
   }
 
   async listConsultations(query: ConsultationQueryDto, user: CurrentUserDto) {

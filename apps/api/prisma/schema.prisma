@@ -571,7 +571,9 @@ model Review {
   consultationId String   @unique @map("consultation_id") @db.Uuid
   doctorRating   Int      @map("doctor_rating") @db.SmallInt
   serviceRating  Int      @map("service_rating") @db.SmallInt
+  criteriaRatings Json?   @map("criteria_ratings")
   comment        String?  @db.Text
+  editCount      Int      @default(0) @map("edit_count")
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   consultation Consultation @relation("ReviewConsultationId", fields: [consultationId], references: [id], onDelete: Restrict, onUpdate: Cascade)

@@ -1,10 +1,12 @@
 import {
   Controller,
+  Body,
   Get,
   Header,
   Param,
   ParseUUIDPipe,
   Query,
+  Post,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { HttpResponseBodySuccessDto } from '../../common/dto/http-response-body-success.dto';
@@ -15,6 +17,7 @@ import { RoleEnum } from '../users/constants/roles.constant';
 import { CurrentUserDto } from '../users/dto/responses/current-user.dto';
 import { ConsultationQueryDto } from './dto/patient/consultation-query.dto';
 import { MedicalRecordQueryDto } from './dto/patient/medical-record-query.dto';
+import { CreatePatientAllergyDto } from './dto/patient/create-patient-allergy.dto';
 import { MedicalRecordsService } from './medical-records.service';
 
 @ApiTags('My medical records')
@@ -35,6 +38,22 @@ export class PatientMedicalRecordsController {
   ) {
     const { items, pagination } = await this.records.listRecords(query, user);
     return new HttpResponseBodySuccessDto(items, pagination);
+  }
+
+  @Post('medical-records')
+  @Auth({
+    roles: [RoleEnum.PATIENT],
+    permissions: [PermissionEnum.MEDICAL_RECORDS_WRITE_ME],
+  })
+  @Header('Cache-Control', 'no-store')
+  @ApiOperation({ summary: 'Khai bÃ¡o dá»‹ á»©ng cá»§a chÃ­nh mÃ¬nh' })
+  async createAllergy(
+    @Body() input: CreatePatientAllergyDto,
+    @CurrentUser() user: CurrentUserDto,
+  ) {
+    return new HttpResponseBodySuccessDto(
+      await this.records.createPatientAllergy(input, user),
+    );
   }
 
   @Get('consultations')

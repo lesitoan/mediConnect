@@ -33,6 +33,7 @@ type Props = {
   onQr: (a: Appointment) => void;
   onReschedule: (a: Appointment) => void;
   onCancel: (a: Appointment) => void;
+  onReview: (a: Appointment) => void;
 };
 
 export default function AppointmentCard({
@@ -42,6 +43,7 @@ export default function AppointmentCard({
   onQr,
   onReschedule,
   onCancel,
+  onReview,
 }: Props) {
   const start = startOf(appt, now);
   const upcoming = appt.kind === "confirmed" || appt.kind === "followup";
@@ -248,6 +250,20 @@ export default function AppointmentCard({
                 Hủy lịch
               </button>
             </>
+          )}
+          {appt.kind === "completed" && appt.isPaid && appt.consultationId && (
+              <button
+                type="button"
+                onClick={() => onReview(appt)}
+                className={`${btn} ${
+                  appt.hasReview
+                    ? "border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                    : "bg-[#0A5A84] text-white hover:bg-[#08486B]"
+                }`}
+              >
+                <Star className="h-3.5 w-3.5" />
+                {appt.hasReview ? "Đã đánh giá" : "Đánh giá dịch vụ"}
+              </button>
           )}
         </div>
       </div>
