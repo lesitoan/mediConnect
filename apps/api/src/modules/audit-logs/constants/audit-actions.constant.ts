@@ -23,6 +23,7 @@ export const AUDIT_ACTION_LABELS: Readonly<Record<string, string>> = {
   MANUAL_PAYMENT_CREATE: 'Ghi nhận thu tiền mặt',
   SEPAY_QR_PREPARE: 'Phát QR SePay',
   SEPAY_PAYMENT_RECEIVE: 'Tiếp nhận giao dịch SePay',
+  SEPAY_PAYMENT_RECONCILE: 'Đối soát giao dịch SePay khi nhận lại webhook',
   SEPAY_WEBHOOK_CONFLICT: 'Giao dịch SePay trùng ID nhưng khác nội dung',
   EXPORT_AUDIT_LOG: 'Xuất nhật ký hệ thống',
   ACCOUNT_CONTACT_CHANGED: 'Đổi liên hệ đăng nhập',
