@@ -47,6 +47,7 @@ export interface NavItem {
   href: string;
   icon?: LucideIcon;
   activeMatch?: boolean;
+  visibleRoles?: UserRole[];
   children?: NavChildItem[];
 }
 
@@ -117,6 +118,7 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Lịch làm việc của tôi",
     href: "/schedules/calendar",
     icon: CalendarCheck,
+    visibleRoles: ["DOCTOR", "RECEPTIONIST"],
   },
   {
     label: "Bác sĩ & Chuyên khoa",
