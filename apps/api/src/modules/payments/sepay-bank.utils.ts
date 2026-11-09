@@ -50,3 +50,19 @@ export function normalizeBank(value: string): string | undefined {
     aliases.some((alias) => normalize(alias) === key),
   )?.[0];
 }
+
+export function matchesSepayBankAccount(
+  expectedBank: string,
+  expectedAccount: string,
+  payload: {
+    gateway: string;
+    accountNumber: string;
+    subAccount: string | null;
+  },
+): boolean {
+  const bank = normalizeBank(payload.gateway);
+  if (!bank || bank !== normalizeBank(expectedBank)) return false;
+  if (payload.accountNumber === expectedAccount) return true;
+  // BIDV reports the receiving official VA in subAccount, separate from its parent account.
+  return bank === 'BIDV' && payload.subAccount === expectedAccount;
+}

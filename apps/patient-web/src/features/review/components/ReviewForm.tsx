@@ -24,6 +24,12 @@ import {
   type Visit,
 } from "../data";
 import StarRating from "./StarRating";
+import {
+  createReview,
+  updateReview,
+  type ReviewDetails,
+  type ReviewInput,
+} from "../services/reviewsService";
 
 const CRITERIA_ICON = {
   doctor: Stethoscope,
@@ -57,17 +63,27 @@ function StepHead({
   );
 }
 
-export default function ReviewForm({ visit }: { visit: Visit }) {
-  const [overall, setOverall] = useState(5);
+export default function ReviewForm({
+  visit,
+  onSubmitted,
+  review,
+}: {
+  visit: Visit;
+  onSubmitted?: () => void;
+  review?: ReviewDetails;
+}) {
+  const [overall, setOverall] = useState(review?.doctorRating ?? 5);
   const [scores, setScores] = useState<Record<string, number>>(
-    Object.fromEntries(CRITERIA.map((c) => [c.key, 5])),
+    Object.fromEntries(
+      CRITERIA.map((c) => [c.key, review?.criteriaRatings?.[c.key] ?? review?.serviceRating ?? 5]),
+    ),
   );
   const [tags, setTags] = useState<string[]>([
     "Bác sĩ tận tâm",
     "Giải thích rõ ràng",
     "Phòng khám hiện đại, sạch sẽ",
   ]);
-  const [comment, setComment] = useState("");
+  const [comment, setComment] = useState(review?.comment ?? "");
   const [anonymous, setAnonymous] = useState(true);
   const [confirming, setConfirming] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -83,10 +99,29 @@ export default function ReviewForm({ visit }: { visit: Visit }) {
     setSubmitting(true);
     setError("");
     try {
-      // TODO: gọi API tạo đánh giá (UC06). Backend kiểm tra: phiên khám thuộc bệnh nhân,
-      // đã "Hoàn thành", chưa được đánh giá; lưu lỗi thì rollback; cập nhật điểm TB của bác sĩ.
-      await new Promise((r) => setTimeout(r, 700));
+      if (!visit.consultationId) throw new Error("Không tìm thấy phiên khám để đánh giá.");
+      const serviceRating = Math.round(
+        Object.values(scores).reduce((total, value) => total + value, 0) /
+          Object.values(scores).length,
+      );
+      const input: ReviewInput = {
+        doctorRating: overall,
+        serviceRating,
+        criteriaRatings: {
+          doctor: scores.doctor,
+          waiting: scores.waiting,
+          facility: scores.facility,
+          guidance: scores.guidance,
+        },
+        comment: comment.trim() || undefined,
+      };
+      if (review) {
+        await updateReview(visit.consultationId, input);
+      } else {
+        await createReview(visit.consultationId, input);
+      }
       setDone(true);
+      onSubmitted?.();
     } catch {
       setError("Không thể gửi đánh giá lúc này. Vui lòng thử lại.");
     } finally {

@@ -1,6 +1,7 @@
 export type PatientGender = "MALE" | "FEMALE" | "OTHER";
 
 export type IdentityForm = {
+  nationalId: string;
   dateOfBirth: string;
   gender: PatientGender | "";
   address: string;

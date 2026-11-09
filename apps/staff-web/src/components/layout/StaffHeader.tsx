@@ -26,6 +26,9 @@ export function StaffHeader({ onToggleSidebar }: StaffHeaderProps) {
   const [logout, { isLoading: isLoggingOut }] = useLogoutMutation();
 
   const getBreadcrumbLabel = () => {
+    if (pathname.startsWith("/invoices/candidates")) return "Chờ lập hóa đơn";
+    if (pathname.startsWith("/invoices/list")) return "Hóa đơn";
+    if (pathname.startsWith("/invoices")) return "Hóa đơn & Thu tiền";
     if (pathname.startsWith("/examinations/queue"))
       return "Hàng chờ khám bác sĩ";
     if (pathname.startsWith("/examinations")) return "Quản lý khám bệnh";

@@ -8,6 +8,7 @@ import {
   getAuthErrorMessage,
   type OtpChallenge,
 } from "../services/authService";
+import { verifyPasswordResetOtp } from "../services/passwordRecoveryService";
 
 const OTP_LENGTH = 6;
 const OTP_TTL_SECONDS = 5 * 60; // hiệu lực 5 phút
@@ -19,7 +20,8 @@ type Props = {
   challenge: OtpChallenge;
   onResend: () => Promise<OtpChallenge>;
   onBack: () => void;
-  onSuccess: () => void;
+  onSuccess: (resetToken?: string) => void;
+  purpose?: "REGISTER" | "RESET_PASSWORD";
 };
 
 const maskPhone = (p: string) =>
@@ -34,6 +36,7 @@ export default function OtpVerifyForm({
   onResend,
   onBack,
   onSuccess,
+  purpose = "REGISTER",
 }: Props) {
   const [digits, setDigits] = useState<string[]>(Array(OTP_LENGTH).fill(""));
   const [error, setError] = useState("");
@@ -63,21 +66,33 @@ export default function OtpVerifyForm({
     return () => clearInterval(id);
   }, []);
 
-  const setAt = (i: number, v: string) =>
-    setDigits((d) => d.map((x, idx) => (idx === i ? v : x)));
-
   const handleChange = (i: number, raw: string) => {
-    const v = raw.replace(/\D/g, "").slice(-1);
-    setAt(i, v);
+    const value = raw.replace(/\D/g, "").slice(-1);
+    setDigits((current) =>
+      current.map((digit, index) => (index === i ? value : digit)),
+    );
     setError("");
-    if (v && i < OTP_LENGTH - 1) refs.current[i + 1]?.focus();
+    if (value && i < OTP_LENGTH - 1) {
+      requestAnimationFrame(() => refs.current[i + 1]?.focus());
+    }
   };
 
   const handleKeyDown = (
     i: number,
     e: React.KeyboardEvent<HTMLInputElement>,
   ) => {
-    if (e.key === "Backspace" && !digits[i] && i > 0) {
+    if (/^\d$/.test(e.key)) {
+      e.preventDefault();
+      setDigits((current) => {
+        const next = [...current];
+        next[i] = e.key;
+        return next;
+      });
+      setError("");
+      requestAnimationFrame(() => {
+        refs.current[Math.min(i + 1, OTP_LENGTH - 1)]?.focus();
+      });
+    } else if (e.key === "Backspace" && !digits[i] && i > 0) {
       refs.current[i - 1]?.focus();
     } else if (e.key === "ArrowLeft" && i > 0) {
       refs.current[i - 1]?.focus();
@@ -103,8 +118,11 @@ export default function OtpVerifyForm({
     setLoading(true);
     setError("");
     try {
-      await verifyRegistrationOtp(currentChallenge.challengeId, code);
-      onSuccess();
+      const resetToken =
+        purpose === "RESET_PASSWORD"
+          ? await verifyPasswordResetOtp(currentChallenge.challengeId, code)
+          : (await verifyRegistrationOtp(currentChallenge.challengeId, code), undefined);
+      onSuccess(resetToken);
     } catch (error: unknown) {
       const message =
         getAuthErrorMessage(error, "Không thể xác thực mã OTP.");
@@ -156,22 +174,12 @@ export default function OtpVerifyForm({
       </span>
 
       <h2 className="mt-5 text-2xl font-extrabold text-slate-900">
-        Xác thực số điện thoại
+        {purpose === "RESET_PASSWORD" ? "Xác thực OTP" : "Xác thực số điện thoại"}
       </h2>
       <p className="mt-2 text-sm leading-relaxed text-slate-500">
-        Mã OTP gồm {OTP_LENGTH} chữ số đã được gửi đến số{" "}
+        Mã OTP gồm {OTP_LENGTH} chữ số đã được gửi đến {purpose === "RESET_PASSWORD" ? "thông tin liên hệ" : "số"}{" "}
         <b className="text-slate-800">{maskPhone(phone)}</b>
       </p>
-      {currentChallenge.developmentCode && (
-        <p
-          role="status"
-          className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800"
-        >
-          Mã OTP kiểm thử:{" "}
-          <b className="font-mono">{currentChallenge.developmentCode}</b>
-        </p>
-      )}
-
       {/* 6 ô nhập */}
       <div
         className="mt-7 flex justify-center gap-2.5 sm:gap-3"
@@ -227,7 +235,11 @@ export default function OtpVerifyForm({
         disabled={code.length !== OTP_LENGTH || loading || expired || locked}
         className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-[#174A8F] px-6 py-3.5 text-sm font-bold uppercase text-white shadow transition hover:bg-[#0E3A75] disabled:cursor-not-allowed disabled:bg-slate-300"
       >
-        {loading ? "Đang xác thực..." : "Xác thực & hoàn tất đăng ký"}
+        {loading
+          ? "Đang xác thực..."
+          : purpose === "RESET_PASSWORD"
+            ? "Xác thực OTP"
+            : "Xác thực & hoàn tất đăng ký"}
       </button>
 
       <div className="mt-4 text-xs text-slate-500">
@@ -248,7 +260,9 @@ export default function OtpVerifyForm({
         className="mt-6 inline-flex items-center gap-1.5 text-xs font-bold text-rose-600 transition hover:text-rose-700"
       >
         <ArrowLeft className="h-3.5 w-3.5" />
-        Quay lại chỉnh sửa thông tin
+        {purpose === "RESET_PASSWORD"
+          ? "Quay lại nhập thông tin"
+          : "Quay lại chỉnh sửa thông tin"}
       </button>
     </form>
   );

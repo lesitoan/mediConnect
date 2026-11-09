@@ -1,9 +1,11 @@
-import { MOCK_APPOINTMENTS, MOCK_RECORDS } from "@/features/appointments/data";
+import { getMyAppointments } from "@/features/appointments/services/appointmentsService";
 
 export type Visit = {
   code: string;
   status: "completed" | "other";
   alreadyReviewed: boolean;
+  consultationId: string | null;
+  isPaid: boolean;
   doctor: { name: string; specialty: string; clinic: string; initials: string };
   time: string;
   diagnosis: string;
@@ -20,46 +22,26 @@ function initialsOf(name: string) {
 // TODO: thay toàn bộ hàm này bằng API: GET /visits/:code
 // (backend kiểm tra phiên khám thuộc bệnh nhân đang đăng nhập, đã "Hoàn thành",
 // và chưa được đánh giá; trả 404 nếu không hợp lệ)
-export function getVisit(code: string): Visit | null {
-  // Phiên khám đã hoàn tất (hồ sơ khám & xét nghiệm)
-  const rec = MOCK_RECORDS.find((r) => r.visitCode === code);
-  if (rec) {
-    return {
-      code,
-      status: "completed",
-      alreadyReviewed: rec.reviewed,
-      doctor: {
-        name: rec.doctor.name,
-        specialty: rec.doctor.dept,
-        clinic: CLINIC,
-        initials: initialsOf(rec.doctor.name),
-      },
-      time: rec.date,
-      diagnosis: rec.type === "visit" ? rec.conclusion : rec.title,
-      room: rec.room,
-    };
-  }
-
-  // Lịch sắp tới / đã hủy: chưa thể đánh giá
-  const appt = MOCK_APPOINTMENTS.find((a) => a.code === code);
-  if (appt) {
-    return {
-      code,
-      status: "other",
-      alreadyReviewed: false,
-      doctor: {
-        name: appt.doctor.name,
-        specialty: appt.doctor.specialty,
-        clinic: CLINIC,
-        initials: appt.doctor.initials,
-      },
-      time: `${appt.time} - ${appt.bookedAt}`,
-      diagnosis: "Theo hồ sơ bệnh án",
-      room: appt.room,
-    };
-  }
-
-  return null;
+export async function getVisit(code: string): Promise<Visit | null> {
+  const appointments = await getMyAppointments();
+  const appt = appointments.find((appointment) => appointment.code === code);
+  if (!appt) return null;
+  return {
+    code,
+    status: appt.kind === "completed" ? "completed" : "other",
+    alreadyReviewed: appt.hasReview ?? false,
+    consultationId: appt.consultationId ?? null,
+    isPaid: appt.isPaid ?? false,
+    doctor: {
+      name: appt.doctor.name,
+      specialty: appt.doctor.specialty,
+      clinic: CLINIC,
+      initials: appt.doctor.initials,
+    },
+    time: `${appt.time} - ${appt.bookedAt}`,
+    diagnosis: "Theo hồ sơ phiên khám",
+    room: appt.room,
+  };
 }
 
 export const MOODS = [

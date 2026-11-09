@@ -31,6 +31,7 @@ import { RegisterDto } from './dto/requests/register.dto';
 import { RefreshTokenDto } from './dto/requests/refresh-token.dto';
 import { AuthSessionDto } from './dto/responses/auth-session.dto';
 import { Auth } from './decorators/auth.decorator';
+import { ChangePasswordDto } from './dto/requests/change-password.dto';
 import type { AuthenticatedRequest } from '../../common/interfaces/authenticated-request.interface';
 
 @ApiTags('Authentication')
@@ -205,6 +206,28 @@ export class AuthenticationController {
     const result = await this.authenticationService.logout(
       request.user!.id,
       request.sessionId,
+    );
+    this.transportService.clearTokens(response);
+    return new HttpResponseBodySuccessDto(result);
+  }
+
+  @Auth()
+  @Post('change_password')
+  @HttpCode(HttpStatus.OK)
+  @Header('Cache-Control', 'no-store')
+  @ApiOkResponse({
+    description:
+      'Changes the authenticated user password and revokes all active sessions.',
+  })
+  async changePassword(
+    @Body() input: ChangePasswordDto,
+    @Req() request: AuthenticatedRequest,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<HttpResponseBodySuccessDto<{ message: string }>> {
+    const result = await this.authenticationService.changePassword(
+      request.user!.id,
+      input.currentPassword,
+      input.password,
     );
     this.transportService.clearTokens(response);
     return new HttpResponseBodySuccessDto(result);

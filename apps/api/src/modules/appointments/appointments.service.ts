@@ -15,7 +15,7 @@ import type { RescheduleAppointmentDto } from './dto/patient/reschedule-appointm
 import { AppointmentsRepository } from './appointments.repository';
 
 const MIN_BOOKING_NOTICE_HOURS = 2;
-const APPOINTMENT_CHANGE_CUTOFF_HOURS = 12;
+const APPOINTMENT_CHANGE_CUTOFF_HOURS = 2;
 const MAX_RESCHEDULE_COUNT = 2;
 const ACTIVE_SLOT_SESSION_STATUSES = [
   CareSessionStatus.SCHEDULED,
@@ -289,7 +289,7 @@ export class AppointmentsService {
       APPOINTMENT_CHANGE_CUTOFF_HOURS * 3600000
     )
       throw new ConflictException(
-        'Appointment can only be changed at least 12 hours before examination',
+        'Appointment can only be changed at least 2 hours before examination',
       );
   }
 
@@ -314,7 +314,7 @@ export class AppointmentsService {
       APPOINTMENT_CHANGE_CUTOFF_HOURS * 3600000
     )
       throw new ConflictException(
-        'Appointment can only be cancelled at least 12 hours before examination',
+        'Appointment can only be cancelled at least 2 hours before examination',
       );
   }
 
