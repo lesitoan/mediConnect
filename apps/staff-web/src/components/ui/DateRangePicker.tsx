@@ -20,7 +20,10 @@ interface DateRangePickerProps {
   maxDays?: number;
   disabled?: boolean;
   className?: string;
+  triggerClassName?: string;
   label?: string;
+  placeholder?: string;
+  presetDirection?: "PAST" | "FUTURE";
 }
 
 function formatDateDisplay(dateStr?: string): string {
@@ -51,7 +54,10 @@ export function DateRangePicker({
   maxDays,
   disabled = false,
   className,
+  triggerClassName,
   label = "",
+  placeholder = "Pick a date range",
+  presetDirection = "FUTURE",
 }: DateRangePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [tempRange, setTempRange] = useState<DateRange>({
@@ -95,22 +101,23 @@ export function DateRangePicker({
       ? `${formatDateDisplay(value.startDate)} - ${formatDateDisplay(value.endDate)}`
       : value.startDate
         ? formatDateDisplay(value.startDate)
-        : "Pick a date range";
+        : placeholder;
 
   const selectedDays = getDaysCount(fromStr, toStr);
   const isExceedingMaxDays = Boolean(maxDays && maxDays > 0 && selectedDays > maxDays);
 
   const availablePresets = useMemo(() => {
+    const suffix = presetDirection === "PAST" ? "ngày qua" : "ngày tới";
     const list = [
-      { label: "7 ngày tới", days: 7 },
-      { label: "14 ngày tới", days: 14 },
-      { label: "30 ngày tới", days: 30 },
+      { label: `7 ${suffix}`, days: 7 },
+      { label: `14 ${suffix}`, days: 14 },
+      { label: `30 ${suffix}`, days: 30 },
     ];
     if (maxDays && maxDays > 0) {
       return list.filter((p) => p.days <= maxDays);
     }
     return list;
-  }, [maxDays]);
+  }, [maxDays, presetDirection]);
 
   const handleApply = () => {
     if (fromStr && toStr && !isExceedingMaxDays) {
@@ -123,8 +130,9 @@ export function DateRangePicker({
   };
 
   const handlePreset = (days: number) => {
-    const sStr = getVietnamDate();
-    const eStr = addCalendarDays(sStr, days - 1);
+    const today = getVietnamDate();
+    const sStr = presetDirection === "PAST" ? addCalendarDays(today, 1 - days) : today;
+    const eStr = presetDirection === "PAST" ? today : addCalendarDays(today, days - 1);
 
     setTempRange({ from: sStr, to: eStr });
     onChange({ startDate: sStr, endDate: eStr });
@@ -149,7 +157,8 @@ export function DateRangePicker({
               disabled={disabled}
               className={cn(
                 "h-9 w-[280px] justify-start text-left font-normal border-border bg-surface text-foreground shadow-2xs hover:bg-secondary/40 focus-visible:ring-primary",
-                !value.startDate && "text-muted"
+                !value.startDate && "text-muted",
+                triggerClassName
               )}
             >
               <CalendarIcon className="mr-2 size-4 text-muted shrink-0" />
@@ -210,7 +219,7 @@ export function DateRangePicker({
                   {maxDays && ` (tối đa ${maxDays} ngày)`}
                 </span>
               ) : fromStr ? (
-                <span>Chọn ngày kết thúc (tối đa {maxDays} ngày)</span>
+                <span>Chọn ngày kết thúc{maxDays ? ` (tối đa ${maxDays} ngày)` : ""}</span>
               ) : (
                 <span>Chọn khoảng ngày bắt đầu & kết thúc</span>
               )}

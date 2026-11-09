@@ -50,7 +50,9 @@ export class StaffInvoicesController {
     permissions: [PermissionEnum.INVOICES_READ],
   })
   @Header('Cache-Control', 'no-store')
-  @ApiOperation({ summary: 'Chi tiết hóa đơn và lịch sử giao dịch' })
+  @ApiOperation({
+    summary: 'Chi tiết hóa đơn, lịch sử giao dịch, người thu và ghi chú',
+  })
   async get(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
     return new HttpResponseBodySuccessDto(await this.queries.get(id));
   }

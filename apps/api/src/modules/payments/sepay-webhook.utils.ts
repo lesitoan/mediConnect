@@ -69,10 +69,17 @@ export function parseSepayPayload(raw: Buffer) {
     (typeof p.code !== 'string' || p.code.length > 100)
   )
     throw new BadRequestException('Invalid webhook code');
+  if (
+    p.subAccount !== undefined &&
+    p.subAccount !== null &&
+    (typeof p.subAccount !== 'string' || p.subAccount.length > 100)
+  )
+    throw new BadRequestException('Invalid webhook subAccount');
   return {
     id: String(p.id),
     gateway: string('gateway', 100),
     accountNumber: string('accountNumber', 60),
+    subAccount: typeof p.subAccount === 'string' ? p.subAccount : null,
     content: string('content', 10000),
     code: typeof p.code === 'string' ? p.code : null,
     transferType,

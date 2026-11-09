@@ -16,6 +16,7 @@ import {
   X,
   ChevronDown,
   Clock,
+  Receipt,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -38,12 +39,13 @@ export interface NavChildItem {
   label: string;
   href: string;
   icon?: LucideIcon;
+  permission?: string;
 }
 
 export interface NavItem {
   label: string;
   href: string;
-  icon: LucideIcon;
+  icon?: LucideIcon;
   activeMatch?: boolean;
   visibleRoles?: UserRole[];
   children?: NavChildItem[];
@@ -64,6 +66,23 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Hàng chờ khám",
     href: "/queues",
     icon: Clock,
+  },
+  {
+    label: "Hóa đơn & Thu tiền",
+    href: "/invoices",
+    icon: Receipt,
+    children: [
+      {
+        label: "Chờ lập hóa đơn",
+        href: "/invoices/candidates",
+        permission: "BILLING_CANDIDATES_READ",
+      },
+      {
+        label: "Hóa đơn",
+        href: "/invoices/list",
+        permission: "INVOICES_READ",
+      },
+    ],
   },
   {
     label: "Quản lý khám bệnh",
@@ -130,10 +149,16 @@ export const NAV_ITEMS: NavItem[] = [
 ];
 
 export function getNavItemsByRole(role?: string): NavItem[] {
-  return NAV_ITEMS.filter(
+  return NAV_ITEMS.filter((item) => canAccessStaffPath(role, item.href)).map(
     (item) =>
-      canAccessStaffPath(role, item.href) &&
-      (!item.visibleRoles || item.visibleRoles.includes(role as UserRole)),
+      item.children
+        ? {
+            ...item,
+            children: item.children.filter((child) =>
+              canAccessStaffPath(role, child.href),
+            ),
+          }
+        : item,
   );
 }
 
@@ -146,7 +171,20 @@ export function StaffSidebar({
   const { data: currentUser } = useGetAuthUserQuery();
 
   const currentRole = role ?? currentUser?.role;
-  const visibleNavItems = getNavItemsByRole(currentRole);
+  const visibleNavItems = getNavItemsByRole(currentRole)
+    .map((item) =>
+      item.children
+        ? {
+            ...item,
+            children: item.children.filter(
+              (child) =>
+                !child.permission ||
+                currentUser?.permissions.includes(child.permission),
+            ),
+          }
+        : item,
+    )
+    .filter((item) => !item.children || item.children.length > 0);
   const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>(
     {},
   );
@@ -259,12 +297,14 @@ export function StaffSidebar({
                         : "font-medium text-muted hover:bg-surface/70 hover:text-foreground",
                     )}
                   >
-                    <Icon
-                      className={cn(
-                        "size-4 shrink-0",
-                        isActive ? "text-primary" : "text-muted",
-                      )}
-                    />
+                    {Icon && (
+                      <Icon
+                        className={cn(
+                          "size-4 shrink-0",
+                          isActive ? "text-primary" : "text-muted",
+                        )}
+                      />
+                    )}
                     <span className="truncate text-left">{item.label}</span>
                     <ChevronDown
                       className={cn(
@@ -324,17 +364,20 @@ export function StaffSidebar({
                 onClick={onClose}
                 className={cn(
                   "flex items-center gap-2.5 rounded-app-md px-3 py-2 text-base transition-all",
+                  !Icon && "pl-9.5",
                   isActive
                     ? "bg-surface font-bold text-primary shadow-xs border-r-3 border-primary"
                     : "font-medium text-muted hover:bg-surface/70 hover:text-foreground",
                 )}
               >
-                <Icon
-                  className={cn(
-                    "size-4 shrink-0",
-                    isActive ? "text-primary" : "text-muted",
-                  )}
-                />
+                {Icon && (
+                  <Icon
+                    className={cn(
+                      "size-4 shrink-0",
+                      isActive ? "text-primary" : "text-muted",
+                    )}
+                  />
+                )}
                 <span className="truncate">{item.label}</span>
               </Link>
             );
