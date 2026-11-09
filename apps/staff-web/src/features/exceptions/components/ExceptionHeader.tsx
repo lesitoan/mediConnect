@@ -16,7 +16,9 @@ export function ExceptionHeader({
           Xử lý ngoại lệ
         </h1>
       </div>
-      
+      <Button type="button" variant="outline" onClick={onRefresh} disabled={isRefreshing}>
+        {isRefreshing ? "Đang cập nhật..." : "Cập nhật dữ liệu"}
+      </Button>
     </div>
   );
 }

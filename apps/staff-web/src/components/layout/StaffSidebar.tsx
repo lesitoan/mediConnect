@@ -45,6 +45,7 @@ export interface NavItem {
   href: string;
   icon: LucideIcon;
   activeMatch?: boolean;
+  visibleRoles?: UserRole[];
   children?: NavChildItem[];
 }
 
@@ -98,6 +99,7 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Lịch làm việc của tôi",
     href: "/schedules/calendar",
     icon: CalendarCheck,
+    visibleRoles: ["DOCTOR", "RECEPTIONIST"],
   },
   {
     label: "Bác sĩ & Chuyên khoa",
@@ -128,7 +130,11 @@ export const NAV_ITEMS: NavItem[] = [
 ];
 
 export function getNavItemsByRole(role?: string): NavItem[] {
-  return NAV_ITEMS.filter((item) => canAccessStaffPath(role, item.href));
+  return NAV_ITEMS.filter(
+    (item) =>
+      canAccessStaffPath(role, item.href) &&
+      (!item.visibleRoles || item.visibleRoles.includes(role as UserRole)),
+  );
 }
 
 export function StaffSidebar({
