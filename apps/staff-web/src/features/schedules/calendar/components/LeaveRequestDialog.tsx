@@ -23,6 +23,8 @@ type LeaveRequestKind = "PLANNED_LEAVE" | "URGENT_ABSENCE";
 
 interface LeaveRequestDialogProps {
   requestType: LeaveRequestKind;
+  initialStartsAt?: string;
+  initialEndsAt?: string;
   onClose: () => void;
 }
 
@@ -81,13 +83,21 @@ function getRequestStatusLabel(status: string) {
 
 export function LeaveRequestDialog({
   requestType,
+  initialStartsAt,
+  initialEndsAt,
   onClose,
 }: LeaveRequestDialogProps) {
   const [createLeaveRequest, { isLoading }] =
     useCreateMyLeaveRequestMutation();
+  const [activeRequestType, setActiveRequestType] =
+    useState<LeaveRequestKind>(requestType);
   const [reason, setReason] = useState("");
-  const [startsAtInput, setStartsAtInput] = useState("");
-  const [endsAtInput, setEndsAtInput] = useState("");
+  const [startsAtInput, setStartsAtInput] = useState(() =>
+    initialStartsAt ? getClinicDateTimeInputValue(new Date(initialStartsAt)) : "",
+  );
+  const [endsAtInput, setEndsAtInput] = useState(() =>
+    initialEndsAt ? getClinicDateTimeInputValue(new Date(initialEndsAt)) : "",
+  );
   const [now, setNow] = useState(0);
   const isClockReady = now > 0;
   const startsAtDate = parseClinicDateTime(startsAtInput);
@@ -105,13 +115,13 @@ export function LeaveRequestDialog({
           (startsAtDate.getTime() - now) / HOUR_IN_MILLISECONDS,
         );
   const isNoticeValid =
-    requestType === "PLANNED_LEAVE"
+    activeRequestType === "PLANNED_LEAVE"
       ? noticeHours >= MIN_PLANNED_LEAVE_NOTICE_HOURS
       : noticeHours < MIN_PLANNED_LEAVE_NOTICE_HOURS;
   const startsAt = startsAtDate?.toISOString() ?? "";
   const endsAt = endsAtDate?.toISOString() ?? "";
   const canLoadImpact =
-    requestType === "PLANNED_LEAVE" &&
+    activeRequestType === "PLANNED_LEAVE" &&
     isValidRange &&
     !isPastStart &&
     isNoticeValid;
@@ -138,7 +148,7 @@ export function LeaveRequestDialog({
     event.preventDefault();
     if (!isClockReady || !isValidRange || isPastStart || !isNoticeValid) return;
     if (
-      requestType === "PLANNED_LEAVE" &&
+      activeRequestType === "PLANNED_LEAVE" &&
       (!leaveImpact || isLoadingImpact || isImpactError)
     ) {
       toast.error("Vui lòng tải được lịch khám bị ảnh hưởng trước khi xác nhận.");
@@ -151,7 +161,7 @@ export function LeaveRequestDialog({
 
     try {
       await createLeaveRequest({
-        requestType,
+      requestType: activeRequestType,
         startsAt,
         endsAt,
         reason: reason.trim(),
@@ -163,7 +173,13 @@ export function LeaveRequestDialog({
     }
   };
 
-  const isPlannedLeave = requestType === "PLANNED_LEAVE";
+  const isPlannedLeave = activeRequestType === "PLANNED_LEAVE";
+  const canConvertToUrgentAbsence =
+    isPlannedLeave &&
+    startsAtDate !== null &&
+    !isPastStart &&
+    noticeHours >= 0 &&
+    noticeHours < MIN_PLANNED_LEAVE_NOTICE_HOURS;
   const canSubmit =
     isValidRange &&
     isClockReady &&
@@ -238,6 +254,22 @@ export function LeaveRequestDialog({
                       ? "Xin nghỉ phép cần gửi trước ít nhất 48 giờ. Với thời gian này, hãy chọn báo vắng đột xuất."
                       : "Thời gian bắt đầu còn từ 48 giờ trở lên. Hãy chọn xin nghỉ phép."}
                   </p>
+                )}
+                {canConvertToUrgentAbsence && (
+                  <div className="mt-3 rounded-app-md border border-warning/30 bg-warning/10 p-3">
+                    <p className="text-caption text-foreground">
+                      Thời gian bắt đầu còn dưới 48 giờ. Bạn có muốn chuyển yêu cầu này thành báo vắng đột xuất không?
+                    </p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="mt-2"
+                      onClick={() => setActiveRequestType("URGENT_ABSENCE")}
+                      disabled={isLoading}
+                    >
+                      Đồng ý, chuyển sang báo vắng
+                    </Button>
+                  </div>
                 )}
                 {isPastStart && (
                   <p className="mt-1 font-medium text-destructive">

@@ -6,6 +6,7 @@ import { getCurrentTime } from '../src/common/utils/e2e-clock';
 
 const DAYS_TO_SEED = 7;
 const SLOT_DURATION_MINUTES = 30;
+const MAX_SLOTS_PER_SHIFT = 8;
 const START_MINUTES = 8 * 60;
 const END_MINUTES = 18 * 60;
 const CLINIC_TIME_ZONE = 'Asia/Ho_Chi_Minh';
@@ -165,16 +166,19 @@ async function main(): Promise<void> {
               startsAt: Date;
               endsAt: Date;
             }[] = [];
+            let createdSlotCount = 0;
             for (
               let slotMinutes = START_MINUTES;
               slotMinutes < END_MINUTES;
               slotMinutes += SLOT_DURATION_MINUTES
             ) {
+              if (createdSlotCount >= MAX_SLOTS_PER_SHIFT) break;
               slots.push({
                 doctorScheduleId: schedule.id,
                 startsAt: toClinicTime(date, slotMinutes),
                 endsAt: toClinicTime(date, slotMinutes + SLOT_DURATION_MINUTES),
               });
+              createdSlotCount += 1;
             }
             const result = await transaction.appointmentSlot.createMany({
               data: slots,

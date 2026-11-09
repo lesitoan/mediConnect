@@ -48,6 +48,8 @@ export interface WorkScheduleMatrixResponse {
       startsAt: string;
       endsAt: string;
       status: ShiftStatus;
+      slotCount: number;
+      slotCapacity: number;
     }>;
   }>;
 }

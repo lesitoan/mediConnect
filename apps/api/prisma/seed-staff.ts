@@ -138,6 +138,105 @@ export async function seedStaff(prisma: PrismaClient): Promise<void> {
         },
         update: {},
       });
+
+      const scheduleCreator = await transaction.user.findUniqueOrThrow({
+        where: { email: 'admin01@example.invalid' },
+      });
+      const scheduleOwners: Array<{
+        userId?: string;
+        email?: string;
+        staffType: 'DOCTOR' | 'RECEPTIONIST';
+      }> = [
+        ...STAFF_ACCOUNTS.filter(
+          ({ role }) =>
+            role === RoleEnum.DOCTOR || role === RoleEnum.RECEPTIONIST,
+        ).map((owner) => ({
+          email: owner.email,
+          staffType:
+            owner.role === RoleEnum.DOCTOR
+              ? ('DOCTOR' as const)
+              : ('RECEPTIONIST' as const),
+        })),
+        ...(
+          await transaction.doctor.findMany({
+            where: {
+              doctorCode: { startsWith: 'SEED-' },
+              isActive: true,
+              user: { status: 'ACTIVE', deletedAt: null },
+            },
+            select: { userId: true },
+          })
+        ).map(({ userId }) => ({ userId, staffType: 'DOCTOR' as const })),
+      ];
+      const effectiveFrom = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate(),
+      );
+      for (const owner of scheduleOwners) {
+        const scheduleUser = owner.userId
+          ? await transaction.user.findUniqueOrThrow({
+              where: { id: owner.userId },
+            })
+          : owner.email
+            ? await transaction.user.findUniqueOrThrow({
+                where: { email: owner.email },
+              })
+            : (() => {
+                throw new Error('Schedule owner must have a user id or email');
+              })();
+        const staffType = owner.staffType;
+        for (let dayOfWeek = 1; dayOfWeek <= 7; dayOfWeek += 1) {
+          for (const [startHour, endHour] of [
+            [8, 12],
+            [13, 18],
+          ]) {
+            const startsAt = new Date(
+              Date.UTC(2026, 0, 5 + dayOfWeek - 1, startHour - 7),
+            );
+            const endsAt = new Date(
+              Date.UTC(2026, 0, 5 + dayOfWeek - 1, endHour - 7),
+            );
+            const existing = await transaction.staffWorkSchedule.findFirst({
+              where: {
+                staffUserId: scheduleUser.id,
+                staffType,
+                dayOfWeek,
+                startsAt,
+                endsAt,
+              },
+            });
+            if (existing) {
+              await transaction.staffWorkSchedule.update({
+                where: { id: existing.id },
+                data: {
+                  status: 'PUBLISHED',
+                  effectiveFrom,
+                  publishedAt: now,
+                  createdBy: scheduleCreator.id,
+                },
+              });
+            } else {
+              await transaction.staffWorkSchedule.create({
+                data: {
+                  staffUserId: scheduleUser.id,
+                  staffType,
+                  startsAt,
+                  endsAt,
+                  dayOfWeek,
+                  effectiveFrom,
+                  isRecurring: true,
+                  scheduleType: 'REGULAR',
+                  slotDurationMinutes: staffType === 'DOCTOR' ? 30 : null,
+                  status: 'PUBLISHED',
+                  createdBy: scheduleCreator.id,
+                  publishedAt: now,
+                },
+              });
+            }
+          }
+        }
+      }
     },
     { timeout: 30000 },
   );
