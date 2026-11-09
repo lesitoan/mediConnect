@@ -1,6 +1,6 @@
 # Staff Web E2E Tests
 
-The Selenium runner reads the 56 test cases in
+The Selenium runner reads the 74 test cases in
 `test-cases/reception-queue.xlsx`, runs their steps against the staff-web UI,
 and writes the original testcase fields plus actual result and status to
 `results/reception-queue-results.xlsx`.
