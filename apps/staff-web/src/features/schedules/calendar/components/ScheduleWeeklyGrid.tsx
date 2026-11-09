@@ -103,13 +103,9 @@ export function ScheduleWeeklyGrid({
                           "border-primary/20 bg-brand-secondary-light/20",
                       )}
                     >
-                      {dayShifts.length ? (
-                        dayShifts.map((shift) => (
-                          <ScheduleShiftCard key={shift.id} shift={shift} />
-                        ))
-                      ) : (
-                        <ScheduleShiftCard shift={null} />
-                      )}
+                      {dayShifts.map((shift) => (
+                        <ScheduleShiftCard key={shift.id} shift={shift} />
+                      ))}
                     </div>
                   );
                 })}

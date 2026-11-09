@@ -1,4 +1,4 @@
-export type ShiftStatus = "DRAFT" | "PUBLISHED" | "RESOLVING" | "ABSENT";
+export type ShiftStatus = "PUBLISHED" | "RESOLVING" | "ABSENT" | "DRAFT";
 export type ScheduleType = "REGULAR" | "SHIFT";
 
 export type DayOfWeek = "MON" | "TUE" | "WED" | "THU" | "FRI" | "SAT" | "SUN";
@@ -44,7 +44,7 @@ export interface WorkScheduleMatrixResponse {
     specialtyName: string;
     shifts: Array<{
       date: string;
-      key: string;
+      key: "MORNING" | "AFTERNOON";
       startsAt: string;
       endsAt: string;
       status: ShiftStatus;
@@ -94,9 +94,14 @@ export interface WorkSchedule {
 
 export interface CreateScheduleInput {
   staffUserId: string;
-  staffType: "DOCTOR" | "RECEPTIONIST";
+  staffType: "DOCTOR";
+  dayOfWeek: number;
+  startsAt: string;
+  endsAt: string;
   effectiveFrom: string;
   effectiveTo?: string;
+  scheduleType: ScheduleType;
+  slotDurationMinutes: number;
 }
 
 export interface ScheduleTableFilterValues {

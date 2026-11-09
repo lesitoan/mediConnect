@@ -27,7 +27,6 @@ export interface ScheduleStatusOption {
 
 export const SCHEDULE_STATUS_OPTIONS: readonly ScheduleStatusOption[] = [
   { value: "ALL", label: "Trạng thái (Tất cả)" },
-  { value: "DRAFT", label: "Bản nháp" },
   { value: "PUBLISHED", label: "Đang làm" },
   { value: "RESOLVING", label: "Đang xử lý" },
   { value: "ABSENT", label: "Vắng mặt" },

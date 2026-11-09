@@ -88,14 +88,6 @@ export default function ProfileScreen({
           );
         }
       })
-      .catch((error: unknown) => {
-        if (isActive) {
-          Alert.alert(
-            'Không thể tải hồ sơ',
-            error instanceof Error ? error.message : 'Vui lòng thử lại sau.',
-          );
-        }
-      })
       .finally(() => {
         if (isActive) setIsLoading(false);
       });

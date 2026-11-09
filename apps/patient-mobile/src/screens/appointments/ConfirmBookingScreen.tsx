@@ -90,10 +90,7 @@ const GENDER_NAMES: Record<string, string> = {
 };
 
 const pad = (value: number) => String(value).padStart(2, '0');
-const formatFee = (value: number | null) =>
-  value === null
-    ? 'Chưa cập nhật'
-    : `${String(value).replace(/\B(?=(\d{3})+(?!\d))/g, '.')} đ`;
+const formatFee = (value: number) => `${String(value).replace(/\B(?=(\d{3})+(?!\d))/g, '.')} đ`;
 
 const maskValue = (value: string, visibleStart: number, visibleEnd: number) => {
   if (value.length <= visibleStart + visibleEnd) return value;
