@@ -52,7 +52,7 @@ export function StaffLayoutShell({ children }: StaffLayoutShellProps) {
 
   if (
     isLoading ||
-    isFetching ||
+    (isFetching && !currentUser) ||
     isUnauthorized ||
     (!error && currentUser && !canAccessStaffPath(currentUser.role, pathname))
   ) {
