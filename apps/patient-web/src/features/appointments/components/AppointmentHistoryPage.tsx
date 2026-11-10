@@ -21,6 +21,10 @@ import ReviewForm from "@/features/review/components/ReviewForm";
 import VisitSummaryCard from "@/features/review/components/VisitSummaryCard";
 import { getVisit } from "@/features/review/data";
 import { getReview, type ReviewDetails } from "@/features/review/services/reviewsService";
+import {
+  getMyConsultation,
+  type ConsultationMedicalRecord,
+} from "@/features/medical-records/services/medicalRecordsService";
 import type { Appointment } from "../data";
 import {
   ApiRequestError,
@@ -32,6 +36,7 @@ import {
   type ScheduleProposal,
 } from "../services/appointmentsService";
 import AppointmentCard from "./AppointmentCard";
+import ConsultationRecordModal from "./ConsultationRecordModal";
 import {
   CancelModal,
   DetailModal,
@@ -122,6 +127,35 @@ export default function AppointmentHistoryPage() {
   const [isReviewEditing, setIsReviewEditing] = useState(false);
   const [isReviewLoading, setIsReviewLoading] = useState(false);
   const [reviewError, setReviewError] = useState<string | null>(null);
+  const [medicalRecordId, setMedicalRecordId] = useState<string | null>(null);
+  const [medicalRecord, setMedicalRecord] = useState<ConsultationMedicalRecord | null>(null);
+  const [isMedicalRecordLoading, setIsMedicalRecordLoading] = useState(false);
+  const [medicalRecordError, setMedicalRecordError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!medicalRecordId) return;
+    let isCurrent = true;
+    setMedicalRecord(null);
+    setMedicalRecordError(null);
+    setIsMedicalRecordLoading(true);
+    getMyConsultation(medicalRecordId)
+      .then((record) => {
+        if (isCurrent) setMedicalRecord(record);
+      })
+      .catch((error: unknown) => {
+        if (isCurrent) {
+          setMedicalRecordError(
+            error instanceof Error ? error.message : "Không thể tải hồ sơ bệnh án.",
+          );
+        }
+      })
+      .finally(() => {
+        if (isCurrent) setIsMedicalRecordLoading(false);
+      });
+    return () => {
+      isCurrent = false;
+    };
+  }, [medicalRecordId]);
 
   useEffect(() => {
     if (!reviewCode) {
@@ -301,6 +335,10 @@ export default function AppointmentHistoryPage() {
           setIsReviewLoading(true);
           setReviewError(null);
           setReviewCode(x.code);
+        }}
+        onMedicalRecord={(x) => {
+          if (!x.consultationId) return;
+          setMedicalRecordId(x.consultationId);
         }}
       />
     );
@@ -750,6 +788,14 @@ export default function AppointmentHistoryPage() {
             )}
           </div>
         </div>
+      )}
+      {medicalRecordId && (
+        <ConsultationRecordModal
+          record={medicalRecord}
+          isLoading={isMedicalRecordLoading}
+          error={medicalRecordError}
+          onClose={() => setMedicalRecordId(null)}
+        />
       )}
     </section>
   );
