@@ -3,11 +3,13 @@ import {
   Controller,
   Get,
   Header,
+  HttpCode,
   Param,
   ParseUUIDPipe,
   Patch,
   Post,
   Query,
+  StreamableFile,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { HttpResponseBodySuccessDto } from '../../../common/dto/http-response-body-success.dto';
@@ -23,6 +25,7 @@ import { UserQueryDto } from '../dto/admin/user-query.dto';
 import { AdminUsersService } from '../services/admin-users.service';
 import { UsersService } from '../services/users.service';
 import { StaffEmailPreviewDto } from '../dto/admin/staff-email-preview.dto';
+import { ExportUsersDto } from '../dto/admin/export-users.dto';
 
 @ApiTags('Admin users')
 @Controller('admin/users')
@@ -55,6 +58,20 @@ export class AdminUsersController {
     return new HttpResponseBodySuccessDto(
       await this.accounts.previewStaffEmail(query.fullName),
     );
+  }
+
+  @Post('export')
+  @HttpCode(200)
+  @Header('Cache-Control', 'no-store')
+  @Auth({ permissions: [PermissionEnum.USERS_READ] })
+  async export(
+    @Body() filter: ExportUsersDto,
+    @CurrentUser() actor: CurrentUserDto,
+  ) {
+    return new StreamableFile(await this.users.export(filter, actor), {
+      type: 'text/csv; charset=utf-8',
+      disposition: 'attachment; filename="users.csv"',
+    });
   }
 
   @Get(':id')

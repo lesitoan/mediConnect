@@ -2,22 +2,20 @@
 
 import { Download, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import toast from "react-hot-toast";
 
 interface UserHeaderProps {
   onAddUserClick: () => void;
-  isBusy?: boolean;
+  canCreate: boolean;
+  onExport: () => void;
+  isExporting: boolean;
 }
 
 export function UserHeader({
   onAddUserClick,
-  isBusy = false,
+  canCreate,
+  onExport,
+  isExporting,
 }: UserHeaderProps) {
-
-  const handleExport = () => {
-    toast.error("Tính năng này đang được phát triển!");
-  };
-
   return (
     <div className="flex flex-col gap-4 pb-5 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex flex-col gap-1">
@@ -30,21 +28,24 @@ export function UserHeader({
         <Button
           type="button"
           variant="outline"
-          onClick={handleExport}
+          onClick={onExport}
+          disabled={isExporting}
+          aria-busy={isExporting}
+          title="Xuất CSV toàn bộ tài khoản khớp bộ lọc hiện tại"
           className="h-9 gap-2 rounded-app-lg border-border-strong bg-surface px-4 text-body font-semibold text-foreground shadow-xs hover:bg-surface-hover"
         >
           <Download className="size-3.5 text-muted" />
-          <span>Xuất dữ liệu</span>
+          <span>{isExporting ? "Đang xuất..." : "Xuất dữ liệu"}</span>
         </Button>
 
         <Button
           type="button"
           onClick={onAddUserClick}
-          disabled={isBusy}
+          disabled={!canCreate}
           className="h-9 gap-2 rounded-app-lg bg-primary px-5 text-body font-semibold text-primary-foreground shadow-xs hover:bg-primary-hover"
         >
           <UserPlus className="size-4" />
-          <span>+ Tạo tài khoản mới</span>
+          <span>Tạo tài khoản mới</span>
         </Button>
       </div>
     </div>

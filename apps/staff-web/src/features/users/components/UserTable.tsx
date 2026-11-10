@@ -12,7 +12,12 @@ import {
   TableCell,
 } from "@/components/ui/Table";
 import type { User, UserRole, UserStatus } from "../types/userTypes";
-import { getUserRoleLabel, getUserStatusLabel } from "../utils";
+import {
+  getUserRoleLabel,
+  getUserStatusLabel,
+  canManageUser,
+  canChangeUserStatus,
+} from "../utils";
 
 interface UserTableProps {
   users: User[];
@@ -21,7 +26,8 @@ interface UserTableProps {
   onEditUser: (user: User) => void;
   onToggleStatus: (user: User) => void;
   onViewDetails: (user: User) => void;
-  onDeleteUser: (user: User) => void;
+  canEdit: boolean;
+  canLock: boolean;
   isBusy?: boolean;
 }
 
@@ -32,42 +38,56 @@ export function UserTable({
   onEditUser,
   onToggleStatus,
   onViewDetails,
-  onDeleteUser,
+  canEdit,
+  canLock,
   isBusy = false,
 }: UserTableProps) {
-  const renderRoleBadge = (role: UserRole) => {
+  const renderRoleBadge = (role: UserRole | null) => {
     switch (role) {
-      case "SUPER_ADMIN":
-        return (
-          <Badge variant="brand" shape="pill" size="sm" className="font-bold">
-            <span className="size-1.5 rounded-full bg-primary" />
-            <span>{getUserRoleLabel(role)}</span>
-          </Badge>
-        );
       case "ADMIN":
         return (
-          <Badge variant="brand" shape="pill" size="sm" className="font-semibold">
+          <Badge
+            variant="brand"
+            shape="pill"
+            size="sm"
+            className="font-semibold"
+          >
             <span className="size-1.5 rounded-full bg-primary" />
             <span>{getUserRoleLabel(role)}</span>
           </Badge>
         );
       case "DOCTOR":
         return (
-          <Badge variant="secondary" shape="pill" size="sm" className="font-semibold text-primary">
+          <Badge
+            variant="secondary"
+            shape="pill"
+            size="sm"
+            className="font-semibold text-primary"
+          >
             <span className="size-1.5 rounded-full bg-primary" />
             <span>{getUserRoleLabel(role)}</span>
           </Badge>
         );
       case "RECEPTIONIST":
         return (
-          <Badge variant="tertiary" shape="pill" size="sm" className="font-semibold">
+          <Badge
+            variant="tertiary"
+            shape="pill"
+            size="sm"
+            className="font-semibold"
+          >
             <span className="size-1.5 rounded-full bg-brand-tertiary-foreground" />
             <span>{getUserRoleLabel(role)}</span>
           </Badge>
         );
       case "PATIENT":
         return (
-          <Badge variant="neutral" shape="pill" size="sm" className="font-semibold">
+          <Badge
+            variant="neutral"
+            shape="pill"
+            size="sm"
+            className="font-semibold"
+          >
             <span className="size-1.5 rounded-full bg-muted" />
             <span>{getUserRoleLabel(role)}</span>
           </Badge>
@@ -79,14 +99,24 @@ export function UserTable({
     switch (status) {
       case "ACTIVE":
         return (
-          <Badge variant="success" shape="pill" size="sm" className="font-semibold">
+          <Badge
+            variant="success"
+            shape="pill"
+            size="sm"
+            className="font-semibold"
+          >
             <span className="size-1.5 rounded-full bg-success" />
             <span>{getUserStatusLabel(status)}</span>
           </Badge>
         );
-      case "PENDING_OTP":
+      case "PENDING_VERIFICATION":
         return (
-          <Badge variant="warning" shape="pill" size="sm" className="font-semibold">
+          <Badge
+            variant="warning"
+            shape="pill"
+            size="sm"
+            className="font-semibold"
+          >
             <span className="size-1.5 rounded-full bg-warning" />
             <span>{getUserStatusLabel(status)}</span>
           </Badge>
@@ -163,7 +193,7 @@ export function UserTable({
                       )}
                     </div>
                     <span className="truncate text-caption text-muted">
-                      {user.department}
+                      {user.specialtyName || user.code || "—"}
                     </span>
                   </div>
                 </div>
@@ -172,10 +202,10 @@ export function UserTable({
               <TableCell className="min-w-[220px] px-3.5 py-2.5 align-middle">
                 <div className="flex flex-col gap-0.5">
                   <span className="truncate text-body font-medium text-foreground">
-                    {user.email}
+                    {user.email || "—"}
                   </span>
                   <span className="text-caption text-muted tabular-nums">
-                    {user.phone}
+                    {user.phone || "—"}
                   </span>
                 </div>
               </TableCell>
@@ -199,7 +229,7 @@ export function UserTable({
                     variant="ghost"
                     size="icon-xs"
                     onClick={() => onEditUser(user)}
-                    disabled={isBusy}
+                    disabled={isBusy || !canEdit || !canManageUser(user)}
                     className="size-8 rounded-app-md bg-primary-light text-primary hover:bg-secondary"
                     title="Chỉnh sửa thông tin"
                     aria-label="Chỉnh sửa thông tin"
@@ -207,15 +237,15 @@ export function UserTable({
                     <Edit2 className="size-3.5" />
                   </Button>
 
-                  {user.isCurrentUser ? (
+                  {!canLock || !canChangeUserStatus(user) ? (
                     <Button
                       type="button"
                       variant="ghost"
                       size="icon-xs"
                       disabled
                       className="size-8 rounded-app-md bg-secondary/40 text-muted/40 cursor-not-allowed"
-                      title="Không thể khóa tài khoản của chính mình"
-                      aria-label="Không thể khóa tài khoản chính mình"
+                      title="Không được phép đổi trạng thái tài khoản này"
+                      aria-label="Không được phép đổi trạng thái tài khoản này"
                     >
                       <Lock className="size-3.5" />
                     </Button>
@@ -257,22 +287,6 @@ export function UserTable({
                     aria-label="Xem chi tiết"
                   >
                     <MoreVertical className="size-3.5" />
-                  </Button>
-
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => onDeleteUser(user)}
-                    disabled={isBusy || user.isCurrentUser}
-                    aria-label={`Xóa tài khoản ${user.name}`}
-                    title={
-                      user.isCurrentUser
-                        ? "Không thể xóa tài khoản của chính mình"
-                        : "Xóa tài khoản"
-                    }
-                  >
-                    Xóa
                   </Button>
                 </div>
               </TableCell>

@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { isUUID } from 'class-validator';
 import {
@@ -12,6 +13,7 @@ import {
   UserStatus,
 } from '../../../generated/prisma/client';
 import { PaginationUtils } from '../../../common/utils/pagination.utils';
+import { csvCell } from '../../../common/utils/csv-cell';
 import {
   AuditLogsService,
   type AuditEvent,
@@ -24,6 +26,7 @@ import { CreateUserDto } from '../dto/admin/create-user.dto';
 import { UpdateUserDto } from '../dto/admin/update-user.dto';
 import { UpdateUserStatusDto } from '../dto/admin/update-user-status.dto';
 import { UserQueryDto } from '../dto/admin/user-query.dto';
+import { ExportUsersDto } from '../dto/admin/export-users.dto';
 import { UsersService } from './users.service';
 import { ProvidersService } from '../../providers/providers.service';
 import { sqlTable } from '../../database/utils/sql-table';
@@ -84,9 +87,8 @@ export class AdminUsersService {
     private readonly patients: PatientsService,
   ) {}
 
-  async list(query: UserQueryDto, actor: CurrentUserDto) {
-    const page = new PaginationUtils().extractSkipTakeFromPagination(query);
-    const where: Prisma.UserWhereInput = {
+  private where(query: ExportUsersDto): Prisma.UserWhereInput {
+    return {
       deletedAt: null,
       ...(query.role ? { role: { name: query.role } } : {}),
       ...(query.status ? { status: query.status } : {}),
@@ -114,6 +116,11 @@ export class AdminUsersService {
           }
         : {}),
     };
+  }
+
+  async list(query: UserQueryDto, actor: CurrentUserDto) {
+    const page = new PaginationUtils().extractSkipTakeFromPagination(query);
+    const where = this.where(query);
     const [items, count] = await this.prisma.$transaction([
       this.prisma.user.findMany({
         where,
@@ -128,6 +135,81 @@ export class AdminUsersService {
       items: items.map((user) => present(user, actor.id)),
       pagination: page.convertPaginationResponseDtoFromTotalRecords(count),
     };
+  }
+
+  async export(filter: ExportUsersDto, actor: CurrentUserDto): Promise<Buffer> {
+    const items = await this.users.withLockedAccount(actor.id, async (tx) => {
+      await this.users.assertAdminPermissions(tx, actor.id, [
+        PermissionEnum.USERS_READ,
+      ]);
+      const items = await tx.user.findMany({
+        where: this.where(filter),
+        select: USER_SELECT,
+        take: 10001,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      });
+      if (!items.length)
+        throw new UnprocessableEntityException(
+          'Không có tài khoản phù hợp để xuất.',
+        );
+      if (items.length > 10000)
+        throw new UnprocessableEntityException(
+          'Chỉ có thể xuất tối đa 10.000 tài khoản. Vui lòng thu hẹp bộ lọc.',
+        );
+      await this.audit.record(
+        {
+          actor: {
+            type: 'USER',
+            id: actor.id,
+            name: actor.name,
+            role: RoleEnum.ADMIN,
+          },
+          actionCode: 'EXPORT_USERS',
+          module: 'USERS',
+          targetType: 'USER',
+          result: AuditLogResult.SUCCESS,
+          after: {
+            count: items.length,
+            ...(filter.role ? { role: filter.role } : {}),
+            ...(filter.status ? { status: filter.status } : {}),
+            ...(filter.specialtyId ? { specialtyId: filter.specialtyId } : {}),
+            ...(filter.search ? { search: filter.search } : {}),
+          },
+        },
+        tx,
+      );
+      return items;
+    });
+    const rows = [
+      [
+        'ID tài khoản',
+        'Mã bác sĩ/bệnh nhân',
+        'Họ và tên',
+        'Email',
+        'Số điện thoại',
+        'Vai trò',
+        'Trạng thái',
+        'Chuyên khoa',
+        'Ngày tạo',
+        'Lần đăng nhập cuối',
+      ],
+      ...items.map((user) => [
+        user.id,
+        user.doctor?.doctorCode ?? user.patient?.patientCode ?? null,
+        user.fullName,
+        user.email,
+        user.phone,
+        user.role?.name ?? null,
+        user.status,
+        user.doctor?.specialty.name ?? null,
+        user.createdAt,
+        user.authSessions[0]?.createdAt ?? null,
+      ]),
+    ];
+    return Buffer.from(
+      `\uFEFF${rows.map((row) => row.map(csvCell).join(',')).join('\r\n')}\r\n`,
+      'utf8',
+    );
   }
 
   async get(id: string, actor: CurrentUserDto) {
