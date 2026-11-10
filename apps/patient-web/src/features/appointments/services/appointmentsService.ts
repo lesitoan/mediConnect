@@ -32,8 +32,6 @@ type AppointmentAvailabilityResponse = {
   }>;
 };
 
-const AVAILABILITY_PAGE_SIZE = 50;
-
 type PatientAppointmentResponse = {
   id: string;
   appointmentCode: string;
@@ -153,23 +151,16 @@ export async function getAppointmentAvailability(
   specialtyId?: string,
   signal?: AbortSignal,
 ) {
-  const query = new URLSearchParams({
-    dateFrom: date,
-    dateTo: date,
-    page: "1",
-    limit: String(AVAILABILITY_PAGE_SIZE),
-  });
+  const query = new URLSearchParams({ date });
   if (doctorId) query.set("doctorId", doctorId);
   if (specialtyId) query.set("specialtyId", specialtyId);
 
   const availability: AppointmentAvailabilityResponse["items"] = [];
-  let page = 1;
   let total = 0;
 
-  do {
-    query.set("page", String(page));
+  {
     const response = await request<AppointmentAvailabilityResponse>(
-      `/schedules/ai-availability?${query}`,
+      `/appointments/availability?${query}`,
       { signal },
     );
     if (!Number.isInteger(response.total) || response.total < 0) {
@@ -178,11 +169,10 @@ export async function getAppointmentAvailability(
 
     availability.push(...response.items);
     total = response.total;
-    page += 1;
     if (response.items.length === 0 && availability.length < total) {
       throw new Error("API không trả đủ các trang khung giờ khám.");
     }
-  } while (availability.length < total);
+  }
 
   return availability.map(({ doctor, ...slot }) => ({
     ...slot,

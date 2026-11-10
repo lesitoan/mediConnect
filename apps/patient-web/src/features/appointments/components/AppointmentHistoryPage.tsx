@@ -11,7 +11,6 @@ import {
   Home,
   Plus,
   Search,
-  ShieldCheck,
   Star,
   X,
 } from "@/components/layout/icons";
@@ -35,7 +34,7 @@ import {
   respondToScheduleProposal,
   type ScheduleProposal,
 } from "../services/appointmentsService";
-import AppointmentCard from "./AppointmentCard";
+import AppointmentHistoryCard from "./AppointmentHistoryCard";
 import ConsultationRecordModal from "./ConsultationRecordModal";
 import {
   CancelModal,
@@ -317,10 +316,15 @@ export default function AppointmentHistoryPage() {
   }
 
   const noResult = tab === "upcoming" ? list.length === 0 : history.length === 0;
+  const completedHistory = history.filter((appointment) => appointment.kind === "completed");
+  const cancelledHistory = history.filter((appointment) => appointment.kind === "cancelled");
+  const otherHistory = history.filter(
+    (appointment) => appointment.kind !== "completed" && appointment.kind !== "cancelled",
+  );
 
   const card = (a: Appointment) =>
     now && (
-      <AppointmentCard
+      <AppointmentHistoryCard
         key={a.code}
         appt={a}
         now={now}
@@ -369,16 +373,15 @@ export default function AppointmentHistoryPage() {
         {/* Tiêu đề */}
         <div className="mt-5 flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h1 className="flex flex-wrap items-center gap-3 text-3xl font-extrabold text-slate-900 md:text-4xl">
-              Lịch Sử &amp; Quản Lý Lịch Hẹn
-              <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2.5 py-1 text-[10px] font-bold text-[#0A5A84]">
-                <ShieldCheck className="h-3 w-3" />
-                Hồ sơ {user.pid ?? "bệnh nhân"}
+            <h1 className="flex flex-wrap items-center gap-3 text-3xl font-extrabold text-[#102B55] md:text-4xl">
+              <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#DCEEFF] text-[#0A5A84] shadow-sm">
+                <Calendar className="h-7 w-7" />
               </span>
+              {tab === "upcoming" ? "Lịch khám sắp tới" : "Lịch sử lịch hẹn"}
             </h1>
-            <p className="mt-2 max-w-2xl text-xs leading-relaxed text-slate-500">
-              Theo dõi lịch khám sắp tới, xem lại các lịch đã qua và chủ động đổi hoặc hủy lịch
-              theo chính sách của phòng khám.
+            <p className="mt-2 max-w-3xl text-xs leading-relaxed text-slate-500">
+              <b className="text-[#0A5A84]">Chính sách đặt khám thông minh:</b>{" "}
+              Đổi lịch miễn phí trước 2 tiếng. Hoàn 100% tạm ứng viện phí trong 24h nếu gửi yêu cầu hủy trước 24 giờ.
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
@@ -499,7 +502,7 @@ export default function AppointmentHistoryPage() {
         )}
 
         {/* Tab + bộ lọc */}
-        <div className="mt-7 flex flex-wrap items-center justify-between gap-4">
+        <div className="mt-6 flex flex-col gap-3">
           <div className="flex rounded-2xl bg-blue-100/70 p-1.5" role="tablist">
             {(
               [
@@ -533,7 +536,7 @@ export default function AppointmentHistoryPage() {
             })}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-2.5 rounded-2xl border border-blue-100 bg-white/80 p-3 shadow-[0_4px_14px_rgba(28,79,132,0.06)]">
             <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 focus-within:border-[#2B6CB0] focus-within:ring-2 focus-within:ring-[#2B6CB0]/20">
               <Search className="h-4 w-4 text-slate-400" />
               <input
@@ -571,26 +574,8 @@ export default function AppointmentHistoryPage() {
           </div>
         </div>
 
-        {/* Chính sách */}
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-blue-100 bg-blue-50/80 px-4 py-3 text-xs text-slate-700">
-          <span className="flex items-center gap-2">
-            <ShieldCheck className="h-4 w-4 shrink-0 text-[#2B6CB0]" />
-            <span>
-              <b className="text-[#0A5A84]">Chính sách đặt khám thông minh:</b> Đổi lịch miễn phí
-              trước 2 tiếng. Hoàn 100% tạm ứng viện phí trong 24h nếu gửi yêu cầu hủy trước 24 giờ.
-            </span>
-          </span>
-          <Link
-            href="/chinh-sach-huy-lich"
-            className="inline-flex items-center gap-1 font-bold text-[#0A5A84] hover:underline"
-          >
-            Xem chi tiết
-            <ChevronRight className="h-3 w-3" />
-          </Link>
-        </div>
-
         {/* Danh sách */}
-        <div className="mt-6 space-y-5">
+        <div className="mt-6 space-y-5 rounded-3xl border border-blue-100 bg-white/55 p-3 shadow-[0_8px_26px_rgba(28,79,132,0.08)] sm:p-4">
           {!now || isLoading ? (
             <div className="h-64 animate-pulse rounded-2xl bg-white/70" />
           ) : loadError ? (
@@ -637,7 +622,33 @@ export default function AppointmentHistoryPage() {
           ) : tab === "upcoming" ? (
             list.map((a) => card(a))
           ) : (
-            history.map((appointment) => card(appointment))
+            <div className="space-y-4">
+              {completedHistory.length > 0 && (
+                <section className="rounded-2xl border border-emerald-100 bg-white/70 p-3 sm:p-4">
+                  <h2 className="mb-3 flex items-center gap-2 px-1 text-sm font-extrabold text-[#16345E]">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500 text-white">
+                      <Check className="h-4 w-4" />
+                    </span>
+                    Đã hoàn thành ({completedHistory.length})
+                  </h2>
+                  <div className="space-y-3">{completedHistory.map((appointment) => card(appointment))}</div>
+                </section>
+              )}
+              {cancelledHistory.length > 0 && (
+                <section className="rounded-2xl border border-red-100 bg-white/70 p-3 sm:p-4">
+                  <h2 className="mb-3 flex items-center gap-2 px-1 text-sm font-extrabold text-[#16345E]">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-red-500 text-white">
+                      <X className="h-4 w-4" />
+                    </span>
+                    Đã hủy ({cancelledHistory.length})
+                  </h2>
+                  <div className="space-y-3">{cancelledHistory.map((appointment) => card(appointment))}</div>
+                </section>
+              )}
+              {otherHistory.length > 0 && (
+                <section className="space-y-3">{otherHistory.map((appointment) => card(appointment))}</section>
+              )}
+            </div>
           )}
         </div>
       </div>
