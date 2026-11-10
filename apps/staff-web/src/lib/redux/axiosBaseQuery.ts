@@ -5,7 +5,7 @@ import type { ApiError } from "@/types/apiTypes";
 
 type AxiosBaseQueryArgs = Pick<
   AxiosRequestConfig<unknown>,
-  "method" | "data" | "params" | "headers"
+  "method" | "data" | "params" | "headers" | "timeout"
 > & { url: string };
 
 function getErrorMessage(data: unknown, fallback: string): string {

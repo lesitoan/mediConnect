@@ -22,6 +22,8 @@ export interface Doctor {
   specialty: { id: string; code: string; name: string; roomCode: string };
 }
 export interface DoctorWriteInput {
+  fullName?: string;
+  phone?: string;
   specialtyId: string;
   doctorCode: string;
   licenseNumber: string;

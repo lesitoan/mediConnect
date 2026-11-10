@@ -25,7 +25,7 @@ export interface ForgotPasswordInput {
 
 export interface OtpChallengeData {
   challengeId: string;
-  channel: "EMAIL" | "ZALO";
+  channel: "EMAIL" | "PHONE" | "ZALO";
   expiresIn: number;
   retryAfter: number;
   developmentCode?: string;
