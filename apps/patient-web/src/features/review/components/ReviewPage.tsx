@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { ChevronRight, Home, Star } from "@/components/layout/icons";
 import { useAuth } from "@/features/auth/useAuth";
 import { getVisit } from "../data";
@@ -34,10 +35,18 @@ function Notice({
 
 export default function ReviewPage({ code }: { code: string }) {
   const { user, ready } = useAuth();
+  const [visit, setVisit] = useState<Awaited<ReturnType<typeof getVisit>>>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (!ready || !user) return;
+    getVisit(code)
+      .then(setVisit)
+      .catch(() => setVisit(null))
+      .finally(() => setIsLoading(false));
+  }, [code, ready, user]);
 
   if (!ready) return <div className="min-h-[70vh]" aria-hidden="true" />;
-
-  const visit = getVisit(code);
 
   let blocked: React.ReactNode = null;
   if (!user) {
@@ -49,6 +58,8 @@ export default function ReviewPage({ code }: { code: string }) {
         cta="Đăng nhập"
       />
     );
+  } else if (isLoading) {
+    blocked = <Notice title="Đang tải phiên khám" desc="Đang kiểm tra dữ liệu phiên khám của bạn." href="/lich-su-lich-hen" cta="Quay lại lịch sử khám" />;
   } else if (!visit) {
     blocked = (
       <Notice
@@ -58,7 +69,7 @@ export default function ReviewPage({ code }: { code: string }) {
         cta="Về Lịch sử khám"
       />
     );
-  } else if (visit.status !== "completed") {
+  } else if (visit.status !== "completed" || !visit.isPaid) {
     blocked = (
       <Notice
         title="Chưa thể đánh giá"

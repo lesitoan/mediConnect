@@ -4,311 +4,65 @@ import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Empty } from "@/components/ui/Empty";
 import { Loading } from "@/components/shared/Loading";
-import { getVietnamDate } from "@/lib/dateUtils";
+import { addCalendarDays, getVietnamDate } from "@/lib/dateUtils";
 import { useGetMyScheduleMatrixQuery } from "../services/schedulesApi";
-import type { ScheduleDateRange } from "../types/scheduleTypes";
+import type { ScheduleDateRange, WorkScheduleMatrixResponse } from "../types/scheduleTypes";
 import { LeaveRequestDialog } from "./LeaveRequestDialog";
 
 interface MyScheduleCalendarProps {
-  user: {
-    id: string;
-    name?: string;
-    role: string;
-  };
+  user: { id: string; name?: string; role: string };
 }
 
-const WEEKDAY_LABELS = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "CN"];
-const MONTH_FORMATTER = new Intl.DateTimeFormat("vi-VN", {
-  month: "long",
-  year: "numeric",
-  timeZone: "UTC",
-});
-const DAY_FORMATTER = new Intl.DateTimeFormat("vi-VN", {
-  weekday: "long",
-  day: "numeric",
-  month: "long",
-  timeZone: "UTC",
-});
+type LeaveRequestKind = "PLANNED_LEAVE" | "URGENT_ABSENCE";
 
-function getMonthRange(monthKey: string): ScheduleDateRange {
-  const [year, month] = monthKey.split("-").map(Number);
-  const monthStart = new Date(Date.UTC(year, month - 1, 1));
-  const monthEnd = new Date(Date.UTC(year, month, 0));
-  return {
-    startDate: monthStart.toISOString().slice(0, 10),
-    endDate: monthEnd.toISOString().slice(0, 10),
-  };
+interface LeaveSelection {
+  type: LeaveRequestKind;
+  startsAt: string;
+  endsAt: string;
 }
 
-function shiftMonth(monthKey: string, offset: number) {
-  const [year, month] = monthKey.split("-").map(Number);
-  return new Date(Date.UTC(year, month - 1 + offset, 1))
-    .toISOString()
-    .slice(0, 7);
+type ScheduleShiftSummary = WorkScheduleMatrixResponse["staff"][number]["shifts"][number];
+
+const WEEKDAY_LABELS = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "Chủ nhật"];
+const DAY_FORMATTER = new Intl.DateTimeFormat("vi-VN", { weekday: "short", day: "2-digit", month: "2-digit", timeZone: "UTC" });
+const DATE_FORMATTER = new Intl.DateTimeFormat("vi-VN", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+
+function getMonday(date: string) {
+  const day = new Date(`${date}T12:00:00Z`).getUTCDay();
+  return addCalendarDays(date, day === 0 ? -6 : 1 - day);
 }
 
-function formatMonth(monthKey: string) {
-  const [year, month] = monthKey.split("-").map(Number);
-  return MONTH_FORMATTER.format(new Date(Date.UTC(year, month - 1, 1)));
+function formatTime(value: string) {
+  return new Intl.DateTimeFormat("vi-VN", { timeZone: "Asia/Ho_Chi_Minh", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(value));
 }
 
-function getCalendarDays(monthKey: string) {
-  const [year, month] = monthKey.split("-").map(Number);
-  const count = new Date(Date.UTC(year, month, 0)).getUTCDate();
-  const firstDay = new Date(Date.UTC(year, month - 1, 1)).getUTCDay();
-  const offset = (firstDay + 6) % 7;
-  const cellCount = Math.ceil((offset + count) / 7) * 7;
-  return {
-    count,
-    offset,
-    cellCount,
-    dates: Array.from({ length: cellCount }, (_, index) => {
-      const day = index - offset + 1;
-      return day > 0 && day <= count
-        ? new Date(Date.UTC(year, month - 1, day))
-            .toISOString()
-            .slice(0, 10)
-        : null;
-    }),
-  };
-}
+function ShiftCard({ shift, shiftKey, isSelected, onSelect }: { shift: ScheduleShiftSummary | null; shiftKey: "MORNING" | "AFTERNOON"; isSelected: boolean; onSelect: (shift: ScheduleShiftSummary) => void }) {
+  const isMorning = (shift?.key ?? shiftKey) === "MORNING";
+  const isAbsent = shift?.status === "ABSENT";
+  const isPast = shift ? new Date(shift.endsAt).getTime() <= Date.now() : false;
+  const cardClassName = `flex h-full min-h-0 min-w-0 w-full flex-col overflow-hidden rounded-app-lg border p-3 text-left transition ${isPast ? "cursor-not-allowed border-border bg-muted/10 opacity-60" : isAbsent ? "cursor-not-allowed border-destructive/30 bg-destructive/10" : isSelected ? "border-primary bg-primary-light/40 ring-2 ring-primary/30" : "border-border bg-surface hover:border-primary/50 hover:bg-primary-light/20"}`;
 
-function getShiftStatusLabel(status: string) {
-  return status === "ABSENT" ? "Vắng" : "Có lịch";
+  if (!shift) {
+    return <div className={`${cardClassName} cursor-default`}><div className="flex min-w-0 flex-wrap items-start justify-between gap-2"><div className="min-w-0"><h3 className="text-body font-bold">{isMorning ? "Ca sáng" : "Ca chiều"}</h3><p className="text-caption text-muted">{isMorning ? "08:00–12:00" : "13:00–18:00"}</p></div><span className="shrink-0 rounded-full bg-muted/15 px-2 py-0.5 text-label font-semibold text-muted">Không có lịch</span></div><p className="mt-3 text-caption text-muted">Ca này chưa được gán</p></div>;
+  }
+
+  return <button type="button" className={`${cardClassName} ${isPast || isAbsent ? "cursor-not-allowed" : "cursor-pointer"}`} aria-pressed={isSelected} disabled={isPast || isAbsent} onClick={() => onSelect(shift)}><div className="flex min-w-0 flex-wrap items-start justify-between gap-2"><div className="min-w-0"><h3 className="text-body font-bold">{isMorning ? "Ca sáng" : "Ca chiều"}</h3><p className="text-caption text-muted">{formatTime(shift.startsAt)}–{formatTime(shift.endsAt)}</p></div><span className={`shrink-0 rounded-full px-2 py-0.5 text-label font-semibold ${isAbsent ? "bg-destructive/15 text-destructive" : isPast ? "bg-muted/15 text-muted" : "bg-primary-light text-primary"}`}>{isAbsent ? "Đã vắng" : isPast ? "Đã kết thúc" : "Có lịch"}</span></div><p className="mt-3 text-caption text-muted">{shift.slotCapacity ? `${shift.slotCount}/${shift.slotCapacity} slot đã được đặt` : "Ca này không có slot khám"}</p></button>;
 }
 
 export function MyScheduleCalendar({ user }: MyScheduleCalendarProps) {
-  const [monthKey, setMonthKey] = useState(() => getVietnamDate().slice(0, 7));
-  const dateRange = useMemo(() => getMonthRange(monthKey), [monthKey]);
-  const { currentData, isLoading, isFetching, isError, refetch } =
-    useGetMyScheduleMatrixQuery(dateRange);
-  const { dates, cellCount } = useMemo(
-    () => getCalendarDays(monthKey),
-    [monthKey],
-  );
-  const [selectedDate, setSelectedDate] = useState(() => getVietnamDate());
-  const [leaveRequestType, setLeaveRequestType] = useState<
-    "PLANNED_LEAVE" | "URGENT_ABSENCE" | null
-  >(null);
-
+  const [weekStart, setWeekStart] = useState(() => getMonday(getVietnamDate()));
+  const [selectedShift, setSelectedShift] = useState<ScheduleShiftSummary | null>(null);
+  const [leaveSelection, setLeaveSelection] = useState<LeaveSelection | null>(null);
+  const dateRange = useMemo<ScheduleDateRange>(() => ({ startDate: weekStart, endDate: addCalendarDays(weekStart, 6) }), [weekStart]);
+  const { currentData, isLoading, isFetching, isError, refetch } = useGetMyScheduleMatrixQuery(dateRange);
   const staff = currentData?.staff.find((item) => item.userId === user.id);
-  const shifts = staff?.shifts.filter((shift) => shift.date === selectedDate) ?? [];
-  const approvedAbsenceDates = new Set(
-    (staff?.shifts ?? [])
-      .filter((shift) => shift.status === "ABSENT")
-      .map((shift) => shift.date),
-  );
+  const dates = useMemo(() => Array.from({ length: 7 }, (_, index) => addCalendarDays(weekStart, index)), [weekStart]);
 
-  const selectedDateLabel = selectedDate
-    ? DAY_FORMATTER.format(new Date(`${selectedDate}T00:00:00Z`))
-    : "";
-  return (
-    <section className="flex h-[calc(100dvh-8rem)] min-h-[520px] w-full min-w-0 flex-col gap-3">
-      <header className="flex shrink-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-title font-bold tracking-tight text-foreground sm:text-display">
-            Lịch làm việc của tôi
-          </h1>
-          <p className="mt-0.5 text-caption text-muted sm:text-body">
-            {user.name ?? "Nhân viên"} · Thứ Hai đến Chủ nhật
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setLeaveRequestType("PLANNED_LEAVE")}
-          >
-            Xin nghỉ phép
-          </Button>
-          <Button
-            type="button"
-            onClick={() => setLeaveRequestType("URGENT_ABSENCE")}
-          >
-            Báo vắng đột xuất
-          </Button>
-        </div>
-      </header>
+  const openLeaveRequest = (type: LeaveRequestKind) => {
+    const hasValidSelectedShift = selectedShift && selectedShift.status !== "ABSENT" && new Date(selectedShift.endsAt).getTime() > Date.now();
+    setLeaveSelection({ type, startsAt: hasValidSelectedShift ? selectedShift.startsAt : "", endsAt: hasValidSelectedShift ? selectedShift.endsAt : "" });
+  };
+  const changeWeek = (offset: number) => { setSelectedShift(null); setWeekStart(addCalendarDays(weekStart, offset)); };
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-app-xl border border-border bg-surface p-3 shadow-2xs sm:p-4">
-        <div className="mb-2 flex shrink-0 items-center justify-between gap-2 sm:mb-3">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-8 px-2 text-caption sm:px-3"
-            onClick={() => {
-              const nextMonth = shiftMonth(monthKey, -1);
-              setMonthKey(nextMonth);
-              setSelectedDate(getMonthRange(nextMonth).startDate);
-            }}
-          >
-            Tháng trước
-          </Button>
-          <h2 className="text-body font-semibold capitalize sm:text-title">
-            {formatMonth(monthKey)}
-          </h2>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-8 px-2 text-caption sm:px-3"
-            onClick={() => {
-              const nextMonth = shiftMonth(monthKey, 1);
-              setMonthKey(nextMonth);
-              setSelectedDate(getMonthRange(nextMonth).startDate);
-            }}
-          >
-            Tháng sau
-          </Button>
-        </div>
-
-        {isLoading ? (
-          <Loading label="Đang tải lịch cá nhân..." className="min-h-0 flex-1" />
-        ) : isError ? (
-          <Empty
-            role="alert"
-            title="Không thể tải lịch của bạn"
-            description="Vui lòng thử lại."
-            action={
-              <Button
-                type="button"
-                onClick={() => void refetch()}
-                disabled={isFetching}
-              >
-                Thử lại
-              </Button>
-            }
-          />
-        ) : !staff ? (
-          <Empty
-            role="alert"
-            title="API chưa trả về lịch cho tài khoản này"
-            description="Hãy kiểm tra quyền truy cập và dữ liệu nhân viên của tài khoản."
-            action={
-              <Button
-                type="button"
-                onClick={() => void refetch()}
-                disabled={isFetching}
-              >
-                Tải lại
-              </Button>
-            }
-          />
-        ) : (
-          <div className="flex min-h-0 flex-1 flex-col" aria-busy={isFetching}>
-            <div className="grid shrink-0 grid-cols-7 overflow-hidden rounded-t-app-lg border border-border">
-              {WEEKDAY_LABELS.map((label) => (
-                <div
-                  key={label}
-                  className="border-b border-r border-border bg-secondary/50 px-0.5 py-1.5 text-center text-[10px] font-semibold text-muted last:border-r-0 sm:py-2 sm:text-caption"
-                >
-                  {label}
-                </div>
-              ))}
-            </div>
-            <div
-              className="grid min-h-0 flex-1 grid-cols-7 overflow-hidden rounded-b-app-lg border-x border-b border-border"
-              style={{
-                gridTemplateRows: `repeat(${cellCount / 7}, minmax(0, 1fr))`,
-              }}
-            >
-              {dates.map((date, index) => {
-                if (!date) {
-                  return (
-                    <div
-                      key={`empty-${index}`}
-                      aria-hidden="true"
-                      className="border-b border-r border-border bg-secondary/20"
-                    />
-                  );
-                }
-                const day = Number(date.slice(-2));
-                const isAbsent = approvedAbsenceDates.has(date);
-                const isSelected = selectedDate === date;
-                return (
-                  <button
-                    type="button"
-                    key={date}
-                    aria-pressed={isSelected}
-                    onClick={() => setSelectedDate(date)}
-                    className={`flex min-h-0 flex-col gap-1 border-b border-r border-border p-1 text-left transition-colors sm:gap-1.5 sm:p-2 ${
-                      isSelected
-                        ? "bg-primary-light ring-2 ring-inset ring-primary"
-                        : isAbsent
-                          ? "bg-destructive/10 hover:bg-destructive/15"
-                          : "bg-surface hover:bg-secondary/40"
-                    }`}
-                  >
-                    <span className="text-caption font-semibold leading-4 text-foreground sm:text-body">
-                      {day}
-                    </span>
-                    <span
-                      className={`block truncate rounded px-0.5 py-0.5 text-center text-[9px] font-semibold leading-3 sm:px-1 sm:text-caption sm:leading-4 ${
-                        isAbsent
-                          ? "bg-destructive text-white"
-                          : "bg-primary-light text-primary"
-                      }`}
-                    >
-                      {isAbsent ? "Vắng" : "Có lịch"}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-            {selectedDate && (
-              <section
-                aria-live="polite"
-                className="mt-2 grid shrink-0 grid-cols-[minmax(90px,0.8fr)_repeat(2,minmax(0,1fr))] gap-2 sm:mt-3 sm:gap-3"
-              >
-                <div className="flex min-w-0 items-center">
-                  <h2 className="truncate text-caption font-semibold capitalize text-foreground sm:text-body">
-                    {selectedDateLabel}
-                  </h2>
-                </div>
-                {(["MORNING", "AFTERNOON"] as const).map((key) => {
-                  const shift = shifts.find((item) => item.key === key);
-                  const isShiftAbsent = shift?.status === "ABSENT";
-                  return (
-                    <article
-                      key={key}
-                      className={`flex min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-1 rounded-app-md border px-2 py-1.5 sm:px-3 ${
-                        isShiftAbsent
-                          ? "border-destructive/30 bg-destructive/10"
-                          : "border-border bg-secondary/20"
-                      }`}
-                    >
-                      <div className="min-w-0">
-                        <h3 className="truncate text-caption font-semibold text-foreground">
-                          {key === "MORNING" ? "Ca sáng" : "Ca chiều"}
-                        </h3>
-                        <p className="text-[10px] text-muted sm:text-caption">
-                          {key === "MORNING" ? "08:00–12:00" : "13:00–18:00"}
-                        </p>
-                      </div>
-                      <span
-                        className={`shrink-0 text-[10px] font-semibold sm:text-caption ${
-                          isShiftAbsent ? "text-destructive" : "text-primary"
-                        }`}
-                      >
-                        {getShiftStatusLabel(shift?.status ?? "PUBLISHED")}
-                      </span>
-                    </article>
-                  );
-                })}
-              </section>
-            )}
-          </div>
-        )}
-      </div>
-
-      {leaveRequestType && (
-        <LeaveRequestDialog
-          key={leaveRequestType}
-          requestType={leaveRequestType}
-          onClose={() => setLeaveRequestType(null)}
-        />
-      )}
-    </section>
-  );
+  return <section className="mx-auto flex min-h-[calc(100dvh-8rem)] w-full max-w-7xl flex-col gap-3 overflow-hidden pb-2"><header className="flex shrink-0 flex-wrap items-end justify-between gap-3"><div><h1 className="text-display font-bold tracking-tight">Lịch làm việc của tôi</h1><p className="mt-1 text-body text-muted">{user.name ?? "Nhân viên"} · Lịch được gán trong tuần</p></div><div className="flex flex-wrap items-center justify-end gap-2">{selectedShift && <span className="text-caption text-muted">Đã chọn: {selectedShift.key === "MORNING" ? "Ca sáng" : "Ca chiều"}</span>}<Button type="button" variant="outline" onClick={() => openLeaveRequest("PLANNED_LEAVE")}>Xin nghỉ phép</Button><Button type="button" onClick={() => openLeaveRequest("URGENT_ABSENCE")}>Báo vắng đột xuất</Button></div></header><div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-app-xl border border-border bg-surface p-3 shadow-2xs" aria-busy={isFetching}><div className="mb-3 flex shrink-0 items-center justify-between gap-3"><Button type="button" variant="outline" size="sm" onClick={() => changeWeek(-7)}>Tuần trước</Button><h2 className="text-title text-center font-bold">{DATE_FORMATTER.format(new Date(`${weekStart}T00:00:00Z`))} – {DATE_FORMATTER.format(new Date(`${addCalendarDays(weekStart, 6)}T00:00:00Z`))}</h2><Button type="button" variant="outline" size="sm" onClick={() => changeWeek(7)}>Tuần sau</Button></div>{isLoading ? <Loading label="Đang tải lịch làm việc..." className="min-h-[40vh]" /> : isError ? <Empty role="alert" title="Không thể tải lịch của bạn" description="Vui lòng thử lại." action={<Button type="button" onClick={() => void refetch()} disabled={isFetching}>Thử lại</Button>} /> : !staff ? <Empty title="Chưa có lịch được gán" description="Tài khoản này chưa có lịch làm việc trong tuần đang xem." /> : <div className="grid min-h-0 min-w-0 flex-1 gap-2 xl:grid-cols-[repeat(7,minmax(0,1fr))]">{dates.map((date, index) => { const shifts = staff.shifts.filter((shift) => shift.date === date); const morning = shifts.find((shift) => shift.key === "MORNING") ?? null; const afternoon = shifts.find((shift) => shift.key === "AFTERNOON") ?? null; return <section key={date} className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-app-lg border border-border bg-secondary/20 p-2"><header className="mb-2 shrink-0 border-b border-border px-1 pb-2"><p className="text-caption font-semibold text-muted">{WEEKDAY_LABELS[index]}</p><p className="text-body font-bold">{DAY_FORMATTER.format(new Date(`${date}T00:00:00Z`))}</p></header><div className="grid min-h-0 flex-1 auto-rows-fr gap-2"><ShiftCard shift={morning} shiftKey="MORNING" isSelected={selectedShift?.startsAt === morning?.startsAt} onSelect={setSelectedShift} /><ShiftCard shift={afternoon} shiftKey="AFTERNOON" isSelected={selectedShift?.startsAt === afternoon?.startsAt} onSelect={setSelectedShift} /></div></section>; })}</div>}</div>{leaveSelection && <LeaveRequestDialog key={`${leaveSelection.type}-${leaveSelection.startsAt}`} requestType={leaveSelection.type} initialStartsAt={leaveSelection.startsAt} initialEndsAt={leaveSelection.endsAt} onClose={() => setLeaveSelection(null)} />}</section>;
 }

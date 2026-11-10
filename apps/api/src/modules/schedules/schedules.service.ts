@@ -26,6 +26,7 @@ import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import type { CurrentUserDto } from '../users/dto/responses/current-user.dto';
 import {
   CRITICAL_CARE_SESSION_STATUSES,
+  MAX_APPOINTMENT_SLOTS_PER_SHIFT,
   MIN_PLANNED_LEAVE_NOTICE_HOURS,
   WORKING_DAYS_PER_WEEK,
 } from './constants/schedules.constant';
@@ -264,7 +265,7 @@ export class SchedulesService {
         'Schedule overlaps an existing work schedule',
       );
 
-    return this.repository.createWorkSchedule({
+    const created = await this.repository.createWorkSchedule({
       staffUserId: input.staffUserId,
       staffType: input.staffType,
       startsAt,
@@ -275,8 +276,12 @@ export class SchedulesService {
       isRecurring: true,
       scheduleType: input.scheduleType ?? 'REGULAR',
       slotDurationMinutes: input.slotDurationMinutes,
+      status: StaffWorkScheduleStatus.PUBLISHED,
       createdBy: admin.id,
+      publishedAt: getCurrentTime(),
     });
+    await this.publishWorkSchedule(created.id, admin);
+    return this.getWorkSchedule(created.id);
   }
 
   async createWorkSchedules(
@@ -326,6 +331,30 @@ export class SchedulesService {
       startDate,
       until,
     );
+    const schedules = await this.repository.findWorkSchedules({
+      ...(staffUserId
+        ? { staffUserId }
+        : { staffUserId: { in: users.map((item) => item.id) } }),
+      status: staffUserId
+        ? {
+            in: [
+              StaffWorkScheduleStatus.DRAFT,
+              StaffWorkScheduleStatus.PUBLISHED,
+            ],
+          }
+        : StaffWorkScheduleStatus.PUBLISHED,
+      effectiveFrom: { lte: lastDate },
+      OR: [{ effectiveTo: null }, { effectiveTo: { gte: startDate } }],
+    });
+    if (
+      staffUserId &&
+      schedules.some((schedule) => schedule.staffType === StaffType.DOCTOR)
+    ) {
+      for (const schedule of schedules) {
+        if (schedule.staffType === StaffType.DOCTOR)
+          await this.publishWorkSchedule(schedule.id);
+      }
+    }
     const dates: string[] = [];
     for (
       let date = new Date(startDate);
@@ -337,43 +366,89 @@ export class SchedulesService {
 
     return {
       dates,
-      staff: users.map((staffMember) => ({
-        userId: staffMember.id,
-        staffType: staffMember.role?.name,
-        fullName: staffMember.fullName,
-        staffCode:
-          staffMember.doctor?.doctorCode ??
-          staffMember.id.slice(0, 8).toUpperCase(),
-        specialtyName: staffMember.doctor?.specialty.name ?? 'Lễ tân',
-        shifts: dates.flatMap((date) =>
-          [
-            { key: 'MORNING', startsAt: '08:00', endsAt: '12:00' },
-            { key: 'AFTERNOON', startsAt: '13:00', endsAt: '18:00' },
-          ].map((shift) => {
-            const shiftStartsAt = new Date(
-              `${date}T${shift.startsAt}:00+07:00`,
-            );
-            const shiftEndsAt = new Date(`${date}T${shift.endsAt}:00+07:00`);
-            const hasApprovedLeave = leaves.some(
-              (leaveRequest) =>
-                (leaveRequest.staffUserId === staffMember.id ||
-                  (staffMember.doctor &&
-                    leaveRequest.doctorId === staffMember.doctor.id)) &&
-                leaveRequest.startsAt < shiftEndsAt &&
-                leaveRequest.endsAt !== null &&
-                leaveRequest.endsAt > shiftStartsAt,
-            );
-            return {
-              date,
-              key: shift.key,
-              startsAt: shiftStartsAt.toISOString(),
-              endsAt: shiftEndsAt.toISOString(),
-              status: hasApprovedLeave ? 'ABSENT' : 'PUBLISHED',
-            };
-          }),
-        ),
-      })),
+      staff: await Promise.all(
+        users.map(async (staffMember) => ({
+          userId: staffMember.id,
+          staffType: staffMember.role?.name,
+          fullName: staffMember.fullName,
+          staffCode:
+            staffMember.doctor?.doctorCode ??
+            staffMember.id.slice(0, 8).toUpperCase(),
+          specialtyName: staffMember.doctor?.specialty.name ?? 'Lễ tân',
+          shifts: await Promise.all(
+            dates.flatMap((date) =>
+              schedules
+                .filter(
+                  (schedule) =>
+                    schedule.staffUserId === staffMember.id &&
+                    schedule.dayOfWeek === this.clinicDayOfWeek(date) &&
+                    schedule.effectiveFrom <= clinicDateStart(date) &&
+                    (!schedule.effectiveTo ||
+                      schedule.effectiveTo >= clinicDateStart(date)),
+                )
+                .map(async (schedule) => {
+                  const startsAt = this.clinicDateTimeFromTime(
+                    date,
+                    schedule.startsAt,
+                  );
+                  const endsAt = this.clinicDateTimeFromTime(
+                    date,
+                    schedule.endsAt,
+                  );
+                  const hasApprovedLeave = leaves.some(
+                    (leaveRequest) =>
+                      (leaveRequest.staffUserId === staffMember.id ||
+                        (staffMember.doctor &&
+                          leaveRequest.doctorId === staffMember.doctor.id)) &&
+                      leaveRequest.startsAt < endsAt &&
+                      leaveRequest.endsAt !== null &&
+                      leaveRequest.endsAt > startsAt,
+                  );
+                  const slotCount = staffMember.doctor
+                    ? Math.min(
+                        await this.repository.countBookedAppointmentSlots(
+                          staffMember.doctor.id,
+                          startsAt,
+                          endsAt,
+                        ),
+                        MAX_APPOINTMENT_SLOTS_PER_SHIFT,
+                      )
+                    : 0;
+                  return {
+                    date,
+                    key: startsAt.getUTCHours() < 6 ? 'MORNING' : 'AFTERNOON',
+                    startsAt: startsAt.toISOString(),
+                    endsAt: endsAt.toISOString(),
+                    status: hasApprovedLeave ? 'ABSENT' : 'PUBLISHED',
+                    slotCount,
+                    slotCapacity: staffMember.doctor
+                      ? MAX_APPOINTMENT_SLOTS_PER_SHIFT
+                      : 0,
+                  };
+                }),
+            ),
+          ),
+        })),
+      ),
     };
+  }
+
+  private clinicDayOfWeek(value: string) {
+    const day = new Date(`${value}T12:00:00Z`).getUTCDay();
+    return day === 0 ? 7 : day;
+  }
+
+  private clinicDateTimeFromTime(date: string, value: Date) {
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Ho_Chi_Minh',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    }).formatToParts(value);
+    const hour = parts.find((part) => part.type === 'hour')?.value;
+    const minute = parts.find((part) => part.type === 'minute')?.value;
+    if (!hour || !minute) throw new Error('Unable to format schedule time');
+    return new Date(`${date}T${hour}:${minute}:00+07:00`);
   }
 
   getOwnWorkScheduleMatrix(
@@ -469,11 +544,13 @@ export class SchedulesService {
       );
       const slots: import('../../generated/prisma/client').Prisma.AppointmentSlotCreateManyInput[] =
         [];
+      let createdSlotCount = 0;
       for (
         let slotStart = new Date(startsAt);
         slotStart < endsAt;
         slotStart = new Date(slotStart.getTime() + slotDurationMinutes * 60_000)
       ) {
+        if (createdSlotCount >= MAX_APPOINTMENT_SLOTS_PER_SHIFT) break;
         const slotEnd = new Date(
           Math.min(
             slotStart.getTime() + slotDurationMinutes * 60_000,
@@ -486,6 +563,7 @@ export class SchedulesService {
           startsAt: slotStart,
           endsAt: slotEnd,
         });
+        createdSlotCount += 1;
       }
       await this.repository.createAppointmentSlots(client, slots);
     }
@@ -567,11 +645,12 @@ export class SchedulesService {
 
   async createLeaveRequest(input: CreateLeaveRequestDto, user: CurrentUserDto) {
     if (
+      input.requestType !== LeaveRequestType.ABSENT &&
       input.requestType !== LeaveRequestType.PLANNED_LEAVE &&
       input.requestType !== LeaveRequestType.URGENT_ABSENCE
     ) {
       throw new BadRequestException(
-        'Only planned leave or urgent absence can be requested',
+        'Only absent, planned leave or urgent absence can be requested',
       );
     }
     const startsAt = this.parseDate(input.startsAt, 'startsAt');
@@ -611,13 +690,19 @@ export class SchedulesService {
       throw new ForbiddenException(
         'Only doctors and receptionists can request leave',
       );
+    const linkedSchedules = await this.repository.findWorkSchedulesForLeave(
+      user.id,
+      startsAt,
+      endsAt,
+    );
     const request = await this.repository.transaction(async (client) => {
       const created = await this.repository.createLeaveRequest(client, {
         doctorId: staff.doctor?.id ?? null,
         staffUserId: user.id,
         requestType: input.requestType,
         priority:
-          input.requestType === LeaveRequestType.URGENT_ABSENCE
+          input.requestType === LeaveRequestType.URGENT_ABSENCE ||
+          input.requestType === LeaveRequestType.ABSENT
             ? LeaveRequestPriority.URGENT
             : LeaveRequestPriority.NORMAL,
         startsAt,
@@ -626,6 +711,15 @@ export class SchedulesService {
         status: LeaveRequestStatus.PENDING,
         noticeHours,
       });
+      if (linkedSchedules.length) {
+        await this.repository.createLeaveRequestSchedules(
+          client,
+          linkedSchedules.map((schedule) => ({
+            leaveRequestId: created.id,
+            staffWorkScheduleId: schedule.id,
+          })),
+        );
+      }
       await this.recordAudit(
         client,
         user,
@@ -634,7 +728,8 @@ export class SchedulesService {
         created.id,
         {
           requestType: input.requestType,
-          scheduleCount: affectedShifts.length,
+          scheduleCount: linkedSchedules.length,
+          affectedShiftCount: affectedShifts.length,
         },
       );
       return created;
@@ -867,13 +962,42 @@ export class SchedulesService {
           },
         );
         if (replacementDoctor) {
+          const replacementSlot =
+            await this.repository.findAvailableReplacementSlotAt(
+              replacementDoctor.id,
+              session.appointmentSlot.startsAt,
+              session.appointmentSlot.endsAt,
+              client,
+            );
+          if (!replacementSlot) {
+            throw new ConflictException(
+              'Replacement doctor has no available slot for an affected appointment',
+            );
+          }
+          if (
+            (await this.repository.isSlotBlockedByLeave(
+              replacementDoctor.id,
+              replacementSlot.startsAt,
+              replacementSlot.endsAt,
+              client,
+            )) > 0
+          ) {
+            throw new ConflictException(
+              'Replacement doctor is unavailable during the affected appointment',
+            );
+          }
           await this.repository.createScheduleReassignment(client, {
             exceptionId: exception.id,
             fromDoctorId: current.doctorId!,
             toDoctorId: replacementDoctor.id,
             fromSlotId: session.appointmentSlotId,
+            toSlotId: replacementSlot.id,
             status: ScheduleReassignmentStatus.PROPOSED,
             proposedBy: admin.id,
+          });
+          await this.repository.updateScheduleException(client, exception.id, {
+            status: ScheduleExceptionStatus.PROPOSED,
+            resolution: ScheduleExceptionResolution.REASSIGNED,
           });
         }
       }
@@ -949,11 +1073,11 @@ export class SchedulesService {
     const existing = await this.repository.findScheduleException(id);
     if (!existing) throw new NotFoundException('Schedule exception not found');
     if (
-      existing.status === ScheduleExceptionStatus.RESOLVED ||
+      existing.status !== ScheduleExceptionStatus.PENDING_REASSIGNMENT ||
       existing.leaveRequest.status !== LeaveRequestStatus.RESOLVING
     )
       throw new ConflictException(
-        'The leave request is not waiting for exception resolution',
+        'The schedule exception is not waiting for an admin proposal',
       );
 
     const originalSlot = existing.careSession.appointmentSlot;
@@ -1158,6 +1282,16 @@ export class SchedulesService {
       const proposedResolution = exception.resolution;
       if (!proposedResolution)
         throw new ConflictException('The proposal has no resolution type');
+      const terminalCareSessionStatuses: CareSessionStatus[] = [
+        CareSessionStatus.COMPLETED,
+        CareSessionStatus.CANCELLED,
+        CareSessionStatus.NO_SHOW,
+      ];
+      if (terminalCareSessionStatuses.includes(exception.careSession.status)) {
+        throw new ConflictException(
+          'The care session is no longer eligible for schedule resolution',
+        );
+      }
       const reassignment = exception.reassignments.find(
         (item) => item.status === ScheduleReassignmentStatus.PROPOSED,
       );

@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import type { CurrentUserDto } from '../users/dto/responses/current-user.dto';
 import type { CreateReviewDto } from './dto/patient/create-review.dto';
+import type { UpdateReviewDto } from './dto/patient/update-review.dto';
 import { ReviewsRepository } from './reviews.repository';
 
 @Injectable()
@@ -30,7 +31,9 @@ export class ReviewsService {
     );
     if (!consultation)
       throw new NotFoundException('Completed consultation not found');
-    return consultation.review;
+    return consultation.review
+      ? { ...consultation.review, canEdit: consultation.review.editCount < 1 }
+      : null;
   }
 
   async create(
@@ -62,6 +65,7 @@ export class ReviewsService {
             consultationId,
             doctorRating: input.doctorRating,
             serviceRating: input.serviceRating,
+            criteriaRatings: { ...input.criteriaRatings },
             comment: input.comment,
           },
           client,
@@ -72,6 +76,45 @@ export class ReviewsService {
         throw new ConflictException('Consultation has already been reviewed');
       throw error;
     }
+  }
+
+  async update(
+    consultationId: string,
+    input: UpdateReviewDto,
+    user: CurrentUserDto,
+  ) {
+    const patient = await this.requirePatient(user.id);
+    return this.repository.transaction(async (client) => {
+      const consultation = await client.consultation.findFirst({
+        where: {
+          id: consultationId,
+          careSession: {
+            status: 'COMPLETED',
+            appointment: { patientId: patient.id },
+          },
+        },
+        select: { review: true },
+      });
+      if (!consultation?.review)
+        throw new NotFoundException('Review not found');
+      if (consultation.review.editCount >= 1)
+        throw new ConflictException('Review can only be edited once');
+
+      const result = await this.repository.updateReview(
+        consultation.review.id,
+        {
+          doctorRating: input.doctorRating,
+          serviceRating: input.serviceRating,
+          criteriaRatings: { ...input.criteriaRatings },
+          comment: input.comment,
+          editCount: { increment: 1 },
+        },
+        client,
+      );
+      if (result.count !== 1)
+        throw new ConflictException('Review can only be edited once');
+      return client.review.findUnique({ where: { id: consultation.review.id } });
+    });
   }
 
   private async requirePatient(userId: string) {

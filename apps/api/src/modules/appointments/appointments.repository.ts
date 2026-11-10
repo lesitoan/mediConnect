@@ -26,7 +26,11 @@ const APPOINTMENT_INCLUDE = {
   careSessions: {
     include: {
       specialty: true,
-      consultation: { include: { review: true } },
+      consultation: {
+        include: {
+          review: true,
+        },
+      },
       appointmentSlot: {
         include: {
           doctorSchedule: {
@@ -36,7 +40,17 @@ const APPOINTMENT_INCLUDE = {
       },
     },
   },
-  invoices: true,
+  invoices: {
+    include: {
+      transactions: {
+        where: {
+          transactionType: 'PAYMENT',
+          status: 'SUCCESS',
+        },
+        select: { amount: true },
+      },
+    },
+  },
 } as const;
 
 @Injectable()

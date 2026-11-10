@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
@@ -13,6 +14,7 @@ import { CurrentUser } from '../authentication/decorators/current-user.decorator
 import { RoleEnum } from '../users/constants/roles.constant';
 import type { CurrentUserDto } from '../users/dto/responses/current-user.dto';
 import { CreateReviewDto } from './dto/patient/create-review.dto';
+import { UpdateReviewDto } from './dto/patient/update-review.dto';
 import { ReviewsService } from './reviews.service';
 
 @ApiTags('Patient reviews')
@@ -42,6 +44,17 @@ export class PatientReviewsController {
   ) {
     return new ApiResponseDto(
       await this.reviewsService.create(id, input, user),
+    );
+  }
+
+  @Patch('consultations/:id/review')
+  async update(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Body() input: UpdateReviewDto,
+    @CurrentUser() user: CurrentUserDto,
+  ) {
+    return new ApiResponseDto(
+      await this.reviewsService.update(id, input, user),
     );
   }
 }

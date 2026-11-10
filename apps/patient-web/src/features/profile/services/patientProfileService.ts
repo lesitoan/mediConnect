@@ -23,6 +23,7 @@ export type PatientProfile = {
   fullName: string;
   email: string | null;
   phone: string | null;
+  createdAt: string;
 };
 
 export type PatientMedicalRecord = {
@@ -121,10 +122,24 @@ export async function getPatientMedicalRecords(signal?: AbortSignal) {
   return records;
 }
 
+export async function createPatientAllergy(input: {
+  name: string;
+  severity: "MILD" | "MODERATE" | "SEVERE";
+  description?: string;
+  reaction?: string;
+}) {
+  const response = await request<PatientMedicalRecord>('/me/medical-records', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+  return response.data;
+}
+
 export async function updatePatientProfile(form: IdentityForm) {
   const response = await request<{ patientProfile?: PatientProfile }>("/me", {
     method: "PATCH",
     body: JSON.stringify({
+      nationalId: form.nationalId.trim() || null,
       dateOfBirth: form.dateOfBirth || null,
       gender: form.gender || null,
       address: form.address.trim() || null,

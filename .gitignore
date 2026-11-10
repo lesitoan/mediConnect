@@ -77,3 +77,7 @@ apps/ai/models/
 apps/ai/storage/
 apps/api/dist-seed/
 package-lock.json.*
+
+# Local E2E testing
+/apps/staff-web/e2e/
+/apps/patient-web/e2e/

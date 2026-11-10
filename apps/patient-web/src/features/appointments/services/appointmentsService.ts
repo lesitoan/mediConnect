@@ -45,6 +45,10 @@ type PatientAppointmentResponse = {
     status: string;
     queueNumber: number | null;
     specialty: { name: string };
+    consultation: {
+      id: string;
+      review: { id: string } | null;
+    } | null;
     appointmentSlot: {
       id: string;
       startsAt: string;
@@ -59,7 +63,11 @@ type PatientAppointmentResponse = {
       };
     };
   }>;
-  invoices: Array<{ totalAmount: string; status: "OPEN" | "VOID" }>;
+  invoices: Array<{
+    totalAmount: string;
+    status: "OPEN" | "VOID";
+    transactions: Array<{ amount: string }>;
+  }>;
 };
 
 type ApiResponse<T> = {
@@ -259,6 +267,11 @@ function mapPatientAppointment(
           : "confirmed";
   const invoice = appointment.invoices[0];
   const amount = invoice ? Number(invoice.totalAmount) : Number.NaN;
+  const isPaid =
+    !!invoice &&
+    invoice.transactions.reduce((total, transaction) => total + Number(transaction.amount), 0) >=
+      Number(invoice.totalAmount);
+  const consultation = session?.consultation;
 
   return {
     id: appointment.id,
@@ -288,13 +301,18 @@ function mapPatientAppointment(
         ? new Intl.NumberFormat("vi-VN").format(amount)
         : "Chưa có",
     feeNote: invoice
-      ? invoice.status === "OPEN"
-        ? "Hóa đơn đang mở"
-        : "Hóa đơn đã hủy"
+      ? isPaid
+        ? "Đã thanh toán"
+        : invoice.status === "OPEN"
+          ? "Hóa đơn đang mở"
+          : "Hóa đơn đã hủy"
       : "Chưa có thông tin hóa đơn",
     queue: session?.queueNumber ? `STT #${session.queueNumber}` : undefined,
     phone: formatPhone(appointment.patient.phone),
     rescheduleCount: appointment.rescheduleCount,
+    consultationId: consultation?.id,
+    hasReview: !!consultation?.review,
+    isPaid,
   };
 }
 

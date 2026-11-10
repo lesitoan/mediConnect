@@ -2,7 +2,7 @@ import 'dotenv/config';
 import assert from 'node:assert/strict';
 import { hash } from 'bcrypt';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { PrismaClient } from '../src/generated/prisma/client';
+import { PrismaClient, Prisma } from '../src/generated/prisma/client';
 import { RoleEnum } from '../src/modules/users/constants/roles.constant';
 import { seedRbac } from './seed-rbac';
 
@@ -37,6 +37,171 @@ const PATIENT_HEALTH_RECORDS = [
     severity: null,
   },
 ];
+
+const DEMO_APPOINTMENT_CODES = [
+  'PAT-APPT-CANCEL',
+  'PAT-APPT-PAID',
+  'PAT-APPT-LIMIT',
+  'PAT-APPT-CHANGE',
+] as const;
+
+async function seedDemoAppointments(
+  transaction: Prisma.TransactionClient,
+  patientId: string,
+  userId: string,
+) {
+  const doctorSchedule = await transaction.doctorSchedule.findFirst({
+    where: {
+      status: 'PUBLISHED',
+      doctor: { isActive: true },
+    },
+    orderBy: { startsAt: 'asc' },
+    select: { id: true, doctor: { select: { specialtyId: true } } },
+  });
+  if (!doctorSchedule) {
+    console.warn(
+      'Skipped patient appointment fixtures: no published doctor schedule was found.',
+    );
+    return;
+  }
+
+  for (const appointmentCode of DEMO_APPOINTMENT_CODES) {
+    const existing = await transaction.appointment.findUnique({
+      where: { appointmentCode },
+      select: {
+        id: true,
+        careSessions: { select: { id: true, consultation: { select: { id: true } } } },
+        invoices: { select: { id: true } },
+      },
+    });
+    if (existing) {
+      for (const session of existing.careSessions) {
+        if (session.consultation)
+          await transaction.review.deleteMany({
+            where: { consultationId: session.consultation.id },
+          });
+        if (session.consultation)
+          await transaction.consultation.delete({
+            where: { id: session.consultation.id },
+          });
+      }
+      for (const invoice of existing.invoices) {
+        await transaction.paymentTransaction.deleteMany({
+          where: { invoiceId: invoice.id },
+        });
+        await transaction.invoice.delete({ where: { id: invoice.id } });
+      }
+      await transaction.careSession.deleteMany({
+        where: { appointmentId: existing.id },
+      });
+      await transaction.appointment.delete({ where: { id: existing.id } });
+    }
+  }
+
+  const now = new Date();
+  const fixtures = [
+    {
+      code: 'PAT-APPT-CANCEL',
+      offsetHours: -48,
+      appointmentStatus: 'CANCELLED' as const,
+      sessionStatus: 'CANCELLED' as const,
+      rescheduleCount: 0,
+    },
+    {
+      code: 'PAT-APPT-PAID',
+      offsetHours: -24,
+      appointmentStatus: 'CONFIRMED' as const,
+      sessionStatus: 'COMPLETED' as const,
+      rescheduleCount: 0,
+    },
+    {
+      code: 'PAT-APPT-LIMIT',
+      offsetHours: 72,
+      appointmentStatus: 'CONFIRMED' as const,
+      sessionStatus: 'SCHEDULED' as const,
+      rescheduleCount: 2,
+    },
+    {
+      code: 'PAT-APPT-CHANGE',
+      offsetHours: 96,
+      appointmentStatus: 'CONFIRMED' as const,
+      sessionStatus: 'SCHEDULED' as const,
+      rescheduleCount: 0,
+    },
+  ];
+
+  for (const fixture of fixtures) {
+    const startsAt = new Date(now.getTime() + fixture.offsetHours * 3600000);
+    const appointmentSlot = await transaction.appointmentSlot.create({
+      data: {
+        doctorScheduleId: doctorSchedule.id,
+        startsAt,
+        endsAt: new Date(startsAt.getTime() + 30 * 60000),
+      },
+    });
+    const appointment = await transaction.appointment.create({
+      data: {
+        appointmentCode: fixture.code,
+        patientId,
+        bookingSource: 'PATIENT',
+        status: fixture.appointmentStatus,
+        rescheduleCount: fixture.rescheduleCount,
+        createdBy: userId,
+        reason: 'Dữ liệu mẫu phiên khám cho bệnh nhân kiểm thử',
+        ...(fixture.appointmentStatus === 'CANCELLED'
+          ? {
+              cancellationReason: 'Dữ liệu mẫu lịch đã hủy',
+              cancelledBy: userId,
+              cancelledAt: now,
+            }
+          : {}),
+      },
+    });
+    const careSession = await transaction.careSession.create({
+      data: {
+        appointmentId: appointment.id,
+        appointmentSlotId: appointmentSlot.id,
+        specialtyId: doctorSchedule.doctor.specialtyId,
+        status: fixture.sessionStatus,
+      },
+    });
+
+    if (fixture.sessionStatus === 'COMPLETED') {
+      const completedAt = new Date(startsAt.getTime() + 30 * 60000);
+      const consultation = await transaction.consultation.create({
+        data: {
+          careSessionId: careSession.id,
+          startedAt: startsAt,
+          completedAt,
+          lockedAt: completedAt,
+          clinicalNotes: 'Dữ liệu mẫu phiên khám đã hoàn tất.',
+        },
+      });
+      const invoice = await transaction.invoice.create({
+        data: {
+          invoiceCode: 'PAT-INVOICE-PAID',
+          appointmentId: appointment.id,
+          consultationId: consultation.id,
+          totalAmount: 450000,
+          chargeDetails: [{ name: 'Phí khám chuyên khoa', amount: 450000 }],
+          status: 'OPEN',
+        },
+      });
+      await transaction.paymentTransaction.create({
+        data: {
+          invoiceId: invoice.id,
+          provider: 'COUNTER',
+          idempotencyKey: 'PAT-PAYMENT-PAID',
+          transactionType: 'PAYMENT',
+          amount: 450000,
+          status: 'SUCCESS',
+          occurredAt: completedAt,
+          reconciliationNote: 'Dữ liệu mẫu đã thanh toán.',
+        },
+      });
+    }
+  }
+}
 
 function getLocalDatabaseUrl(): string {
   if (process.env.NODE_ENV === 'production') {
@@ -154,6 +319,8 @@ async function main(): Promise<void> {
           },
         });
       }
+
+      await seedDemoAppointments(transaction, patient.id, user.id);
     });
 
     console.log(

@@ -132,6 +132,23 @@ export class SchedulesRepository {
     });
   }
 
+  countBookedAppointmentSlots(doctorId: string, startsAt: Date, endsAt: Date) {
+    return this.prisma.appointmentSlot.count({
+      where: {
+        startsAt: { gte: startsAt, lt: endsAt },
+        endsAt: { lte: endsAt },
+        doctorSchedule: { doctorId, status: 'PUBLISHED' },
+        careSessions: {
+          some: {
+            status: {
+              notIn: [CareSessionStatus.CANCELLED, CareSessionStatus.NO_SHOW],
+            },
+          },
+        },
+      },
+    });
+  }
+
   lockDoctorScheduleMaterialization(
     client: Prisma.TransactionClient,
     doctorId: string,
@@ -193,6 +210,25 @@ export class SchedulesRepository {
     return client.leaveRequestSchedule.createMany({
       data,
       skipDuplicates: true,
+    });
+  }
+
+  findWorkSchedulesForLeave(staffUserId: string, startsAt: Date, endsAt: Date) {
+    return this.prisma.staffWorkSchedule.findMany({
+      where: {
+        staffUserId,
+        status: {
+          in: [
+            StaffWorkScheduleStatus.DRAFT,
+            StaffWorkScheduleStatus.PUBLISHED,
+          ],
+        },
+        startsAt: { lt: endsAt },
+        endsAt: { gt: startsAt },
+        effectiveFrom: { lte: endsAt },
+        OR: [{ effectiveTo: null }, { effectiveTo: { gte: startsAt } }],
+      },
+      select: { id: true },
     });
   }
 
@@ -359,8 +395,35 @@ export class SchedulesRepository {
       where: { id },
       include: {
         leaveRequest: true,
-        careSession: { include: { appointment: true, appointmentSlot: true } },
-        reassignments: true,
+        originalDoctor: { include: { user: true, specialty: true } },
+        careSession: {
+          include: {
+            appointment: { include: { patient: true } },
+            appointmentSlot: {
+              include: {
+                doctorSchedule: {
+                  include: {
+                    doctor: { include: { user: true, specialty: true } },
+                  },
+                },
+              },
+            },
+          },
+        },
+        reassignments: {
+          include: {
+            toDoctor: { include: { user: true, specialty: true } },
+            toSlot: {
+              include: {
+                doctorSchedule: {
+                  include: {
+                    doctor: { include: { user: true, specialty: true } },
+                  },
+                },
+              },
+            },
+          },
+        },
       },
     });
   }
@@ -371,8 +434,35 @@ export class SchedulesRepository {
       orderBy: { createdAt: 'asc' },
       include: {
         leaveRequest: true,
-        careSession: { include: { appointment: true, appointmentSlot: true } },
-        reassignments: true,
+        originalDoctor: { include: { user: true, specialty: true } },
+        careSession: {
+          include: {
+            appointment: { include: { patient: true } },
+            appointmentSlot: {
+              include: {
+                doctorSchedule: {
+                  include: {
+                    doctor: { include: { user: true, specialty: true } },
+                  },
+                },
+              },
+            },
+          },
+        },
+        reassignments: {
+          include: {
+            toDoctor: { include: { user: true, specialty: true } },
+            toSlot: {
+              include: {
+                doctorSchedule: {
+                  include: {
+                    doctor: { include: { user: true, specialty: true } },
+                  },
+                },
+              },
+            },
+          },
+        },
       },
     });
   }
@@ -721,6 +811,12 @@ export class SchedulesRepository {
           AND EXTRACT(HOUR FROM s.ends_at AT TIME ZONE 'Asia/Ho_Chi_Minh') * 60
             + EXTRACT(MINUTE FROM s.ends_at AT TIME ZONE 'Asia/Ho_Chi_Minh') <= 1080
           AND s.starts_at >= ds.starts_at AND s.ends_at <= ds.ends_at
+          AND (
+            SELECT count(*)
+            FROM ${sqlTable(this.prisma.schemaName, 'appointment_slots')} prior_slots
+            WHERE prior_slots.doctor_schedule_id = s.doctor_schedule_id
+              AND prior_slots.starts_at <= s.starts_at
+          ) <= 8
           AND s.is_blocked = false AND ds.status = 'PUBLISHED'
           AND d.is_active = true AND sp.is_active = true AND u.status = 'ACTIVE' AND u.deleted_at IS NULL
           ${input.query.specialtyId ? Prisma.sql`AND sp.id = ${input.query.specialtyId}::uuid` : Prisma.empty}

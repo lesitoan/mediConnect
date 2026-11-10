@@ -18,9 +18,16 @@ const STAFF_PATHS: Record<StaffRole, string[]> = {
     "/audit-logs",
     "/settings",
     "/diagnostic-results",
+    "/invoices/list",
   ],
   DOCTOR: ["/examinations", "/schedules/calendar", "/diagnostic-results"],
-  RECEPTIONIST: ["/reception", "/queues", "/schedules/calendar", "/exceptions"],
+  RECEPTIONIST: [
+    "/reception",
+    "/queues",
+    "/schedules/calendar",
+    "/exceptions",
+    "/invoices",
+  ],
 };
 
 export function isStaffRole(role: unknown): role is StaffRole {
@@ -28,6 +35,9 @@ export function isStaffRole(role: unknown): role is StaffRole {
 }
 
 export function canAccessStaffPath(role: unknown, pathname: string): boolean {
+  if (pathname === "/invoices") {
+    return role === "ADMIN" || role === "RECEPTIONIST";
+  }
   return (
     isStaffRole(role) &&
     STAFF_PATHS[role].some(

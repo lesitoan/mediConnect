@@ -4,13 +4,12 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import {
   ChevronRight,
-  Download,
   Home,
   Lock,
   ShieldCheck,
   Check,
 } from "@/components/layout/icons";
-import { useAuth } from "@/features/auth/useAuth";
+import { clearSession, useAuth } from "@/features/auth/useAuth";
 import { formatProfileDate, type IdentityForm } from "../data";
 import {
   getPatientMedicalRecords,
@@ -19,15 +18,11 @@ import {
   type PatientProfile,
   updatePatientProfile,
 } from "../services/patientProfileService";
-import {
-  ContactsSection,
-  IdentitySection,
-  MedicalSection,
-  SecuritySection,
-} from "./ProfileSections";
+import { AllergySection, IdentitySection, SecuritySection } from "./ProfileSections";
 import ProfileSidebar, { NAV } from "./ProfileSidebar";
 
 const EMPTY_FORM: IdentityForm = {
+  nationalId: "",
   dateOfBirth: "",
   gender: "",
   address: "",
@@ -35,6 +30,7 @@ const EMPTY_FORM: IdentityForm = {
 
 function toIdentityForm(profile: PatientProfile): IdentityForm {
   return {
+    nationalId: profile.nationalId ?? "",
     dateOfBirth: profile.dateOfBirth ?? "",
     gender: profile.gender ?? "",
     address: profile.address ?? "",
@@ -55,6 +51,7 @@ export default function ProfilePage() {
     error?: string;
   } | null>(null);
   const [active, setActive] = useState<string>(NAV[0].id);
+  const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [msg, setMsg] = useState<{ isSuccess: boolean; text: string } | null>(
     null,
@@ -102,6 +99,8 @@ export default function ProfilePage() {
       : "";
 
   const isDirty = JSON.stringify(form) !== JSON.stringify(saved);
+  const isIdentityValid =
+    form.nationalId.length === 0 || /^\d{12}$/.test(form.nationalId);
 
   const onChange: <K extends keyof IdentityForm>(
     k: K,
@@ -113,9 +112,11 @@ export default function ProfilePage() {
 
   const goto = (id: string) => {
     setActive(id);
-    document
-      .getElementById(id)
-      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const logout = () => {
+    clearSession();
+    window.location.assign("/login");
   };
 
   const flash = (isSuccess: boolean, text: string) => {
@@ -133,6 +134,7 @@ export default function ProfilePage() {
       setProfile(updatedProfile);
       setSaved(identityForm);
       setForm(identityForm);
+      setIsEditing(false);
       flash(true, "Cập nhật thông tin thành công.");
     } catch (error: unknown) {
       flash(
@@ -205,7 +207,7 @@ export default function ProfilePage() {
     <button
       type="button"
       onClick={save}
-      disabled={!isDirty || isSaving}
+      disabled={!isDirty || !isIdentityValid || isSaving}
       className={`inline-flex items-center justify-center gap-2 rounded-xl bg-[#0A5A84] px-6 py-3 text-xs font-bold text-white shadow transition hover:bg-[#08486B] disabled:cursor-not-allowed disabled:bg-slate-300 ${cls}`}
     >
       {isSaving ? "Đang lưu..." : label}
@@ -259,18 +261,6 @@ export default function ProfilePage() {
               </span>
             </p>
           </div>
-          <div className="flex flex-wrap gap-3">
-            <button
-              type="button"
-              disabled
-              title="Tính năng xuất PDF chưa được hỗ trợ"
-              className="inline-flex cursor-not-allowed items-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-xs font-bold text-slate-400 shadow-sm"
-            >
-              <Download className="h-4 w-4" />
-              Xuất dữ liệu hồ sơ (PDF)
-            </button>
-            {saveBtn("", "Lưu thay đổi")}
-          </div>
         </div>
 
         {msg && (
@@ -292,49 +282,59 @@ export default function ProfilePage() {
         )}
 
         {/* Nội dung */}
-        <div className="mt-6 grid items-start gap-6 lg:grid-cols-[300px_1fr]">
-          <aside className="lg:sticky lg:top-32">
+        <div className="mt-6 grid items-start gap-5 lg:grid-cols-[280px_minmax(0,1fr)] lg:gap-7">
+          <aside>
             <ProfileSidebar
               profile={profile}
-              records={records}
               dateOfBirth={form.dateOfBirth}
               gender={form.gender}
               active={active}
               onNav={goto}
+              onLogout={logout}
             />
           </aside>
 
-          <div className="space-y-6">
-            <IdentitySection
-              profile={profile}
-              form={form}
-              onChange={onChange}
-            />
-            <MedicalSection records={records} />
-            <ContactsSection profile={profile} />
-            <SecuritySection />
+          <div className="min-w-0 space-y-4">
+            {active === "identity" && (
+              <IdentitySection
+                profile={profile}
+                form={form}
+                isEditing={isEditing}
+                onEdit={() => setIsEditing(true)}
+                onChange={onChange}
+              />
+            )}
+            {active === "allergies" && (
+              <AllergySection
+                records={records}
+                onCreated={() => setReloadKey((key) => key + 1)}
+              />
+            )}
+            {active === "security" && <SecuritySection />}
 
-            {/* Thanh lưu */}
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white p-4 shadow-[0_6px_24px_rgba(10,90,132,0.08)]">
-              <p className="flex items-center gap-2 text-[11px] text-slate-500">
-                <Lock className="h-3.5 w-3.5 text-[#2B6CB0]" />
-                API giới hạn dữ liệu theo tài khoản bệnh nhân đang đăng nhập.
-              </p>
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  disabled={!isDirty || isSaving}
-                  onClick={() => {
-                    setForm(saved);
-                    setMsg(null);
-                  }}
-                  className="rounded-xl bg-blue-50 px-6 py-3 text-xs font-bold text-[#0A5A84] transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Hủy bỏ
-                </button>
-                {saveBtn("", "Lưu thay đổi hồ sơ")}
+            {active === "identity" && (isEditing || isDirty) && (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-blue-100 bg-white p-4 shadow-[0_8px_28px_rgba(10,90,132,0.08)]">
+                <p className="flex items-center gap-2 text-[11px] text-slate-500">
+                  <Lock className="h-3.5 w-3.5 text-[#2B6CB0]" />
+                  Thông tin được cập nhật an toàn theo tài khoản đang đăng nhập.
+                </p>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    disabled={!isDirty || isSaving}
+                    onClick={() => {
+                      setForm(saved);
+                      setIsEditing(false);
+                      setMsg(null);
+                    }}
+                    className="rounded-xl bg-blue-50 px-6 py-3 text-xs font-bold text-[#0A5A84] transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Hủy bỏ
+                  </button>
+                  {saveBtn("", "Lưu thay đổi hồ sơ")}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </div>

@@ -23,7 +23,7 @@ export default function LoginPage() {
             </li>
             <ChevronRight className="h-3 w-3" />
             <li>
-              <Link href="/ho-so" className="hover:text-[#174A8F]">
+              <Link href="/ho-so-suc-khoe" className="hover:text-[#174A8F]">
                 Cổng thông tin bệnh nhân
               </Link>
             </li>

@@ -167,6 +167,9 @@ export class InvoiceQueriesService {
             status: true,
             occurredAt: true,
             createdAt: true,
+            processedBy: true,
+            processedByUser: { select: { id: true, fullName: true } },
+            reconciliationNote: true,
           },
         });
         return {

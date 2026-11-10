@@ -38,15 +38,15 @@ export function getAuthErrorMessage(error: unknown, fallback: string) {
 
 export type OtpChallenge = {
   challengeId: string;
-  channel: "EMAIL" | "ZALO";
+  channel: "EMAIL" | "PHONE";
   expiresIn: number;
   retryAfter: number;
-  developmentCode?: string;
 };
 
 type OtpVerification = {
   purpose: "REGISTER" | "RESET_PASSWORD";
   activated?: boolean;
+  resetToken?: string;
 };
 
 const API_URL =
@@ -127,4 +127,14 @@ export async function authenticatePatient(
     throw new Error("Tài khoản này không có quyền truy cập cổng bệnh nhân.");
   }
   return user;
+}
+
+export async function changePassword(
+  currentPassword: string,
+  password: string,
+) {
+  return request<{ message: string }>('/authentication/change_password', {
+    method: 'POST',
+    body: JSON.stringify({ currentPassword, password }),
+  });
 }

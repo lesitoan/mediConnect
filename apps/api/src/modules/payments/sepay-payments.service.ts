@@ -17,7 +17,7 @@ import { PrismaService } from '../database/services/prisma.service';
 import { sqlTable } from '../database/utils/sql-table';
 import { InvoiceQueriesService } from '../invoices/invoice-queries.service';
 import type { CurrentUserDto } from '../users/dto/responses/current-user.dto';
-import { normalizeBank } from './sepay-bank.utils';
+import { matchesSepayBankAccount, normalizeBank } from './sepay-bank.utils';
 import {
   extractInvoiceCode,
   parseSepayPayload,
@@ -159,6 +159,7 @@ export class SepayPaymentsService {
             'id',
             'gateway',
             'accountNumber',
+            'subAccount',
             'transactionDate',
             'transferType',
             'transferAmount',
@@ -169,7 +170,7 @@ export class SepayPaymentsService {
           if (
             !old ||
             fields.some((field) => old[field] !== payload.payload[field])
-          )
+          ) {
             await this.audit.record(
               {
                 actor: { type: 'SYSTEM' },
@@ -184,7 +185,16 @@ export class SepayPaymentsService {
               },
               tx,
             );
-          return;
+            return;
+          }
+          if (
+            previous.status !==
+              PaymentTransactionStatus.PENDING_RECONCILIATION ||
+            previous.reconciliationNote !== 'BANK_ACCOUNT_MISMATCH' ||
+            previous.transactionType !== 'PAYMENT' ||
+            !previous.amount.equals(payload.amount)
+          )
+            return;
         }
         const code = extractInvoiceCode(payload.code, payload.content);
         const candidate = code
@@ -200,10 +210,11 @@ export class SepayPaymentsService {
         else if (!invoice.paymentBankCode || !invoice.paymentAccountNumber)
           reason = 'QR_SNAPSHOT_MISSING';
         else if (
-          !normalizeBank(payload.gateway) ||
-          normalizeBank(payload.gateway) !==
-            normalizeBank(invoice.paymentBankCode) ||
-          payload.accountNumber !== invoice.paymentAccountNumber
+          !matchesSepayBankAccount(
+            invoice.paymentBankCode,
+            invoice.paymentAccountNumber,
+            payload,
+          )
         )
           reason = 'BANK_ACCOUNT_MISMATCH';
         else if (invoice.status !== 'OPEN') reason = 'INVOICE_VOID';
@@ -216,6 +227,47 @@ export class SepayPaymentsService {
             new Prisma.Decimal(summary.refundedAmount).gt(0)
           )
             reason = 'REFUND_WORKFLOW';
+        }
+        if (previous) {
+          if (!invoice || reason || previous.invoiceId !== invoice.id) return;
+          const reconciled = await tx.paymentTransaction.updateMany({
+            where: {
+              id: previous.id,
+              invoiceId: invoice.id,
+              provider: 'SEPAY',
+              externalTransactionId: payload.id,
+              transactionType: 'PAYMENT',
+              amount: payload.amount,
+              status: PaymentTransactionStatus.PENDING_RECONCILIATION,
+              reconciliationNote: 'BANK_ACCOUNT_MISMATCH',
+            },
+            data: {
+              status: PaymentTransactionStatus.SUCCESS,
+              reconciliationNote: null,
+            },
+          });
+          if (reconciled.count !== 1) return;
+          await this.audit.record(
+            {
+              actor: { type: 'SYSTEM' },
+              actionCode: 'SEPAY_PAYMENT_RECONCILE',
+              module: 'PAYMENTS',
+              targetType: 'PAYMENT_TRANSACTION',
+              targetId: previous.id,
+              result: AuditLogResult.SUCCESS,
+              before: {
+                status: previous.status,
+                reconciliationReason: previous.reconciliationNote,
+              },
+              after: {
+                invoiceId: invoice.id,
+                amount: payload.amount.toString(),
+                status: PaymentTransactionStatus.SUCCESS,
+              },
+            },
+            tx,
+          );
+          return;
         }
         const transaction = await tx.paymentTransaction.create({
           data: {
