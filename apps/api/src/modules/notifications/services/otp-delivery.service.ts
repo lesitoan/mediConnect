@@ -3,6 +3,28 @@ import { ConfigService } from '@nestjs/config';
 import { TextbeeSmsService } from './textbee-sms.service';
 
 const UNABLE_TO_SEND_OTP = 'Unable to send OTP. Try again later';
+const SMS_CLOSINGS = [
+  'Xin cảm ơn.',
+  'Cảm ơn.',
+  'Cảm ơn bạn.',
+  'Rất cảm ơn bạn.',
+  'Cảm ơn bạn nhiều.',
+  'Xin cảm ơn bạn.',
+  'Chân thành cảm ơn.',
+  'Trân trọng cảm ơn.',
+  'MediConnect cảm ơn bạn.',
+  'Chúc bạn sức khỏe.',
+  'Chúc bạn bình an.',
+  'Thân mến.',
+  'Trân trọng.',
+  'Chào thân mến.',
+  'Thanks.',
+  'Thank you.',
+  'Thanks so much.',
+  'Many thanks.',
+  'Thank you kindly.',
+  'Best regards.',
+];
 
 export interface OtpDelivery {
   challengeId: string;
@@ -46,10 +68,12 @@ export class OtpDeliveryService {
     this.assertConfigured(input.channel);
     if (input.channel === 'PHONE' && this.sms.isConfigured()) {
       try {
+        const closing =
+          SMS_CLOSINGS[Math.floor(Math.random() * SMS_CLOSINGS.length)];
         // Reuse the code if a timed-out SMS was already accepted by the provider.
         await this.sms.sendSms({
           recipients: [input.destination],
-          message: `MediConnect: Ma OTP cua ban la ${input.code}. Hieu luc ${Math.ceil(input.expiresInSeconds / 60)} phut. Khong chia se ma nay.`,
+          message: `MediConnect: Ma ${input.code}. ${closing}`,
         });
         // shortcut: TextBee acceptance can precede delivery, add receipt handling if fallback must cover later failures.
         return;
