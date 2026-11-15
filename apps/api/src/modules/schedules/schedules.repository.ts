@@ -132,12 +132,17 @@ export class SchedulesRepository {
     });
   }
 
-  countBookedAppointmentSlots(doctorId: string, startsAt: Date, endsAt: Date) {
-    return this.prisma.appointmentSlot.count({
+  findBookedAppointmentSlots(
+    doctorIds: string[],
+    startsAt: Date,
+    endsAt: Date,
+  ) {
+    if (!doctorIds.length) return Promise.resolve([]);
+    return this.prisma.appointmentSlot.findMany({
       where: {
         startsAt: { gte: startsAt, lt: endsAt },
         endsAt: { lte: endsAt },
-        doctorSchedule: { doctorId, status: 'PUBLISHED' },
+        doctorSchedule: { doctorId: { in: doctorIds }, status: 'PUBLISHED' },
         careSessions: {
           some: {
             status: {
@@ -145,6 +150,11 @@ export class SchedulesRepository {
             },
           },
         },
+      },
+      select: {
+        startsAt: true,
+        endsAt: true,
+        doctorSchedule: { select: { doctorId: true } },
       },
     });
   }
