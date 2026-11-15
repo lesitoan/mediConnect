@@ -355,6 +355,18 @@ export class SchedulesService {
           await this.publishWorkSchedule(schedule.id);
       }
     }
+    const bookedSlots = await this.repository.findBookedAppointmentSlots(
+      users.flatMap((item) => (item.doctor ? [item.doctor.id] : [])),
+      startDate,
+      until,
+    );
+    const bookedSlotsByDoctor = new Map<string, typeof bookedSlots>();
+    for (const slot of bookedSlots) {
+      const doctorId = slot.doctorSchedule.doctorId;
+      const doctorSlots = bookedSlotsByDoctor.get(doctorId) ?? [];
+      doctorSlots.push(slot);
+      bookedSlotsByDoctor.set(doctorId, doctorSlots);
+    }
     const dates: string[] = [];
     for (
       let date = new Date(startDate);
@@ -366,70 +378,66 @@ export class SchedulesService {
 
     return {
       dates,
-      staff: await Promise.all(
-        users.map(async (staffMember) => ({
-          userId: staffMember.id,
-          staffType: staffMember.role?.name,
-          fullName: staffMember.fullName,
-          staffCode:
-            staffMember.doctor?.doctorCode ??
-            staffMember.id.slice(0, 8).toUpperCase(),
-          specialtyName: staffMember.doctor?.specialty.name ?? 'Lễ tân',
-          shifts: await Promise.all(
-            dates.flatMap((date) =>
-              schedules
-                .filter(
-                  (schedule) =>
-                    schedule.staffUserId === staffMember.id &&
-                    schedule.dayOfWeek === this.clinicDayOfWeek(date) &&
-                    schedule.effectiveFrom <= clinicDateStart(date) &&
-                    (!schedule.effectiveTo ||
-                      schedule.effectiveTo >= clinicDateStart(date)),
-                )
-                .map(async (schedule) => {
-                  const startsAt = this.clinicDateTimeFromTime(
-                    date,
-                    schedule.startsAt,
-                  );
-                  const endsAt = this.clinicDateTimeFromTime(
-                    date,
-                    schedule.endsAt,
-                  );
-                  const hasApprovedLeave = leaves.some(
-                    (leaveRequest) =>
-                      (leaveRequest.staffUserId === staffMember.id ||
-                        (staffMember.doctor &&
-                          leaveRequest.doctorId === staffMember.doctor.id)) &&
-                      leaveRequest.startsAt < endsAt &&
-                      leaveRequest.endsAt !== null &&
-                      leaveRequest.endsAt > startsAt,
-                  );
-                  const slotCount = staffMember.doctor
-                    ? Math.min(
-                        await this.repository.countBookedAppointmentSlots(
-                          staffMember.doctor.id,
-                          startsAt,
-                          endsAt,
-                        ),
-                        MAX_APPOINTMENT_SLOTS_PER_SHIFT,
-                      )
-                    : 0;
-                  return {
-                    date,
-                    key: startsAt.getUTCHours() < 6 ? 'MORNING' : 'AFTERNOON',
-                    startsAt: startsAt.toISOString(),
-                    endsAt: endsAt.toISOString(),
-                    status: hasApprovedLeave ? 'ABSENT' : 'PUBLISHED',
-                    slotCount,
-                    slotCapacity: staffMember.doctor
-                      ? MAX_APPOINTMENT_SLOTS_PER_SHIFT
-                      : 0,
-                  };
-                }),
-            ),
-          ),
-        })),
-      ),
+      staff: users.map((staffMember) => ({
+        userId: staffMember.id,
+        staffType: staffMember.role?.name,
+        fullName: staffMember.fullName,
+        staffCode:
+          staffMember.doctor?.doctorCode ??
+          staffMember.id.slice(0, 8).toUpperCase(),
+        specialtyName: staffMember.doctor?.specialty.name ?? 'Lễ tân',
+        shifts: dates.flatMap((date) =>
+          schedules
+            .filter(
+              (schedule) =>
+                schedule.staffUserId === staffMember.id &&
+                schedule.dayOfWeek === this.clinicDayOfWeek(date) &&
+                schedule.effectiveFrom <= clinicDateStart(date) &&
+                (!schedule.effectiveTo ||
+                  schedule.effectiveTo >= clinicDateStart(date)),
+            )
+            .map((schedule) => {
+              const startsAt = this.clinicDateTimeFromTime(
+                date,
+                schedule.startsAt,
+              );
+              const endsAt = this.clinicDateTimeFromTime(date, schedule.endsAt);
+              const hasApprovedLeave = leaves.some(
+                (leaveRequest) =>
+                  (leaveRequest.staffUserId === staffMember.id ||
+                    (staffMember.doctor &&
+                      leaveRequest.doctorId === staffMember.doctor.id)) &&
+                  leaveRequest.startsAt < endsAt &&
+                  leaveRequest.endsAt !== null &&
+                  leaveRequest.endsAt > startsAt,
+              );
+              const slotCount = staffMember.doctor
+                ? Math.min(
+                    (
+                      bookedSlotsByDoctor.get(staffMember.doctor.id) ?? []
+                    ).filter(
+                      (slot) =>
+                        slot.startsAt >= startsAt &&
+                        slot.startsAt < endsAt &&
+                        slot.endsAt <= endsAt,
+                    ).length,
+                    MAX_APPOINTMENT_SLOTS_PER_SHIFT,
+                  )
+                : 0;
+              return {
+                date,
+                key: startsAt.getUTCHours() < 6 ? 'MORNING' : 'AFTERNOON',
+                startsAt: startsAt.toISOString(),
+                endsAt: endsAt.toISOString(),
+                status: hasApprovedLeave ? 'ABSENT' : 'PUBLISHED',
+                slotCount,
+                slotCapacity: staffMember.doctor
+                  ? MAX_APPOINTMENT_SLOTS_PER_SHIFT
+                  : 0,
+              };
+            }),
+        ),
+      })),
     };
   }
 
