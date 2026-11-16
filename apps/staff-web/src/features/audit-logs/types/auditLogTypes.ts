@@ -8,11 +8,11 @@ export interface AuditLogDataChange {
 }
 
 export interface AuditLogTechnicalInfo {
-  ipAddress: string;
-  userAgent: string;
-  requestId: string;
-  sessionId: string;
-  endpoint: string;
+  ipAddress: string | null;
+  userAgent: string | null;
+  requestId: string | null;
+  sessionId: string | null;
+  endpoint: string | null;
 }
 
 export interface AuditLogEntry {
@@ -68,4 +68,3 @@ export const DEFAULT_AUDIT_LOG_FILTERS: AuditLogFilterValues = {
 };
 
 export const AUDIT_LOG_PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
-

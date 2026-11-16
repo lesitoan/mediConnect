@@ -2,21 +2,18 @@
 
 import { FilterSearchInput } from "@/components/shared/FilterSearchInput";
 import { Select } from "@/components/ui/Select";
-import type {
-  UserRoleFilter,
-  UserStatusFilter,
-} from "../types/userTypes";
+import type { UserRoleFilter, UserStatusFilter } from "../types/userTypes";
 
 interface UserFiltersProps {
   roleFilter: UserRoleFilter;
   onRoleFilterChange: (role: UserRoleFilter) => void;
   statusFilter: UserStatusFilter;
   onStatusFilterChange: (status: UserStatusFilter) => void;
-  departmentFilter: string;
-  onDepartmentFilterChange: (dept: string) => void;
+  specialtyFilter: string;
+  onSpecialtyFilterChange: (dept: string) => void;
   searchQuery: string;
   onSearchChange: (query: string) => void;
-  departments: readonly string[];
+  specialties: { id: string; name: string }[];
 }
 
 export function UserFilters({
@@ -24,11 +21,11 @@ export function UserFilters({
   onRoleFilterChange,
   statusFilter,
   onStatusFilterChange,
-  departmentFilter,
-  onDepartmentFilterChange,
+  specialtyFilter,
+  onSpecialtyFilterChange,
   searchQuery,
   onSearchChange,
-  departments,
+  specialties,
 }: UserFiltersProps) {
   return (
     <div className="mb-4 rounded-app-xl border border-border-strong bg-surface p-4 shadow-xs">
@@ -67,21 +64,21 @@ export function UserFilters({
           >
             <option value="ALL">Tất cả trạng thái</option>
             <option value="ACTIVE">Hoạt động</option>
-            <option value="PENDING_OTP">Chờ OTP</option>
+            <option value="PENDING_VERIFICATION">Chờ xác thực</option>
             <option value="LOCKED">Đã khóa</option>
           </Select>
         </div>
 
         <div className="sm:col-span-2 md:col-span-3 lg:col-span-3">
           <Select
-            value={departmentFilter}
-            onChange={(e) => onDepartmentFilterChange(e.target.value)}
+            value={specialtyFilter}
+            onChange={(e) => onSpecialtyFilterChange(e.target.value)}
             className="h-9.5"
           >
-            <option value="">Tất cả khoa / bộ phận</option>
-            {departments.map((dept) => (
-              <option key={dept} value={dept}>
-                {dept}
+            <option value="">Tất cả chuyên khoa</option>
+            {specialties.map((specialty) => (
+              <option key={specialty.id} value={specialty.id}>
+                {specialty.name}
               </option>
             ))}
           </Select>

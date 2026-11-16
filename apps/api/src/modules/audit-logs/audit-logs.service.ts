@@ -13,6 +13,8 @@ import {
   UserRole,
 } from '../../generated/prisma/client';
 import { PaginationUtils } from '../../common/utils/pagination.utils';
+import { csvCell } from '../../common/utils/csv-cell';
+import { getAuditRequestInfo } from './audit-request-context.middleware';
 import { PrismaService } from '../database/services/prisma.service';
 import {
   AUDIT_ACTION_LABELS,
@@ -78,15 +80,6 @@ function validateSnapshot(snapshot?: Snapshot): void {
   }
 }
 
-function csvCell(value: string | Date | null): string {
-  let text = value instanceof Date ? value.toISOString() : (value ?? '');
-  text = Array.from(text)
-    .filter((char) => char.charCodeAt(0) >= 32 || /\s/.test(char))
-    .join('');
-  if (/^\s*[=+\-@]/.test(text)) text = `'${text}`;
-  return `"${text.replace(/"/g, '""')}"`;
-}
-
 @Injectable()
 export class AuditLogsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -115,6 +108,7 @@ export class AuditLogsService {
         targetType: event.targetType,
         targetId: event.targetId,
         result: event.result,
+        ...getAuditRequestInfo(),
         reason: event.reason,
         ...(event.before ? { beforeSnapshot: event.before } : {}),
         ...(event.after ? { afterSnapshot: event.after } : {}),
@@ -270,6 +264,12 @@ export class AuditLogsService {
         reason: true,
         beforeSnapshot: true,
         afterSnapshot: true,
+        ipAddress: true,
+        userAgent: true,
+        requestId: true,
+        sessionId: true,
+        method: true,
+        path: true,
       },
     });
     if (!item) throw new NotFoundException('Audit log not found');

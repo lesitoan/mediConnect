@@ -618,6 +618,9 @@ model AuditLog {
   ipAddress        String?        @map("ip_address") @db.Inet
   userAgent        String?        @map("user_agent") @db.VarChar(1000)
   requestId        String?        @map("request_id") @db.VarChar(100)
+  sessionId        String?        @map("session_id") @db.Uuid
+  method           String?        @db.VarChar(10)
+  path             String?        @db.VarChar(500)
   /// Reuse the same key when retrying one audited event.
   idempotencyKey   String         @unique @map("idempotency_key") @db.VarChar(100)
 

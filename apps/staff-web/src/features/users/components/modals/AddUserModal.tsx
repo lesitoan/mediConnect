@@ -1,8 +1,6 @@
 "use client";
-
-import { useEffect } from "react";
 import toast from "react-hot-toast";
-import { useForm, Controller } from "react-hook-form";
+import { Controller, useForm, useWatch } from "react-hook-form";
 import {
   Dialog,
   DialogContent,
@@ -13,243 +11,280 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
-import { Checkbox } from "@/components/ui/Checkbox";
-import { Loading } from "@/components/shared/Loading";
-import { DEPARTMENTS } from "../../constants";
-import { useCreateUserMutation } from "../../services/usersApi";
-import type { UserRole } from "../../types/userTypes";
-
-interface AddUserModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-}
-
+import {
+  useCreateUserMutation,
+  useGetUserOptionsQuery,
+} from "../../services/usersApi";
+import { useStaffEmailPreview } from "../../hooks/useStaffEmailPreview";
+import { normalizeUserPhone, userErrorMessage } from "../../utils";
+import type { CreateUserInput } from "../../types/userTypes";
 interface AddUserFormData {
-  name: string;
-  email: string;
+  fullName: string;
   phone: string;
-  role: UserRole;
-  department: string;
-  sendOtp: boolean;
+  role: CreateUserInput["role"];
+  specialtyId: string;
+  doctorCode: string;
+  licenseNumber: string;
 }
-
 export function AddUserModal({
   isOpen,
   onClose,
-}: AddUserModalProps) {
-  const [createUser, { isLoading: isSubmitting, isError, reset: resetMutation }] =
-    useCreateUserMutation();
+  canCreateDoctor,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  canCreateDoctor: boolean;
+}) {
+  const [createUser, request] = useCreateUserMutation();
   const {
     register,
     handleSubmit,
     control,
-    reset,
     formState: { errors },
   } = useForm<AddUserFormData>({
+    shouldUnregister: true,
     defaultValues: {
-      name: "",
-      email: "",
+      fullName: "",
       phone: "",
-      role: "DOCTOR",
-      department: DEPARTMENTS[0],
-      sendOtp: true,
+      role: "RECEPTIONIST",
+      specialtyId: "",
+      doctorCode: "",
+      licenseNumber: "",
     },
   });
-
-  useEffect(() => {
-    if (isOpen) {
-      resetMutation();
-      reset({
-        name: "",
-        email: "",
-        phone: "",
-        role: "DOCTOR",
-        department: DEPARTMENTS[0],
-        sendOtp: true,
-      });
-    }
-  }, [isOpen, reset, resetMutation]);
-
-  const onFormSubmit = async (data: AddUserFormData) => {
-    if (isSubmitting) return;
+  const role = useWatch({ control, name: "role" });
+  const fullName = useWatch({ control, name: "fullName" });
+  const preview = useStaffEmailPreview(fullName, isOpen);
+  const options = useGetUserOptionsQuery(undefined, {
+    skip: role !== "DOCTOR",
+  });
+  const onSubmit = async (values: AddUserFormData) => {
+    if (request.isLoading || (values.role === "DOCTOR" && !canCreateDoctor))
+      return;
     try {
-      const result = await createUser({
-      name: data.name.trim(),
-      email: data.email.trim(),
-      phone: data.phone.trim(),
-      role: data.role,
-      department: data.department,
-      sendOtp: data.sendOtp,
+      const user = await createUser({
+        fullName: values.fullName.trim(),
+        phone: normalizeUserPhone(values.phone),
+        role: values.role,
+        ...(values.role === "DOCTOR"
+          ? {
+              doctor: {
+                specialtyId: values.specialtyId,
+                doctorCode: values.doctorCode.trim(),
+                licenseNumber: values.licenseNumber.trim(),
+                academicTitle: null,
+                qualification: null,
+                bio: null,
+                avatarUrl: null,
+              },
+            }
+          : {}),
       }).unwrap();
-      toast.success(result.message);
+      toast.success("Đã tạo tài khoản: " + user.email);
       onClose();
     } catch {
-      // Mutation error is shown inline.
+      /* Keep the form open so the request error remains visible. */
     }
   };
-
   return (
     <Dialog
       open={isOpen}
-      onOpenChange={(open) => !open && !isSubmitting && onClose()}
-      disablePointerDismissal={isSubmitting}
+      onOpenChange={(open) => {
+        if (!open && !request.isLoading) onClose();
+      }}
+      disablePointerDismissal={request.isLoading}
     >
-      <DialogContent className="max-w-lg" showCloseButton={!isSubmitting}>
-        <DialogHeader>
+      <DialogContent
+        className="max-h-full max-w-lg"
+        showCloseButton={!request.isLoading}
+      >
+        <DialogHeader className="shrink-0">
           <DialogTitle>Tạo tài khoản người dùng mới</DialogTitle>
         </DialogHeader>
-
         <form
-          onSubmit={handleSubmit(onFormSubmit)}
-          className="p-5 sm:p-6"
-          aria-busy={isSubmitting}
+          onSubmit={handleSubmit(onSubmit)}
+          className="min-h-0 overflow-y-auto p-5 sm:p-6"
+          aria-busy={request.isLoading}
         >
           <fieldset
-            disabled={isSubmitting}
+            disabled={request.isLoading}
             className="m-0 min-w-0 space-y-4 border-0 p-0"
           >
-            <div className="space-y-1.5">
-              <label className="text-caption font-semibold text-foreground">
-                Họ và tên người dùng <span className="text-error">*</span>
-              </label>
+            <label className="block space-y-1.5 text-caption font-semibold">
+              Họ và tên người dùng *
               <Input
-                {...register("name", {
-                  required: "Vui lòng nhập họ và tên",
+                maxLength={100}
+                {...register("fullName", {
+                  required: "Vui lòng nhập họ tên.",
+                  validate: (v) =>
+                    (!!v.trim() && /^[^\p{Cc}]+$/u.test(v)) ||
+                    "Họ tên không hợp lệ.",
                 })}
-                placeholder="VD: BS. Nguyễn Tuấn Kiệt"
-                className="bg-surface border-input"
+                placeholder="VD: Nguyễn Văn An"
               />
-              {errors.name && (
-              <span className="text-caption text-error">{errors.name.message}</span>
+              {errors.fullName && (
+                <span className="text-error">{errors.fullName.message}</span>
               )}
-            </div>
-
+            </label>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <label className="text-caption font-semibold text-foreground">
-                  Địa chỉ Email <span className="text-error">*</span>
-                </label>
+              <label className="space-y-1.5 text-caption font-semibold">
+                Email tự động
                 <Input
-                  type="email"
-                  {...register("email", {
-                    required: "Vui lòng nhập địa chỉ email",
-                    pattern: {
-                      value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-                      message: "Vui lòng nhập địa chỉ email hợp lệ",
-                    },
-                  })}
-                  placeholder="VD: user@mediconnect.vn"
-                  className="bg-surface border-input"
+                  aria-label="Email tự động"
+                  readOnly
+                  value={preview.email}
+                  placeholder={
+                    preview.isLoading
+                      ? "Đang tạo email xem trước..."
+                      : "Nhập họ tên để xem trước"
+                  }
+                  className="bg-neutral-bg text-muted"
                 />
-                {errors.email && (
-                <span className="text-caption text-error">{errors.email.message}</span>
-                )}
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-caption font-semibold text-foreground">
-                  Số điện thoại liên hệ <span className="text-error">*</span>
-                </label>
+              </label>
+              <label className="space-y-1.5 text-caption font-semibold">
+                Số điện thoại *
                 <Input
+                  type="tel"
+                  maxLength={20}
                   {...register("phone", {
-                    required: "Vui lòng nhập số điện thoại",
+                    required: "Vui lòng nhập số điện thoại.",
+                    validate: (v) =>
+                      /^\+84[35789]\d{8}$/.test(normalizeUserPhone(v)) ||
+                      "Số điện thoại Việt Nam không hợp lệ.",
                   })}
-                  placeholder="VD: +84 912 345 678"
-                  className="bg-surface border-input"
+                  placeholder="0912345678"
                 />
                 {errors.phone && (
-                <span className="text-caption text-error">{errors.phone.message}</span>
+                  <span className="text-error">{errors.phone.message}</span>
                 )}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <label className="text-caption font-semibold text-foreground">
-                  Vai trò truy cập (RBAC) <span className="text-error">*</span>
-                </label>
-                <Select
-                  {...register("role")}
-                  className="bg-surface border-input"
-                >
-                  <option value="DOCTOR">Bác sĩ</option>
-                  <option value="RECEPTIONIST">Lễ tân</option>
-                  <option value="ADMIN">Quản trị viên</option>
-                  <option value="SUPER_ADMIN">Super Admin</option>
-                  <option value="PATIENT">Bệnh nhân</option>
-                </Select>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-caption font-semibold text-foreground">
-                  Khoa / Bộ phận công tác <span className="text-error">*</span>
-                </label>
-                <Select
-                  {...register("department")}
-                  className="bg-surface border-input"
-                >
-                  {DEPARTMENTS.map((dept) => (
-                    <option key={dept} value={dept}>
-                      {dept}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 rounded-app-md border border-border bg-sidebar/50 p-3">
-              <Controller
-                name="sendOtp"
-                control={control}
-                render={({ field }) => (
-                  <Checkbox
-                    id="send-otp"
-                    checked={field.value}
-                  onCheckedChange={(checked) => field.onChange(checked === true)}
-                  />
-                )}
-              />
-              <label
-                htmlFor="send-otp"
-                className="text-caption font-medium text-foreground cursor-pointer"
-              >
-                Yêu cầu xác thực tài khoản qua OTP
               </label>
             </div>
-
-            {isError && (
+            <p className="text-caption text-muted">
+              Email hiển thị là dự kiến; hệ thống chốt email khi tạo tài khoản.
+            </p>
+            {preview.error && (
               <p role="alert" className="text-caption text-error">
-                Tạo tài khoản thất bại. Vui lòng thử lại.
+                {preview.error}
               </p>
             )}
-
+            <label className="block space-y-1.5 text-caption font-semibold">
+              Vai trò truy cập *
+              <Controller
+                name="role"
+                control={control}
+                render={({ field }) => (
+                  <Select {...field}>
+                    <option value="RECEPTIONIST">Lễ tân</option>
+                    <option value="ADMIN">Quản trị viên</option>
+                    {canCreateDoctor && <option value="DOCTOR">Bác sĩ</option>}
+                  </Select>
+                )}
+              />
+            </label>
+            {role === "DOCTOR" && (
+              <div className="space-y-3 rounded-app-lg border border-border p-3">
+                <label className="block space-y-1.5 text-caption font-semibold">
+                  Chuyên khoa *
+                  <Controller
+                    name="specialtyId"
+                    control={control}
+                    rules={{ required: "Chọn chuyên khoa." }}
+                    render={({ field }) => (
+                      <Select
+                        {...field}
+                        disabled={options.isFetching || options.isError}
+                      >
+                        <option value="">Chọn chuyên khoa</option>
+                        {options.data?.specialties
+                          .filter((s) => s.isActive)
+                          .map((s) => (
+                            <option key={s.id} value={s.id}>
+                              {s.name}
+                            </option>
+                          ))}
+                      </Select>
+                    )}
+                  />
+                  {errors.specialtyId && (
+                    <span className="text-error">
+                      {errors.specialtyId.message}
+                    </span>
+                  )}
+                </label>
+                {options.isError && (
+                  <p role="alert" className="text-caption text-error">
+                    {userErrorMessage(options.error)}{" "}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => options.refetch()}
+                    >
+                      Thử lại
+                    </Button>
+                  </p>
+                )}
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <label className="space-y-1.5 text-caption font-semibold">
+                    Mã bác sĩ *
+                    <Input
+                      maxLength={20}
+                      {...register("doctorCode", {
+                        required: role === "DOCTOR" && "Nhập mã bác sĩ.",
+                        pattern: {
+                          value: /^[a-zA-Z0-9]+(?:[._-][a-zA-Z0-9]+)*$/,
+                          message: "Mã bác sĩ không hợp lệ.",
+                        },
+                      })}
+                    />
+                    {errors.doctorCode && (
+                      <span className="text-error">
+                        {errors.doctorCode.message}
+                      </span>
+                    )}
+                  </label>
+                  <label className="space-y-1.5 text-caption font-semibold">
+                    Số giấy phép hành nghề *
+                    <Input
+                      maxLength={50}
+                      {...register("licenseNumber", {
+                        validate: (v) =>
+                          role !== "DOCTOR" ||
+                          !!v?.trim() ||
+                          "Nhập số giấy phép.",
+                      })}
+                    />
+                    {errors.licenseNumber && (
+                      <span className="text-error">
+                        {errors.licenseNumber.message}
+                      </span>
+                    )}
+                  </label>
+                </div>
+              </div>
+            )}
+            {request.isError && (
+              <p role="alert" className="text-caption text-error">
+                {userErrorMessage(request.error)}
+              </p>
+            )}
             <DialogFooter className="-mx-5 -mb-5 sm:-mx-6 sm:-mb-6">
               <Button
                 type="button"
                 variant="outline"
+                disabled={request.isLoading}
                 onClick={onClose}
-                disabled={isSubmitting}
-                className="h-8.5 px-4 text-body font-medium"
               >
                 Hủy bỏ
               </Button>
               <Button
                 type="submit"
-                disabled={isSubmitting}
-                className="h-8.5 bg-primary px-4 text-body font-semibold text-primary-foreground hover:bg-primary-hover"
+                disabled={
+                  request.isLoading ||
+                  (role === "DOCTOR" && (options.isFetching || options.isError))
+                }
               >
-                {isSubmitting ? (
-                  <>
-                    <Loading
-                      size="sm"
-                      label="Đang tạo tài khoản..."
-                      iconClassName="text-current"
-                    />
-                    Đang tạo...
-                  </>
-                ) : (
-                  "Tạo tài khoản"
-                )}
+                {request.isLoading ? "Đang tạo..." : "Tạo tài khoản"}
               </Button>
             </DialogFooter>
           </fieldset>

@@ -1,59 +1,69 @@
-export type UserRole =
-  | "SUPER_ADMIN"
-  | "ADMIN"
-  | "DOCTOR"
-  | "RECEPTIONIST"
-  | "PATIENT";
-
-export type UserStatus = "ACTIVE" | "PENDING_OTP" | "LOCKED";
-
-export type UserRoleFilter =
-  | "ALL"
-  | "ADMIN"
-  | "DOCTOR"
-  | "RECEPTIONIST"
-  | "PATIENT";
-
-export type UserStatusFilter = "ALL" | "ACTIVE" | "PENDING_OTP" | "LOCKED";
-
-export interface User {
+import type { DoctorWriteInput } from "@/features/doctors/types/doctorTypes";
+export type UserRole = "ADMIN" | "DOCTOR" | "RECEPTIONIST" | "PATIENT";
+export type UserStatus = "ACTIVE" | "PENDING_VERIFICATION" | "LOCKED";
+export type UserRoleFilter = "ALL" | UserRole;
+export type UserStatusFilter = "ALL" | UserStatus;
+export interface PatientProfileFields {
+  nationalId: string | null;
+  dateOfBirth: string | null;
+  gender: "MALE" | "FEMALE" | "OTHER" | null;
+  address: string | null;
+  emergencyContactName: string | null;
+  emergencyContactPhone: string | null;
+}
+export interface ApiUser {
   id: string;
-  code: string;
-  name: string;
-  isCurrentUser?: boolean;
-  department: string;
-  email: string;
-  phone: string;
-  role: UserRole;
+  fullName: string;
+  email: string | null;
+  phone: string | null;
+  role: { id: string; name: UserRole } | null;
   status: UserStatus;
   createdAt: string;
-  avatarColor?: string;
-  avatarTextColor?: string;
-  initials: string;
-  twoFactorEnabled?: boolean;
-  lastLogin?: string;
+  updatedAt?: string;
+  isCurrentUser: boolean;
+  lastLoginAt: string | null;
+  doctor: {
+    id: string;
+    doctorCode: string;
+    specialty: { id: string; name: string };
+  } | null;
+  patient: { patientCode: string } | null;
+  patientProfile?: PatientProfileFields;
 }
-
-export interface CreateUserInput {
-  name: string;
-  email: string;
-  phone: string;
-  role: UserRole;
-  department: string;
-  sendOtp?: boolean;
-}
-
-export interface UpdateUserInput {
+export interface User {
   id: string;
+  code: string | null;
   name: string;
   email: string;
   phone: string;
-  role: UserRole;
-  department: string;
+  role: UserRole | null;
+  status: UserStatus;
+  isCurrentUser: boolean;
+  createdAt: string;
+  initials: string;
+  specialtyId: string | null;
+  specialtyName: string | null;
+  lastLogin: string;
+  patientProfile?: PatientProfileFields;
 }
-
+export interface CreateUserInput {
+  fullName: string;
+  phone: string;
+  role: Exclude<UserRole, "PATIENT">;
+  doctor?: DoctorWriteInput;
+}
+export interface UpdateUserInput extends Partial<PatientProfileFields> {
+  id: string;
+  fullName?: string;
+  phone?: string;
+  role?: UserRole;
+  specialtyId?: string;
+}
 export interface ToggleUserStatusInput {
   userId: string;
-  targetStatus: UserStatus;
-  reason?: string;
+  targetStatus: "ACTIVE" | "LOCKED";
+  reason: string;
+}
+export interface UserOptions {
+  specialties: { id: string; name: string; isActive: boolean }[];
 }

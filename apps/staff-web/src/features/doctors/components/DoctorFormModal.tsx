@@ -77,14 +77,13 @@ export function DoctorFormModal({
   const onSubmit = handleSubmit(async (values) => {
     if (avatar.error) return;
     try {
-      const fullName = doctor?.user.fullName ?? values.fullName.trim();
-      const phone = doctor?.user.phone ?? normalizeDoctorPhone(values.phone);
+      const fullName = values.fullName.trim();
+      const phone = normalizeDoctorPhone(values.phone);
       if (
-        !doctor &&
-        (!fullName ||
-          /\p{Cc}/u.test(fullName) ||
-          Array.from(fullName).length > 100 ||
-          !/^\+84[35789]\d{8}$/.test(phone))
+        !fullName ||
+        /\p{Cc}/u.test(fullName) ||
+        Array.from(fullName).length > 100 ||
+        !/^\+84[35789]\d{8}$/.test(phone)
       )
         throw new Error("Nhập họ tên hợp lệ và số di động Việt Nam.");
       if (
@@ -95,6 +94,8 @@ export function DoctorFormModal({
       )
         throw new Error("Kiểm tra mã bác sĩ và số chứng chỉ hành nghề.");
       const changes: DoctorWriteInput = {
+        fullName,
+        phone,
         doctorCode: values.doctorCode.trim(),
         licenseNumber: values.licenseNumber.trim(),
         specialtyId: values.specialtyId,
@@ -138,7 +139,7 @@ export function DoctorFormModal({
           </DialogTitle>
           <DialogDescription>
             {doctor
-              ? "Tên, email và số điện thoại được quản lý ở tài khoản người dùng."
+              ? "Cập nhật thông tin cá nhân và chuyên môn. Email hệ thống không thay đổi."
               : "Hệ thống tạo tài khoản bác sĩ cùng hồ sơ. Hệ thống tự cấp email."}
           </DialogDescription>
         </DialogHeader>
@@ -151,7 +152,6 @@ export function DoctorFormModal({
               Họ và tên
               <Input
                 aria-label="Họ và tên"
-                disabled={!!doctor}
                 maxLength={100}
                 required
                 {...register("fullName")}
@@ -161,7 +161,6 @@ export function DoctorFormModal({
               Số điện thoại
               <Input
                 aria-label="Số điện thoại"
-                disabled={!!doctor}
                 required
                 type="tel"
                 {...register("phone")}

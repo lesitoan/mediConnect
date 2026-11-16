@@ -18,6 +18,7 @@ import { Textarea } from "@/components/ui/Textarea";
 import { LOCK_REASON_OPTIONS } from "../../constants";
 import { useUpdateUserStatusMutation } from "../../services/usersApi";
 import type { User } from "../../types/userTypes";
+import { canChangeUserStatus, userErrorMessage } from "../../utils";
 
 interface UserStatusModalProps {
   user: User | null;
@@ -35,9 +36,16 @@ export function UserStatusModal({
   isOpen,
   onClose,
 }: UserStatusModalProps) {
-  const [updateUserStatus, { isLoading: isSubmitting, isError, reset: resetMutation }] =
-    useUpdateUserStatusMutation();
-  const { register, handleSubmit, reset } = useForm<UserStatusFormData>({
+  const [
+    updateUserStatus,
+    { isLoading: isSubmitting, isError, error, reset: resetMutation },
+  ] = useUpdateUserStatusMutation();
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<UserStatusFormData>({
     defaultValues: {
       reason: LOCK_REASON_OPTIONS[0].value,
       note: "",
@@ -54,23 +62,25 @@ export function UserStatusModal({
     }
   }, [isOpen, reset, resetMutation]);
 
-  if (!user) return null;
+  if (!user || !canChangeUserStatus(user)) return null;
 
   const isLocking = user.status !== "LOCKED";
 
   const onFormSubmit = async (data: UserStatusFormData) => {
     if (isSubmitting) return;
-    const combinedReason = data.note?.trim()
-      ? `${data.reason}: ${data.note.trim()}`
-      : data.reason;
+    const combinedReason = !isLocking
+      ? data.note.trim()
+      : data.note?.trim()
+        ? `${data.reason}: ${data.note.trim()}`
+        : data.reason;
 
     try {
-      const result = await updateUserStatus({
-      userId: user.id,
-      targetStatus: isLocking ? "LOCKED" : "ACTIVE",
-      reason: combinedReason,
+      await updateUserStatus({
+        userId: user.id,
+        targetStatus: isLocking ? "LOCKED" : "ACTIVE",
+        reason: combinedReason,
       }).unwrap();
-      toast.success(result.message);
+      toast.success(isLocking ? "Đã khóa tài khoản." : "Đã mở khóa tài khoản.");
       onClose();
     } catch {
       // Mutation error is shown inline.
@@ -103,7 +113,9 @@ export function UserStatusModal({
               {isLocking ? (
                 <>
                   <p className="text-body text-muted">
-                  Khi bị khóa, người dùng này sẽ lập tức bị đăng xuất khỏi hệ thống và không thể đăng nhập cho tới khi được quản trị viên mở khóa trở lại.
+                    Khi bị khóa, người dùng này sẽ lập tức bị đăng xuất khỏi hệ
+                    thống và không thể đăng nhập cho tới khi được quản trị viên
+                    mở khóa trở lại.
                   </p>
 
                   <div className="space-y-1.5">
@@ -124,24 +136,47 @@ export function UserStatusModal({
                       Ghi chú bổ sung
                     </label>
                     <Textarea
-                      {...register("note")}
+                      maxLength={400}
+                      {...register("note", {
+                        validate: (value) =>
+                          !value.includes("\u0000") || "Ghi chú không hợp lệ.",
+                      })}
                       placeholder="Ghi chú chi tiết cho biên bản kiểm toán (Audit Log)..."
                       className="min-h-[70px]"
                     />
                   </div>
                 </>
               ) : (
-                <p className="text-body text-muted">
-                  Bạn có chắc chắn muốn mở khóa tài khoản cho{" "}
-                  <strong className="text-foreground">{user.name}</strong>?
-                  Người dùng sẽ được phục hồi quyền truy cập bình thường theo
-                  phân quyền vai trò.
-                </p>
+                <div className="space-y-3">
+                  <p className="text-body text-muted">
+                    Bạn có chắc chắn muốn mở khóa tài khoản cho{" "}
+                    <strong className="text-foreground">{user.name}</strong>?
+                    Người dùng sẽ được phục hồi quyền truy cập bình thường theo
+                    phân quyền vai trò.
+                  </p>
+                  <label className="block space-y-1.5 text-caption font-semibold">
+                    Lý do mở khóa *
+                    <Textarea
+                      maxLength={500}
+                      required
+                      {...register("note", {
+                        validate: (value) =>
+                          (!!value.trim() && !value.includes("\u0000")) ||
+                          "Nhập lý do mở khóa hợp lệ.",
+                      })}
+                    />
+                  </label>
+                </div>
               )}
 
+              {errors.note && (
+                <p role="alert" className="text-caption text-error">
+                  {errors.note.message}
+                </p>
+              )}
               {isError && (
                 <p role="alert" className="text-caption text-error">
-                  Đổi trạng thái thất bại. Vui lòng thử lại.
+                  {userErrorMessage(error)}
                 </p>
               )}
 

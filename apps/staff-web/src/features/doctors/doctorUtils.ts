@@ -28,7 +28,12 @@ export function doctorChanges(
 ) {
   return Object.fromEntries(
     Object.entries(next).filter(
-      ([key, value]) => previous[key as keyof typeof next] !== value,
+      ([key, value]) =>
+        (key === "fullName" || key === "phone"
+          ? previous.user[key]
+          : previous[
+              key as Exclude<keyof typeof next, "fullName" | "phone">
+            ]) !== value,
     ),
   );
 }

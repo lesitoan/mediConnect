@@ -183,6 +183,9 @@ jobs:
           ZALO_ACCESS_TOKEN: ${{ secrets.ZALO_ACCESS_TOKEN }}
           ZALO_OTP_TEMPLATE_ID: ${{ vars.ZALO_OTP_TEMPLATE_ID }}
           ZALO_OTP_CODE_PARAM: ${{ vars.ZALO_OTP_CODE_PARAM }}
+          TEXTBEE_API_KEY: ${{ secrets.TEXTBEE_API_KEY }}
+          TEXTBEE_DEVICE_ID: ${{ secrets.TEXTBEE_DEVICE_ID }}
+          TEXTBEE_API_URL: ${{ vars.TEXTBEE_API_URL || 'https://api.textbee.dev/api/v1/gateway' }}
           AI_INTERNAL_TOKEN: ${{ secrets.AI_INTERNAL_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'gemini-3.1-flash-lite' }}
@@ -206,6 +209,7 @@ jobs:
             JWT_ACCESS_TTL_SECONDS JWT_REFRESH_TTL_SECONDS CORS_ORIGINS LOG_LEVEL \
             AUTH_COOKIE_SAME_SITE RESEND_API_KEY RESEND_FROM_EMAIL \
             ZALO_ACCESS_TOKEN ZALO_OTP_TEMPLATE_ID ZALO_OTP_CODE_PARAM \
+            TEXTBEE_API_KEY TEXTBEE_DEVICE_ID TEXTBEE_API_URL \
             AI_SERVICE_URL AI_INTERNAL_TOKEN \
             SEPAY_WEBHOOK_SECRET BANK_CODE BANK_ACCOUNT_NUMBER BANK_ACCOUNT_NAME; do
             value=${!name}

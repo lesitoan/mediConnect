@@ -116,6 +116,7 @@ export const authApi = baseApi.injectEndpoints({
           : { phone: trimmed };
         return {
           url: "/authentication/forgot_password",
+          timeout: 25000,
           method: "POST",
           data: body,
         };
@@ -133,6 +134,7 @@ export const authApi = baseApi.injectEndpoints({
         };
         return {
           url: "/authentication/send_otp",
+          timeout: 25000,
           method: "POST",
           data: body,
         };
