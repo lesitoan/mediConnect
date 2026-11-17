@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import {
-  Alert,
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -23,8 +23,6 @@ const COLORS = {
   PRIMARY_TINT: '#EBF5FF',
   BUTTON_GRADIENT_START: '#6DB3E8',
   BUTTON_GRADIENT_END: '#2D74A8',
-  LOGO_GRADIENT_START: '#E2EEFB',
-  LOGO_GRADIENT_END: '#BFD9F0',
   BORDER: '#DFE9F5',
   TEXT: '#131D25',
   TEXT_MUTED: '#41474F',
@@ -37,7 +35,6 @@ const FONTS = {
   REGULAR: 'PlusJakartaSans_400Regular',
   SEMI_BOLD: 'PlusJakartaSans_600SemiBold',
   BOLD: 'PlusJakartaSans_700Bold',
-  EXTRA_BOLD: 'PlusJakartaSans_800ExtraBold',
 } as const;
 
 type IconProps = {
@@ -74,18 +71,22 @@ const SmartphoneIcon = createIcon(() => (
   </>
 ));
 
-const HeartPulseIcon = createIcon(() => (
+const EyeIcon = createIcon(() => (
   <>
-    <Path d="M19 14c1.5-1.5 3-3.2 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.8 0-3 .5-4.5 2-1.5-1.5-2.7-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4 3 5.5l7 7z" />
-    <Path d="M3.2 12h6.3l.5-1 2 4.5 2-7 1.5 3.5h5.3" />
+    <Path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />
+    <Circle cx="12" cy="12" r="3" />
   </>
+));
+
+const EyeOffIcon = createIcon(() => (
+  <Path d="M9.9 9.9a3 3 0 1 0 4.2 4.2M10.7 5.1A10.4 10.4 0 0 1 12 5c7 0 10 7 10 7a13 13 0 0 1-1.7 2.7M6.6 6.6A13.5 13.5 0 0 0 2 12s3 7 10 7a9.7 9.7 0 0 0 5.4-1.6M2 2l20 20" />
 ));
 
 type RegisterScreenProps = {
   onPressBack?: () => void;
   onPressLogin?: () => void;
   onPressTerms?: () => void;
-  onSubmitPhone?: (phone: string) => void; // FIX
+  onSubmit?: (input: { name: string; phone: string; password: string }) => Promise<void>;
 };
 
 const PHONE_PATTERN = /^(0|\+84)\d{9}$/;
@@ -94,29 +95,61 @@ export default function RegisterScreen({
   onPressBack,
   onPressLogin,
   onPressTerms,
-  onSubmitPhone, // FIX
+  onSubmit,
 }: RegisterScreenProps) {
+  const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [isPasswordHidden, setIsPasswordHidden] = useState(true);
+  const [isConfirmPasswordHidden, setIsConfirmPasswordHidden] = useState(true);
   const [hasAcceptedTerms, setHasAcceptedTerms] = useState(false);
   const [isFocusedPhone, setIsFocusedPhone] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [requestError, setRequestError] = useState('');
+  const [nameError, setNameError] = useState('');
   const [phoneError, setPhoneError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [confirmPasswordError, setConfirmPasswordError] = useState('');
   const [termsError, setTermsError] = useState('');
 
   const validate = () => {
+    const nextNameError = name.trim().length >= 2 ? '' : 'Vui lòng nhập họ và tên';
     const nextPhoneError = PHONE_PATTERN.test(phone) ? '' : 'Số điện thoại không hợp lệ';
+    const nextPasswordError =
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^a-zA-Z0-9]).{8,}$/.test(password)
+        ? ''
+        : 'Mật khẩu cần 8 ký tự, gồm chữ hoa, chữ thường, số và ký tự đặc biệt';
+    const nextConfirmPasswordError =
+      confirmPassword === password ? '' : 'Mật khẩu xác nhận không khớp';
     const nextTermsError = hasAcceptedTerms ? '' : 'Bạn cần đồng ý với điều khoản sử dụng';
+    setNameError(nextNameError);
     setPhoneError(nextPhoneError);
+    setPasswordError(nextPasswordError);
+    setConfirmPasswordError(nextConfirmPasswordError);
     setTermsError(nextTermsError);
-    return !nextPhoneError && !nextTermsError;
+    return (
+      !nextNameError &&
+      !nextPhoneError &&
+      !nextPasswordError &&
+      !nextConfirmPasswordError &&
+      !nextTermsError
+    );
   };
 
-  const handleRegister = () => {
-    if (!validate()) return;
-    if (onSubmitPhone) { // FIX
-      onSubmitPhone(phone); // FIX
-      return; // FIX
-    } // FIX
-    Alert.alert('Đăng ký tài khoản', `Số điện thoại: ${phone}`);
+  const handleRegister = async () => {
+    if (!validate() || isSubmitting) return;
+    setIsSubmitting(true);
+    setRequestError('');
+    try {
+      await onSubmit?.({ name: name.trim(), phone: phone.trim(), password });
+    } catch (error) {
+      setRequestError(
+        error instanceof Error ? error.message : 'Không thể đăng ký tài khoản.',
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -140,27 +173,31 @@ export default function RegisterScreen({
               <Text style={styles.backText}>Quay lại</Text>
             </TouchableOpacity>
 
-            <View style={styles.brand}>
-              <LinearGradient
-                colors={[COLORS.LOGO_GRADIENT_START, COLORS.LOGO_GRADIENT_END]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.logo}
-              >
-                <HeartPulseIcon size={30} color={COLORS.PRIMARY} strokeWidth={1.8} />
-              </LinearGradient>
-              <View>
-                <Text style={styles.brandWelcome}>Chào mừng đến với</Text>
-                <Text style={styles.brandTitle}>MEDICONNECT</Text>
-              </View>
-            </View>
-
             <View style={styles.heading}>
               <Text style={styles.title}>Đăng ký tài khoản</Text>
-              <Text style={styles.subtitle}>Đăng ký bằng số điện thoại của bạn</Text>
+              <Text style={styles.subtitle}>Tạo tài khoản bệnh nhân và xác thực bằng OTP</Text>
             </View>
 
             <View style={styles.card}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Họ và tên</Text>
+                <View style={[styles.inputWrapper, !!nameError && styles.inputWrapperError]}>
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="Nhập họ và tên"
+                    placeholderTextColor={COLORS.PLACEHOLDER}
+                    value={name}
+                    onChangeText={(value) => {
+                      setName(value);
+                      setNameError('');
+                    }}
+                    autoCapitalize="words"
+                    maxLength={100}
+                  />
+                </View>
+                {!!nameError && <Text style={styles.errorText}>{nameError}</Text>}
+              </View>
+
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Số điện thoại</Text>
                 <View
@@ -177,12 +214,82 @@ export default function RegisterScreen({
                     placeholderTextColor={COLORS.PLACEHOLDER}
                     keyboardType="phone-pad"
                     value={phone}
-                    onChangeText={setPhone}
+                    onChangeText={(value) => {
+                      setPhone(value);
+                      setPhoneError('');
+                    }}
                     onFocus={() => setIsFocusedPhone(true)}
                     onBlur={() => setIsFocusedPhone(false)}
                   />
                 </View>
                 {!!phoneError && <Text style={styles.errorText}>{phoneError}</Text>}
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Mật khẩu</Text>
+                <View style={[styles.inputWrapper, !!passwordError && styles.inputWrapperError]}>
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="Tạo mật khẩu an toàn"
+                    placeholderTextColor={COLORS.PLACEHOLDER}
+                    value={password}
+                    onChangeText={(value) => {
+                      setPassword(value);
+                      setPasswordError('');
+                    }}
+                    secureTextEntry={isPasswordHidden}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                  <TouchableOpacity
+                    hitSlop={10}
+                    onPress={() => setIsPasswordHidden(!isPasswordHidden)}
+                  >
+                    {isPasswordHidden ? (
+                      <EyeIcon size={20} color={COLORS.ICON_MUTED} />
+                    ) : (
+                      <EyeOffIcon size={20} color={COLORS.ICON_MUTED} />
+                    )}
+                  </TouchableOpacity>
+                </View>
+                {!!passwordError && <Text style={styles.errorText}>{passwordError}</Text>}
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Nhập lại mật khẩu</Text>
+                <View
+                  style={[
+                    styles.inputWrapper,
+                    !!confirmPasswordError && styles.inputWrapperError,
+                  ]}
+                >
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="Nhập lại mật khẩu"
+                    placeholderTextColor={COLORS.PLACEHOLDER}
+                    value={confirmPassword}
+                    onChangeText={(value) => {
+                      setConfirmPassword(value);
+                      setConfirmPasswordError('');
+                    }}
+                    secureTextEntry={isConfirmPasswordHidden}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                  <TouchableOpacity
+                    hitSlop={10}
+                    onPress={() => setIsConfirmPasswordHidden(!isConfirmPasswordHidden)}
+                  >
+                    {isConfirmPasswordHidden ? (
+                      <EyeIcon size={20} color={COLORS.ICON_MUTED} />
+                    ) : (
+                      <EyeOffIcon size={20} color={COLORS.ICON_MUTED} />
+                    )}
+                  </TouchableOpacity>
+                </View>
+                {!!confirmPasswordError && (
+                  <Text style={styles.errorText}>{confirmPasswordError}</Text>
+                )}
               </View>
 
               <View style={styles.termsGroup}>
@@ -205,14 +312,24 @@ export default function RegisterScreen({
                 {!!termsError && <Text style={styles.errorText}>{termsError}</Text>}
               </View>
 
-              <TouchableOpacity activeOpacity={0.85} onPress={handleRegister}>
+              {!!requestError && <Text style={styles.errorText}>{requestError}</Text>}
+
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={handleRegister}
+                disabled={isSubmitting}
+              >
                 <LinearGradient
                   colors={[COLORS.BUTTON_GRADIENT_START, COLORS.BUTTON_GRADIENT_END]}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
                   style={styles.primaryButton}
                 >
-                  <Text style={styles.primaryButtonText}>Đăng ký tài khoản</Text>
+                  {isSubmitting ? (
+                    <ActivityIndicator color={COLORS.SURFACE} />
+                  ) : (
+                    <Text style={styles.primaryButtonText}>Đăng ký tài khoản</Text>
+                  )}
                 </LinearGradient>
               </TouchableOpacity>
             </View>
@@ -249,30 +366,7 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   backText: { fontFamily: FONTS.SEMI_BOLD, fontSize: 15, color: COLORS.PRIMARY },
-  brand: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-    paddingTop: 16,
-    paddingBottom: 20,
-  },
-  logo: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  brandWelcome: { fontFamily: FONTS.SEMI_BOLD, fontSize: 12, lineHeight: 16, color: COLORS.TEXT },
-  brandTitle: {
-    fontFamily: FONTS.EXTRA_BOLD,
-    fontSize: 18,
-    lineHeight: 24,
-    letterSpacing: 0.5,
-    color: COLORS.PRIMARY,
-  },
-  heading: { alignItems: 'center', paddingBottom: 20 },
+  heading: { alignItems: 'center', paddingTop: 16, paddingBottom: 20 },
   title: {
     fontFamily: FONTS.BOLD,
     fontSize: 24,

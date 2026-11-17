@@ -60,21 +60,6 @@ export const FolderClockColorIcon = createColorIcon(() => (
   </>
 ));
 
-export const CreditCardColorIcon = createColorIcon(() => (
-  <>
-    <Rect x={5} y={12} width={31} height={22} rx={3.5} fill="#2F6FB5" />
-    <Rect x={5} y={17} width={31} height={5} fill="#1E4E85" />
-    <Rect x={9} y={26} width={5.5} height={4} rx={1} fill="#F7C948" />
-    <Rect x={17} y={27.2} width={8} height={1.7} rx={0.85} fill="#8DBBE8" />
-    <Circle cx={35} cy={31} r={9} fill="#FFC53D" stroke="#F29A1F" strokeWidth={2} />
-    <Path
-      d="M35 26V36M30 31H40"
-      stroke="#E8891B"
-      strokeWidth={2.8}
-      strokeLinecap="round"
-    />
-  </>
-));
 
 export const ReceiptColorIcon = createColorIcon(() => (
   <>

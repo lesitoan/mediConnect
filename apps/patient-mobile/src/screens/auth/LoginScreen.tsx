@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import {
-  Alert,
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -65,8 +65,6 @@ function createIcon(render: () => ReactNode) {
   };
 }
 
-const ArrowLeftIcon = createIcon(() => <Path d="M19 12H5M12 19l-7-7 7-7" />);
-
 const HelpIcon = createIcon(() => (
   <>
     <Circle cx="12" cy="12" r="10" />
@@ -108,6 +106,13 @@ const UserPlusIcon = createIcon(() => (
   </>
 ));
 
+const ShieldCheckIcon = createIcon(() => (
+  <>
+    <Path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+    <Path d="m9 12 2 2 4-4" />
+  </>
+));
+
 const HeartPulseIcon = createIcon(() => (
   <>
     <Path d="M19 14c1.5-1.5 3-3.2 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.8 0-3 .5-4.5 2-1.5-1.5-2.7-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4 3 5.5l7 7z" />
@@ -118,22 +123,22 @@ const HeartPulseIcon = createIcon(() => (
 type Language = 'VIE' | 'EN';
 
 type LoginScreenProps = {
-  onPressBack?: () => void;
   onPressHelp?: () => void;
   onPressRegister?: () => void;
   onPressForgotPassword?: () => void;
-  onLoginSuccess?: (phone: string) => void; // FIX
+  onLogin?: (phone: string, password: string) => Promise<void>;
+  onVerifyPhone?: (phone: string) => Promise<void>;
 };
 
 const LANGUAGES: Language[] = ['VIE', 'EN'];
 const PHONE_PATTERN = /^(0|\+84)\d{9}$/;
 
 export default function LoginScreen({
-  onPressBack,
   onPressHelp,
   onPressRegister,
   onPressForgotPassword,
-  onLoginSuccess, // FIX
+  onLogin,
+  onVerifyPhone,
 }: LoginScreenProps) {
   const [language, setLanguage] = useState<Language>('VIE');
   const [phone, setPhone] = useState('');
@@ -144,6 +149,9 @@ export default function LoginScreen({
   const [isFocusedPassword, setIsFocusedPassword] = useState(false);
   const [phoneError, setPhoneError] = useState('');
   const [passwordError, setPasswordError] = useState('');
+  const [requestError, setRequestError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const validate = () => {
     const nextPhoneError = PHONE_PATTERN.test(phone) ? '' : 'Số điện thoại không hợp lệ';
@@ -153,13 +161,40 @@ export default function LoginScreen({
     return !nextPhoneError && !nextPasswordError;
   };
 
-  const handleLogin = () => {
+    const handleLogin = async () => {
     if (!validate()) return;
-    if (onLoginSuccess) { // FIX
-      onLoginSuccess(phone); // FIX
-      return; // FIX
-    } // FIX
-    Alert.alert('Đăng nhập', `Số điện thoại: ${phone}`);
+    if (!onLogin || isSubmitting || isVerifying) return;
+    setIsSubmitting(true);
+    setRequestError('');
+    try {
+      await onLogin(phone.trim(), password);
+    } catch (error) {
+      setRequestError(
+        error instanceof Error ? error.message : 'Không thể đăng nhập.',
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleVerifyPhone = async () => {
+    if (!onVerifyPhone || isVerifying || isSubmitting) return;
+    const trimmedPhone = phone.trim();
+    if (!PHONE_PATTERN.test(trimmedPhone)) {
+      setPhoneError('Nhập số điện thoại cần xác nhận');
+      return;
+    }
+    setIsVerifying(true);
+    setRequestError('');
+    try {
+      await onVerifyPhone(trimmedPhone);
+    } catch (error) {
+      setRequestError(
+        error instanceof Error ? error.message : 'Không thể gửi mã xác nhận.',
+      );
+    } finally {
+      setIsVerifying(false);
+    }
   };
 
   return (
@@ -179,10 +214,6 @@ export default function LoginScreen({
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.topBar}>
-              <TouchableOpacity style={styles.circleButton} onPress={onPressBack}>
-                <ArrowLeftIcon size={20} color={COLORS.PRIMARY} />
-              </TouchableOpacity>
-
               <View style={styles.languageSwitch}>
                 {LANGUAGES.map((item) => {
                   const isActive = language === item;
@@ -239,7 +270,11 @@ export default function LoginScreen({
                     placeholderTextColor={COLORS.PLACEHOLDER}
                     keyboardType="phone-pad"
                     value={phone}
-                    onChangeText={setPhone}
+                    onChangeText={(value) => {
+                      setPhone(value);
+                      setRequestError('');
+                      setPhoneError('');
+                    }}
                     onFocus={() => setIsFocusedPhone(true)}
                     onBlur={() => setIsFocusedPhone(false)}
                   />
@@ -264,7 +299,11 @@ export default function LoginScreen({
                     secureTextEntry={isPasswordHidden}
                     autoCapitalize="none"
                     value={password}
-                    onChangeText={setPassword}
+                    onChangeText={(value) => {
+                      setPassword(value);
+                      setRequestError('');
+                      setPasswordError('');
+                    }}
                     onFocus={() => setIsFocusedPassword(true)}
                     onBlur={() => setIsFocusedPassword(false)}
                   />
@@ -293,21 +332,52 @@ export default function LoginScreen({
                   <Text style={styles.rememberText}>Ghi nhớ đăng nhập</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity onPress={onPressForgotPassword}>
+                <TouchableOpacity hitSlop={8} onPress={onPressForgotPassword}>
                   <Text style={styles.linkText}>Quên mật khẩu?</Text>
                 </TouchableOpacity>
               </View>
 
-              <TouchableOpacity activeOpacity={0.85} onPress={handleLogin}>
+              {!!requestError && <Text style={styles.errorText}>{requestError}</Text>}
+
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={handleLogin}
+                disabled={isSubmitting || isVerifying}
+              >
                 <LinearGradient
                   colors={[COLORS.BUTTON_GRADIENT_START, COLORS.BUTTON_GRADIENT_END]}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
                   style={styles.primaryButton}
                 >
-                  <Text style={styles.primaryButtonText}>Đăng nhập</Text>
+                  {isSubmitting ? (
+                    <ActivityIndicator color={COLORS.SURFACE} />
+                  ) : (
+                    <Text style={styles.primaryButtonText}>Đăng nhập</Text>
+                  )}
                 </LinearGradient>
               </TouchableOpacity>
+
+              <View style={styles.verifyBlock}>
+                <Text style={styles.verifyHint}>
+                  Đã đăng ký nhưng chưa xác thực OTP?
+                </Text>
+                <TouchableOpacity
+                  style={styles.verifyButton}
+                  activeOpacity={0.85}
+                  onPress={handleVerifyPhone}
+                  disabled={isVerifying || isSubmitting}
+                >
+                  {isVerifying ? (
+                    <ActivityIndicator color={COLORS.PRIMARY} />
+                  ) : (
+                    <>
+                      <ShieldCheckIcon size={18} color={COLORS.PRIMARY} />
+                      <Text style={styles.verifyButtonText}>Xác nhận số điện thoại</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
 
             <TouchableOpacity style={styles.secondaryButton} onPress={onPressRegister}>
@@ -457,6 +527,28 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   primaryButtonText: { fontFamily: FONTS.BOLD, fontSize: 14, color: COLORS.SURFACE },
+  verifyBlock: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.BORDER,
+    alignItems: 'center',
+    gap: 10,
+  },
+  verifyHint: { fontFamily: FONTS.REGULAR, fontSize: 12, color: COLORS.TEXT_MUTED },
+  verifyButton: {
+    alignSelf: 'stretch',
+    height: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: COLORS.PRIMARY_LIGHT,
+    backgroundColor: COLORS.PRIMARY_TINT,
+  },
+  verifyButtonText: { fontFamily: FONTS.SEMI_BOLD, fontSize: 13, color: COLORS.PRIMARY },
   secondaryButton: {
     flexDirection: 'row',
     alignItems: 'center',

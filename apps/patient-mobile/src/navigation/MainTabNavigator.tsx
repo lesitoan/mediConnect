@@ -29,7 +29,6 @@ const FEATURE_ROUTES = {
   chatbot: ROOT_ROUTES.AI_CHAT,
   'health-record': MAIN_TABS.HEALTH_RECORD,
   rating: ROOT_ROUTES.RATING,
-  payment: ROOT_ROUTES.PAYMENT,
   invoice: ROOT_ROUTES.INVOICE_LIST,
   search: ROOT_ROUTES.SEARCH,
 } as const;
@@ -80,7 +79,13 @@ function HomeTab() {
     navigation.navigate(ROOT_ROUTES.AI_CHAT as never);
   };
 
-  return <HomeScreen onPressFeature={handlePressFeature} onPressSearch={handlePressSearch} onPressAiChat={handlePressAiChat} />;
+  return (
+    <HomeScreen
+      onPressFeature={handlePressFeature}
+      onPressSearch={handlePressSearch}
+      onPressAiChat={handlePressAiChat}
+    />
+  );
 }
 
 type ProfileTabProps = {
@@ -93,7 +98,7 @@ function ProfileTab({ onSignOut }: ProfileTabProps) {
   return (
     <ProfileScreen
       onPressPersonalInfo={() => navigation.navigate(ROOT_ROUTES.PERSONAL_INFO as never)}
-      onPressChangePassword={() => navigation.navigate(ROOT_ROUTES.CHANGE_PASSWORD as never) } 
+      onPressChangePassword={() => navigation.navigate(ROOT_ROUTES.CHANGE_PASSWORD as never)}
       onSignOut={onSignOut}
     />
   );

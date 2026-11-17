@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, type ComponentRef, type ReactNode } from 'react'; // FIX
+import { useEffect, useRef, useState, type ComponentRef, type ReactNode } from 'react';
 import {
-  Alert,
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -81,8 +81,9 @@ const HeartPulseIcon = createIcon(() => (
 
 type OtpScreenProps = {
   phone?: string;
+  challengeId?: string;
   onPressBack?: () => void;
-  onVerified?: (code: string) => void;
+  onVerified?: (code: string) => Promise<void> | void;
 };
 
 const OTP_LENGTH = 6;
@@ -94,12 +95,13 @@ const formatTime = (totalSeconds: number) => {
   return `${minutes}:${seconds}`;
 };
 
-export default function OtpScreen({ phone, onPressBack, onVerified }: OtpScreenProps) {
-  const inputRef = useRef<ComponentRef<typeof TextInput>>(null); // FIX
+export default function OtpScreen({ phone, challengeId, onPressBack, onVerified }: OtpScreenProps) {
+  const inputRef = useRef<ComponentRef<typeof TextInput>>(null);
   const [code, setCode] = useState('');
   const [isFocused, setIsFocused] = useState(false);
   const [error, setError] = useState('');
   const [secondsLeft, setSecondsLeft] = useState(RESEND_SECONDS);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (secondsLeft <= 0) return;
@@ -112,16 +114,22 @@ export default function OtpScreen({ phone, onPressBack, onVerified }: OtpScreenP
     if (error) setError('');
   };
 
-  const handleVerify = () => {
+  const handleVerify = async () => {
     if (code.length < OTP_LENGTH) {
       setError('Vui lòng nhập đủ 6 chữ số');
       return;
     }
-    if (onVerified) {
-      onVerified(code);
-      return;
+    if (onVerified && !isSubmitting) {
+      try {
+        setIsSubmitting(true);
+        setError('');
+        await onVerified(code);
+      } catch (err: any) {
+        setError(err.message || 'Mã xác thực không đúng hoặc đã hết hạn.');
+      } finally {
+        setIsSubmitting(false);
+      }
     }
-    Alert.alert('Xác nhận mã', `Số điện thoại: ${phone ?? ''}\nMã OTP: ${code}`);
   };
 
   const handleResend = () => {
@@ -177,8 +185,7 @@ export default function OtpScreen({ phone, onPressBack, onVerified }: OtpScreenP
 
               <Text style={styles.title}>Nhập mã OTP</Text>
               <Text style={styles.description}>
-                Mã 6 chữ số đã được gửi tới tin nhắn trên điện thoại của bạn. Vui lòng nhập vào ô
-                bên dưới.
+                Mã 6 chữ số đã được gửi tới số điện thoại {phone}. Vui lòng nhập vào ô bên dưới.
               </Text>
 
               <Pressable style={styles.otpRow} onPress={() => inputRef.current?.focus()}>
@@ -211,21 +218,27 @@ export default function OtpScreen({ phone, onPressBack, onVerified }: OtpScreenP
                   maxLength={OTP_LENGTH}
                   autoFocus
                   caretHidden
+                  editable={!isSubmitting}
                 />
               </Pressable>
               {!!error && <Text style={styles.errorText}>{error}</Text>}
 
               <TouchableOpacity
-                style={styles.primaryButton}
+                style={[styles.primaryButton, isSubmitting && { opacity: 0.7 }]}
                 activeOpacity={0.85}
                 onPress={handleVerify}
+                disabled={isSubmitting}
               >
-                <Text style={styles.primaryButtonText}>Xác nhận mã</Text>
+                {isSubmitting ? (
+                  <ActivityIndicator color={COLORS.SURFACE} />
+                ) : (
+                  <Text style={styles.primaryButtonText}>Xác nhận mã</Text>
+                )}
               </TouchableOpacity>
 
               <View style={styles.resendRow}>
                 <Text style={styles.resendLabel}>Chưa nhận được? </Text>
-                <TouchableOpacity onPress={handleResend} disabled={secondsLeft > 0} hitSlop={8}>
+                <TouchableOpacity onPress={handleResend} disabled={secondsLeft > 0 || isSubmitting} hitSlop={8}>
                   <Text style={styles.resendLink}>
                     {secondsLeft > 0 ? `Gửi lại (${formatTime(secondsLeft)})` : 'Gửi lại'}
                   </Text>

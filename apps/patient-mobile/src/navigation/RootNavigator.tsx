@@ -1,13 +1,16 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
+import {
+  NavigationContainer,
+  useNavigationContainerRef,
+} from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import BookingProfileScreen from '../screens/appointments/BookingProfileScreen';
 import CreateProfileScreen from '../screens/appointments/CreateProfileScreen';
 import SelectSpecialtyScreen from '../screens/appointments/SelectSpecialtyScreen';
 import SelectDoctorScreen from '../screens/appointments/SelectDoctorScreen';
 import SelectTimeSlotScreen from '../screens/appointments/SelectTimeSlotScreen';
-import ConfirmBookingScreen from '../screens/appointments/ConfirmBookingScreen'; 
+import ConfirmBookingScreen from '../screens/appointments/ConfirmBookingScreen';
 import AppointmentHistoryScreen from '../screens/appointments/AppointmentHistoryScreen';
 import RescheduleScreen from '../screens/appointments/RescheduleScreen';
 import CancelAppointmentScreen from '../screens/appointments/CancelAppointmentScreen';
@@ -16,7 +19,6 @@ import AIRescheduleScreen from '../screens/ai/AIRescheduleScreen';
 import AICancelScreen from '../screens/ai/AICancelScreen';
 import HealthRecordScreen from '../screens/records/HealthRecordScreen';
 import RatingScreen from '../screens/reviews/RatingScreen';
-import PaymentScreen from '../screens/payment/PaymentScreen';
 import InvoiceDetailScreen from '../screens/invoices/InvoiceDetailScreen';
 import InvoiceListScreen from '../screens/invoices/InvoiceListScreen';
 import DoctorSearchScreen from '../screens/search/DoctorSearchScreen';
@@ -28,42 +30,58 @@ import MainTabNavigator from './MainTabNavigator';
 import { ROOT_ROUTES } from './routes';
 import type { RootStackParamList } from './types';
 
-
 const Stack = createNativeStackNavigator<RootStackParamList>();
+type BookingIntent = NonNullable<RootStackParamList[typeof ROOT_ROUTES.BOOKING_PROFILE]>;
 
 export default function RootNavigator() {
   const [isSignedIn, setIsSignedIn] = useState(false);
+  const [pendingBooking, setPendingBooking] = useState<BookingIntent | null>(null);
+  const navigationRef = useNavigationContainerRef<RootStackParamList>();
+
+  useEffect(() => {
+    if (!isSignedIn || !pendingBooking || !navigationRef.isReady()) return;
+    navigationRef.navigate(ROOT_ROUTES.BOOKING_PROFILE, pendingBooking);
+    setPendingBooking(null);
+  }, [isSignedIn, navigationRef, pendingBooking]);
+
+  const handleSignOut = () => {
+    setPendingBooking(null);
+    setIsSignedIn(false);
+  };
 
   return (
-    <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <NavigationContainer ref={navigationRef}>
+      <Stack.Navigator
+        initialRouteName={isSignedIn ? ROOT_ROUTES.MAIN : ROOT_ROUTES.SEARCH}
+        screenOptions={{ headerShown: false }}
+      >
         {isSignedIn ? (
           <>
             <Stack.Screen name={ROOT_ROUTES.MAIN}>
-              {() => <MainTabNavigator onSignOut={() => setIsSignedIn(false)} />}
+              {() => <MainTabNavigator onSignOut={handleSignOut} />}
             </Stack.Screen>
-            
+
             <Stack.Screen name={ROOT_ROUTES.AI_CHAT}>
               {({ navigation }) => (
-                <AIChatScreen 
-                  onPressBack={() => navigation.popToTop()} 
-                  onPressStartBooking={() => navigation.navigate(ROOT_ROUTES.BOOKING_PROFILE)} 
+                <AIChatScreen
+                  onPressBack={() => navigation.popToTop()}
+                  onPressStartBooking={() => navigation.navigate(ROOT_ROUTES.BOOKING_PROFILE)}
                   onPressAction={(id) => {
                     if (id === 'reschedule') navigation.navigate(ROOT_ROUTES.AI_RESCHEDULE);
                     if (id === 'cancel') navigation.navigate(ROOT_ROUTES.AI_CANCEL);
                   }}
-                /> 
+                />
               )}
-            </Stack.Screen> 
-            
+            </Stack.Screen>
+
             <Stack.Screen name={ROOT_ROUTES.AI_RESCHEDULE}>
               {({ navigation }) => (
                 <AIRescheduleScreen
                   onPressBack={() => navigation.goBack()}
-                  onPressSelectReschedule={(appointmentId) => 
+                  onPressSelectReschedule={(appointmentId) =>
                     navigation.navigate(ROOT_ROUTES.RESCHEDULE, { appointmentId })
                   }
-                  onPressConfirmSlot={(appointmentId) => 
+                  onPressConfirmSlot={(appointmentId) =>
                     navigation.navigate(ROOT_ROUTES.RESCHEDULE, { appointmentId })
                   }
                 />
@@ -75,23 +93,39 @@ export default function RootNavigator() {
                 <AICancelScreen
                   onPressBack={() => navigation.goBack()}
                   onPressSelectCancel={(appointmentId: string, appointmentCode: string) =>
-                    navigation.navigate(ROOT_ROUTES.CANCEL_APPOINTMENT, { appointmentId, appointmentCode })
+                    navigation.navigate(ROOT_ROUTES.CANCEL_APPOINTMENT, {
+                      appointmentId,
+                      appointmentCode,
+                    })
                   }
-                  onPressConfirmCancel={(appointmentId: string, appointmentCode: string, reasonId: string | null) =>
-                    navigation.navigate(ROOT_ROUTES.CANCEL_APPOINTMENT, { appointmentId, appointmentCode })
+                  onPressConfirmCancel={(
+                    appointmentId: string,
+                    appointmentCode: string,
+                    reasonId: string | null,
+                  ) =>
+                    navigation.navigate(ROOT_ROUTES.CANCEL_APPOINTMENT, {
+                      appointmentId,
+                      appointmentCode,
+                    })
                   }
                 />
               )}
             </Stack.Screen>
 
             <Stack.Screen name={ROOT_ROUTES.BOOKING_PROFILE}>
-              {({ navigation }) => (
+              {({ navigation, route }) => (
                 <BookingProfileScreen
                   onPressBack={() => navigation.goBack()}
                   onPressHome={() => navigation.popToTop()}
                   onPressAddProfile={() => navigation.navigate(ROOT_ROUTES.CREATE_PROFILE)}
                   onSelectProfile={(profile) =>
-                    navigation.navigate(ROOT_ROUTES.SELECT_SPECIALTY, { profile })
+                    navigation.navigate(ROOT_ROUTES.SELECT_SPECIALTY, {
+                      profile,
+                      initialSpecialtyId: route.params?.specialtyId,
+                      preferredDoctorId: route.params?.doctorId,
+                      preferredDateKey: route.params?.dateKey,
+                      preferredSlotId: route.params?.slotId,
+                    })
                   }
                 />
               )}
@@ -124,19 +158,6 @@ export default function RootNavigator() {
                 />
               )}
             </Stack.Screen>
-            
-            <Stack.Screen name={ROOT_ROUTES.PAYMENT}>
-              {({ navigation }) => (
-                <PaymentScreen
-                  onPressBack={() => navigation.goBack()}
-                  onPay={({ total }) =>
-                    Alert.alert('Thanh toán', `Đang chuyển sang cổng thanh toán ${total.toLocaleString('vi-VN')} đ`, [
-                      { text: 'Về trang chủ', onPress: () => navigation.goBack() },
-                    ])
-                  }
-                />
-              )}
-            </Stack.Screen>
 
             <Stack.Screen name={ROOT_ROUTES.SELECT_SPECIALTY}>
               {({ navigation, route }) => (
@@ -150,12 +171,15 @@ export default function RootNavigator() {
                       profile: route.params.profile,
                       specialty,
                       service,
+                      preferredDoctorId: route.params.preferredDoctorId,
+                      preferredDateKey: route.params.preferredDateKey,
+                      preferredSlotId: route.params.preferredSlotId,
                     })
                   }
                 />
               )}
             </Stack.Screen>
-            
+
             <Stack.Screen name={ROOT_ROUTES.SELECT_DOCTOR}>
               {({ navigation, route }) => (
                 <SelectDoctorScreen
@@ -171,13 +195,14 @@ export default function RootNavigator() {
                       service: route.params.service,
                       doctor,
                       day,
+                      preferredSlotId: route.params.preferredSlotId,
                     })
                   }
                 />
               )}
             </Stack.Screen>
 
-             <Stack.Screen name={ROOT_ROUTES.SELECT_TIME_SLOT}>
+            <Stack.Screen name={ROOT_ROUTES.SELECT_TIME_SLOT}>
               {({ navigation, route }) => (
                 <SelectTimeSlotScreen
                   profile={route.params.profile}
@@ -201,7 +226,7 @@ export default function RootNavigator() {
                 />
               )}
             </Stack.Screen>
- 
+
             <Stack.Screen name={ROOT_ROUTES.CONFIRM_BOOKING}>
               {({ navigation, route }) => (
                 <ConfirmBookingScreen
@@ -227,13 +252,16 @@ export default function RootNavigator() {
                 <AppointmentHistoryScreen
                   onPressBack={() => navigation.goBack()}
                   onPressNewBooking={() => navigation.navigate(ROOT_ROUTES.BOOKING_PROFILE)}
-                  onPressReschedule={(appointment) => 
-                    navigation.navigate(ROOT_ROUTES.RESCHEDULE, { appointmentId: appointment.id }) 
-                  } 
-                  onPressCancel={(appointment) => 
-                    navigation.navigate(ROOT_ROUTES.CANCEL_APPOINTMENT, { appointmentId: appointment.id,  appointmentCode: appointment.code })
-                  } 
-                />  
+                  onPressReschedule={(appointment) =>
+                    navigation.navigate(ROOT_ROUTES.RESCHEDULE, { appointmentId: appointment.id })
+                  }
+                  onPressCancel={(appointment) =>
+                    navigation.navigate(ROOT_ROUTES.CANCEL_APPOINTMENT, {
+                      appointmentId: appointment.id,
+                      appointmentCode: appointment.code,
+                    })
+                  }
+                />
               )}
             </Stack.Screen>
 
@@ -246,7 +274,7 @@ export default function RootNavigator() {
                 />
               )}
             </Stack.Screen>
-            
+
             <Stack.Screen name={ROOT_ROUTES.CANCEL_APPOINTMENT}>
               {({ navigation, route }) => (
                 <CancelAppointmentScreen
@@ -254,16 +282,18 @@ export default function RootNavigator() {
                   appointmentCode={route.params.appointmentCode}
                   onPressBack={() => navigation.goBack()}
                   onPressReschedule={() => {
-                    navigation.replace(ROOT_ROUTES.RESCHEDULE, { appointmentId: route.params.appointmentId });
+                    navigation.replace(ROOT_ROUTES.RESCHEDULE, {
+                      appointmentId: route.params.appointmentId,
+                    });
                   }}
                   onConfirmCancel={() => {
                     Alert.alert('Thành công', 'Đã hủy lịch hẹn.');
-                    navigation.goBack(); 
+                    navigation.goBack();
                   }}
                 />
               )}
             </Stack.Screen>
-            
+
             <Stack.Screen name={ROOT_ROUTES.INVOICE_LIST}>
               {({ navigation }) => (
                 <InvoiceListScreen
@@ -274,7 +304,7 @@ export default function RootNavigator() {
                 />
               )}
             </Stack.Screen>
- 
+
             <Stack.Screen name={ROOT_ROUTES.INVOICE_DETAIL}>
               {({ navigation, route }) => (
                 <InvoiceDetailScreen
@@ -288,7 +318,12 @@ export default function RootNavigator() {
               {({ navigation }) => (
                 <DoctorSearchScreen
                   onPressBack={() => navigation.goBack()}
-                  onPressBook={() => navigation.navigate(ROOT_ROUTES.BOOKING_PROFILE)}
+                  onPressBook={(doctor) =>
+                    navigation.navigate(ROOT_ROUTES.BOOKING_PROFILE, {
+                      doctorId: doctor.id,
+                      specialtyId: doctor.specialtyId,
+                    })
+                  }
                   onPressAskAI={() => navigation.navigate(ROOT_ROUTES.AI_CHAT)}
                   onPressViewDetail={(doctor) =>
                     navigation.navigate(ROOT_ROUTES.DOCTOR_DETAIL, { doctorId: doctor.id })
@@ -307,28 +342,53 @@ export default function RootNavigator() {
                 />
               )}
             </Stack.Screen>
-            
+
             <Stack.Screen name={ROOT_ROUTES.PERSONAL_INFO}>
               {({ navigation }) => (
-                <PersonalInfoScreen
-                  onPressBack={() => navigation.goBack()}
-                />
+                <PersonalInfoScreen onPressBack={() => navigation.goBack()} />
               )}
             </Stack.Screen>
 
             <Stack.Screen name={ROOT_ROUTES.CHANGE_PASSWORD}>
               {({ navigation }) => (
-                <ChangePasswordScreen
-                  onPressBack={() => navigation.goBack()}
+                <ChangePasswordScreen onPressBack={() => navigation.goBack()} />
+              )}
+            </Stack.Screen>
+          </>
+        ) : (
+          <>
+            <Stack.Screen name={ROOT_ROUTES.AUTH}>
+              {() => <AuthNavigator onSignIn={() => setIsSignedIn(true)} />}
+            </Stack.Screen>
+            <Stack.Screen name={ROOT_ROUTES.SEARCH}>
+              {({ navigation }) => (
+                <DoctorSearchScreen
+                  onPressBack={() => navigation.navigate(ROOT_ROUTES.AUTH)}
+                  onPressBook={(doctor) => {
+                    setPendingBooking({
+                      doctorId: doctor.id,
+                      specialtyId: doctor.specialtyId,
+                    });
+                    navigation.navigate(ROOT_ROUTES.AUTH);
+                  }}
+                  onPressAskAI={() => navigation.navigate(ROOT_ROUTES.AUTH)}
+                  onPressViewDetail={(doctor) =>
+                    navigation.navigate(ROOT_ROUTES.DOCTOR_DETAIL, { doctorId: doctor.id })
+                  }
                 />
               )}
             </Stack.Screen>
-
+            <Stack.Screen name={ROOT_ROUTES.DOCTOR_DETAIL}>
+              {({ navigation, route }) => (
+                <DoctorDetailScreen
+                  doctorId={route.params.doctorId}
+                  onPressBack={() => navigation.goBack()}
+                  onPressBook={() => navigation.navigate(ROOT_ROUTES.AUTH)}
+                  onPressChat={() => navigation.navigate(ROOT_ROUTES.AUTH)}
+                />
+              )}
+            </Stack.Screen>
           </>
-        ) : (
-          <Stack.Screen name={ROOT_ROUTES.AUTH}>
-            {() => <AuthNavigator onSignIn={() => setIsSignedIn(true)} />}
-          </Stack.Screen>
         )}
       </Stack.Navigator>
     </NavigationContainer>

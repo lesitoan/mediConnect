@@ -33,7 +33,6 @@ import {
 import {
   BotColorIcon,
   ClipboardPulseColorIcon,
-  CreditCardColorIcon,
   FlaskSearchColorIcon,
   FolderClockColorIcon,
   ReceiptColorIcon,
@@ -62,7 +61,7 @@ type NewsItem = {
 const MAIN_FEATURES: Feature[] = [
   { key: 'booking', label: 'Đặt khám', Icon: StethoscopeColorIcon },
   { key: 'booking-history', label: 'Lịch sử đặt khám', Icon: FolderClockColorIcon },
-  { key: 'payment', label: 'Thanh toán viện phí', Icon: CreditCardColorIcon },
+  { key: 'rating', label: 'Đánh giá', Icon: StarIcon },
   { key: 'invoice', label: 'Hoá đơn', Icon: ReceiptColorIcon },
   { key: 'health-record', label: 'Hồ sơ sức khoẻ', Icon: ClipboardPulseColorIcon },
   { key: 'lab-results', label: 'Kết quả cận lâm sàng', Icon: FlaskSearchColorIcon },
@@ -77,7 +76,6 @@ const OTHER_FEATURES: Feature[] = [
   { key: 'health-library', label: 'Thư viện sức khoẻ', Icon: BookHeartIcon },
   { key: 'news-events', label: 'Tin tức - Sự kiện', Icon: NewspaperIcon },
   { key: 'contact', label: 'Liên hệ', Icon: PhoneCallIcon },
-  { key: 'rating', label: 'Đánh giá', Icon: StarIcon },
 ];
 
 const NEWS: NewsItem[] = [

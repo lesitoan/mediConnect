@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import {
-  Alert,
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -103,7 +103,7 @@ const HeartPulseIcon = createIcon(() => (
 type SetPasswordScreenProps = {
   phone?: string;
   onPressBack?: () => void;
-  onSubmit?: (password: string) => void;
+  onSubmit?: (password: string) => Promise<void> | void;
 };
 
 const getRules = (password: string, confirm: string) => [
@@ -126,6 +126,7 @@ export default function SetPasswordScreen({ phone, onPressBack, onSubmit }: SetP
   const [isFocusedPassword, setIsFocusedPassword] = useState(false);
   const [isFocusedConfirm, setIsFocusedConfirm] = useState(false);
   const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const rules = getRules(password, confirm);
   const isValid = rules.every((rule) => rule.isMet);
@@ -140,16 +141,22 @@ export default function SetPasswordScreen({ phone, onPressBack, onSubmit }: SetP
     if (error) setError('');
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!isValid) {
       setError('Mật khẩu chưa đáp ứng đầy đủ các yêu cầu');
       return;
     }
-    if (onSubmit) {
-      onSubmit(password);
-      return;
+    if (onSubmit && !isSubmitting) {
+      try {
+        setIsSubmitting(true);
+        setError('');
+        await onSubmit(password);
+      } catch (err: any) {
+        setError(err.message || 'Không thể đặt lại mật khẩu.');
+      } finally {
+        setIsSubmitting(false);
+      }
     }
-    Alert.alert('Đặt mật khẩu mới', `Số điện thoại: ${phone ?? ''}`);
   };
 
   return (
@@ -289,12 +296,19 @@ export default function SetPasswordScreen({ phone, onPressBack, onSubmit }: SetP
             <View style={styles.spacer} />
 
             <TouchableOpacity
-              style={styles.primaryButton}
+              style={[styles.primaryButton, isSubmitting && { opacity: 0.7 }]}
               activeOpacity={0.85}
               onPress={handleSubmit}
+              disabled={isSubmitting}
             >
-              <Text style={styles.primaryButtonText}>Xác nhận</Text>
-              <ArrowRightIcon size={18} color={COLORS.SURFACE} />
+              {isSubmitting ? (
+                <ActivityIndicator color={COLORS.SURFACE} />
+              ) : (
+                <>
+                  <Text style={styles.primaryButtonText}>Xác nhận</Text>
+                  <ArrowRightIcon size={18} color={COLORS.SURFACE} />
+                </>
+              )}
             </TouchableOpacity>
           </ScrollView>
         </KeyboardAvoidingView>

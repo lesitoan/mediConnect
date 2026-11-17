@@ -3,6 +3,7 @@ export const AUTH_ROUTES = {
   REGISTER: 'Register',
   OTP: 'Otp',
   SET_PASSWORD: 'SetPassword',
+  FORGOT_PASSWORD: 'ForgotPassword',
 } as const;
 
 export const MAIN_TABS = {
@@ -30,7 +31,6 @@ export const ROOT_ROUTES = {
   AI_CANCEL: 'AICancel',
   HEALTH_RECORD: 'HealthRecord',
   RATING: 'Rating',
-  PAYMENT: 'Payment',
   INVOICE_LIST: 'InvoiceList',
   INVOICE_DETAIL: 'InvoiceDetail',
   SEARCH: 'Search',
