@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -292,6 +293,11 @@ export class AuthenticationService {
         throw new UnauthorizedException('Account is unavailable');
       if (!user.passwordHash || !(await compare(currentPassword, user.passwordHash)))
         throw new UnauthorizedException('Current password is incorrect');
+      if (await compare(nextPassword, user.passwordHash)) {
+        throw new BadRequestException(
+          'Mật khẩu mới phải khác mật khẩu hiện tại. Vui lòng đặt mật khẩu khác.',
+        );
+      }
       const passwordHash = await hash(nextPassword, 12);
       await this.usersService.changePassword(
         tx,

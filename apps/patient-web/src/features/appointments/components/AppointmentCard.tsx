@@ -5,6 +5,7 @@ import {
   Check,
   ClipboardList,
   Clock,
+  FileText,
   Info,
   MapPin,
   QrCode,
@@ -34,6 +35,7 @@ type Props = {
   onReschedule: (a: Appointment) => void;
   onCancel: (a: Appointment) => void;
   onReview: (a: Appointment) => void;
+  onMedicalRecord: (a: Appointment) => void;
 };
 
 export default function AppointmentCard({
@@ -44,6 +46,7 @@ export default function AppointmentCard({
   onReschedule,
   onCancel,
   onReview,
+  onMedicalRecord,
 }: Props) {
   const start = startOf(appt, now);
   const upcoming = appt.kind === "confirmed" || appt.kind === "followup";
@@ -251,7 +254,16 @@ export default function AppointmentCard({
               </button>
             </>
           )}
-          {appt.kind === "completed" && appt.isPaid && appt.consultationId && (
+          {appt.kind === "completed" && appt.consultationId && (
+            <>
+              <button
+                type="button"
+                onClick={() => onMedicalRecord(appt)}
+                className={`${btn} border border-[#0A5A84]/40 bg-white text-[#0A5A84] hover:bg-blue-50`}
+              >
+                <FileText className="h-3.5 w-3.5" />
+                Xem hồ sơ bệnh án
+              </button>
               <button
                 type="button"
                 onClick={() => onReview(appt)}
@@ -264,6 +276,7 @@ export default function AppointmentCard({
                 <Star className="h-3.5 w-3.5" />
                 {appt.hasReview ? "Đã đánh giá" : "Đánh giá dịch vụ"}
               </button>
+            </>
           )}
         </div>
       </div>

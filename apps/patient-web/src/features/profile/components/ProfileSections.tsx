@@ -555,13 +555,15 @@ export function SecuritySection() {
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const isSamePassword = Boolean(currentPassword && password && currentPassword === password);
   const isValid =
     password.length >= 8 &&
     /[a-z]/.test(password) &&
     /[A-Z]/.test(password) &&
     /\d/.test(password) &&
     /[^a-zA-Z0-9]/.test(password) &&
-    password === confirmation;
+    password === confirmation &&
+    !isSamePassword;
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -598,16 +600,17 @@ export function SecuritySection() {
       <form className="mt-6 max-w-2xl space-y-4" onSubmit={submit}>
         <div>
           <Label>Mật khẩu hiện tại</Label>
-          <input className={input} type="password" autoComplete="current-password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} required />
+          <input className={input} type="password" autoComplete="current-password" value={currentPassword} onChange={(event) => { setCurrentPassword(event.target.value); setError(null); }} required />
         </div>
         <div>
           <Label>Mật khẩu mới</Label>
-          <input className={input} type="password" autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} required />
+          <input className={input} type="password" autoComplete="new-password" value={password} onChange={(event) => { setPassword(event.target.value); setError(null); }} required />
           <p className="mt-1.5 text-[11px] text-slate-500">Tối thiểu 8 ký tự, gồm chữ hoa, chữ thường, số và ký tự đặc biệt.</p>
+          {isSamePassword && <p className="mt-1.5 text-xs font-bold text-red-600" role="alert">Mật khẩu mới phải khác mật khẩu hiện tại. Vui lòng đặt mật khẩu khác.</p>}
         </div>
         <div>
           <Label>Nhập lại mật khẩu mới</Label>
-          <input className={input} type="password" autoComplete="new-password" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} required />
+          <input className={input} type="password" autoComplete="new-password" value={confirmation} onChange={(event) => { setConfirmation(event.target.value); setError(null); }} required />
         </div>
         {error && <p className="text-xs font-bold text-red-600" role="alert">{error}</p>}
         {message && <p className="text-xs font-bold text-emerald-700" role="status">{message}</p>}
