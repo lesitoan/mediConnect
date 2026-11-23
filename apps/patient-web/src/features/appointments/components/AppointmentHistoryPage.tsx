@@ -3,18 +3,24 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  BarChart,
   Calendar,
   CalendarCheck,
   Check,
+  ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  Clock,
   History,
-  Home,
+  MapPin,
   Plus,
   Search,
   Star,
+  Stethoscope,
   X,
 } from "@/components/layout/icons";
 import SecurityNotice from "@/components/layout/SecurityNotice";
+import PatientBreadcrumb from "@/components/layout/PatientBreadcrumb";
 import { useAuth } from "@/features/auth/useAuth";
 import ReviewForm from "@/features/reviews/components/ReviewForm";
 import VisitSummaryCard from "@/features/reviews/components/VisitSummaryCard";
@@ -50,6 +56,37 @@ type Range = "all" | "30" | "90" | "180";
 const selectCls =
   "rounded-full border border-slate-200 bg-white px-4 py-2.5 text-xs font-semibold text-slate-700 outline-none transition focus:border-[#2B6CB0] focus:ring-2 focus:ring-[#2B6CB0]/20";
 
+const historyStatus = {
+  completed: { label: "Đã hoàn thành", className: "bg-emerald-50 text-emerald-700" },
+  cancelled: { label: "Đã hủy", className: "bg-rose-50 text-rose-600" },
+  upcoming: { label: "Sắp tới", className: "bg-blue-50 text-[#2B6CB0]" },
+} as const;
+
+function appointmentDate(appointment: Appointment) {
+  return appointment.startsAt ? new Date(appointment.startsAt) : null;
+}
+
+function monthKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function monthLabel(date: Date) {
+  return new Intl.DateTimeFormat("vi-VN", {
+    month: "long",
+    year: "numeric",
+  }).format(date);
+}
+
+function compactDate(date: Date | null) {
+  if (!date) return "Chưa xác định";
+  return new Intl.DateTimeFormat("vi-VN", {
+    weekday: "short",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(date);
+}
+
 function isUpcomingAppointment(appointment: Appointment, now: Date): boolean {
   return (
     (appointment.kind === "confirmed" ||
@@ -79,6 +116,7 @@ export default function AppointmentHistoryPage() {
   const [query, setQuery] = useState("");
   const [range, setRange] = useState<Range>("all");
   const [specialty, setSpecialty] = useState("all");
+  const [calendarMonth, setCalendarMonth] = useState(() => new Date());
 
   useEffect(() => {
     if (!ready || !user) return;
@@ -297,6 +335,54 @@ export default function AppointmentHistoryPage() {
     }
   };
 
+  const noResult = tab === "upcoming" ? list.length === 0 : history.length === 0;
+  const historyGroups = useMemo(() => {
+    const groups = new Map<string, Appointment[]>();
+    for (const appointment of history) {
+      const date = appointmentDate(appointment);
+      const key = date ? monthKey(date) : "unknown";
+      groups.set(key, [...(groups.get(key) ?? []), appointment]);
+    }
+    return Array.from(groups.entries()).sort(([a], [b]) => b.localeCompare(a));
+  }, [history]);
+
+  const calendarDays = useMemo(() => {
+    const firstDay = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1);
+    const offset = (firstDay.getDay() + 6) % 7;
+    const daysInMonth = new Date(
+      calendarMonth.getFullYear(),
+      calendarMonth.getMonth() + 1,
+      0,
+    ).getDate();
+    return Array.from({ length: Math.ceil((offset + daysInMonth) / 7) * 7 }, (_, index) => {
+      const day = index - offset + 1;
+      return day > 0 && day <= daysInMonth ? day : null;
+    });
+  }, [calendarMonth]);
+
+  const calendarAppointmentDays = useMemo(
+    () =>
+      new Set(
+        history
+          .map(appointmentDate)
+          .filter((date): date is Date => date !== null)
+          .filter(
+            (date) =>
+              date.getFullYear() === calendarMonth.getFullYear() &&
+              date.getMonth() === calendarMonth.getMonth(),
+          )
+          .map((date) => date.getDate()),
+      ),
+    [calendarMonth, history],
+  );
+
+  const historyStats = [
+    { label: "Tổng lịch hẹn", count: items.length, color: "bg-[#F0F6FD]", icon: Calendar },
+    { label: "Đã hoàn thành", count: items.filter((item) => item.kind === "completed").length, color: "bg-emerald-50", icon: Check },
+    { label: "Đã hủy", count: items.filter((item) => item.kind === "cancelled").length, color: "bg-rose-50", icon: X },
+    { label: "Sắp tới", count: upcomingCount, color: "bg-[#F0F6FD]", icon: Clock },
+  ] as const;
+
   if (!ready) return <div className="min-h-[70vh]" aria-hidden="true" />;
 
   if (!user) {
@@ -307,23 +393,13 @@ export default function AppointmentHistoryPage() {
           <p className="mt-3 text-sm text-slate-600">
             Bạn cần đăng nhập để xem lịch sử khám bệnh và quản lý lịch hẹn.
           </p>
-          <Link
-            href="/login"
-            className="mt-6 inline-flex rounded-full bg-[#0A5A84] px-7 py-3 text-xs font-bold text-white transition hover:bg-[#08486B]"
-          >
+          <Link href="/login" className="mt-6 inline-flex rounded-full bg-[#0A5A84] px-7 py-3 text-xs font-bold text-white transition hover:bg-[#08486B]">
             Đăng nhập
           </Link>
         </div>
       </section>
     );
   }
-
-  const noResult = tab === "upcoming" ? list.length === 0 : history.length === 0;
-  const completedHistory = history.filter((appointment) => appointment.kind === "completed");
-  const cancelledHistory = history.filter((appointment) => appointment.kind === "cancelled");
-  const otherHistory = history.filter(
-    (appointment) => appointment.kind !== "completed" && appointment.kind !== "cancelled",
-  );
 
   const card = (a: Appointment) =>
     now && (
@@ -352,26 +428,8 @@ export default function AppointmentHistoryPage() {
 
   return (
     <section className="bg-gradient-to-b from-[#EAF3FD] to-[#F6FAFE] pb-16">
-      <div className="mx-auto max-w-7xl px-4">
-        {/* Breadcrumb */}
-        <nav aria-label="Breadcrumb" className="pt-5 text-xs text-slate-500">
-          <ol className="flex flex-wrap items-center gap-1.5">
-            <li>
-              <Link href="/" className="flex items-center gap-1 hover:text-[#0A5A84]">
-                <Home className="h-3.5 w-3.5" />
-                Trang chủ
-              </Link>
-            </li>
-            <ChevronRight className="h-3 w-3" />
-            <li>
-              <Link href="/ho-so-suc-khoe" className="hover:text-[#0A5A84]">
-                Cổng bệnh nhân
-              </Link>
-            </li>
-            <ChevronRight className="h-3 w-3" />
-            <li className="font-bold text-[#0A5A84]">Lịch sử khám &amp; Lịch hẹn</li>
-          </ol>
-        </nav>
+      <PatientBreadcrumb currentPage="appointments" />
+      <div className="w-full px-4 sm:px-6 lg:px-10 2xl:px-16">
 
         {/* Tiêu đề */}
         <div className="mt-5 flex flex-wrap items-end justify-between gap-4">
@@ -539,7 +597,7 @@ export default function AppointmentHistoryPage() {
             })}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5 rounded-2xl border border-blue-100 bg-white/80 p-3 shadow-[0_4px_14px_rgba(28,79,132,0.06)]">
+          <div className={`flex flex-wrap items-center gap-2.5 rounded-2xl border border-[#DCECF8] bg-white p-3 shadow-[0_4px_14px_rgba(28,79,132,0.06)] ${tab === "history" ? "hidden" : ""}`}>
             <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 focus-within:border-[#2B6CB0] focus-within:ring-2 focus-within:ring-[#2B6CB0]/20">
               <Search className="h-4 w-4 text-slate-400" />
               <input
@@ -578,7 +636,7 @@ export default function AppointmentHistoryPage() {
         </div>
 
         {/* Danh sách */}
-        <div className="mt-6 space-y-5 rounded-3xl border border-blue-100 bg-white/55 p-3 shadow-[0_8px_26px_rgba(28,79,132,0.08)] sm:p-4">
+        <div className="mt-4 space-y-5">
           {!now || isLoading ? (
             <div className="h-64 animate-pulse rounded-2xl bg-white/70" />
           ) : loadError ? (
@@ -625,32 +683,123 @@ export default function AppointmentHistoryPage() {
           ) : tab === "upcoming" ? (
             list.map((a) => card(a))
           ) : (
-            <div className="space-y-4">
-              {completedHistory.length > 0 && (
-                <section className="rounded-2xl border border-emerald-100 bg-white/70 p-3 sm:p-4">
-                  <h2 className="mb-3 flex items-center gap-2 px-1 text-sm font-extrabold text-[#16345E]">
-                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500 text-white">
-                      <Check className="h-4 w-4" />
-                    </span>
-                    Đã hoàn thành ({completedHistory.length})
-                  </h2>
-                  <div className="space-y-3">{completedHistory.map((appointment) => card(appointment))}</div>
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1.85fr)_minmax(300px,1fr)]">
+              <div className="min-w-0 space-y-3">
+                <div className="flex flex-wrap items-center gap-2.5 rounded-2xl border border-[#DCECF8] bg-white p-3 shadow-[0_4px_14px_rgba(28,79,132,0.06)]">
+                  <div className="flex min-w-[220px] flex-1 items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 focus-within:border-[#2B6CB0] focus-within:ring-2 focus-within:ring-[#2B6CB0]/20">
+                    <Search className="h-4 w-4 text-slate-400" />
+                    <input
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
+                      placeholder="Tìm BS, chuyên khoa, mã phiếu..."
+                      aria-label="Tìm kiếm lịch hẹn"
+                      className="min-w-0 flex-1 bg-transparent text-xs text-slate-800 outline-none placeholder:text-slate-400"
+                    />
+                  </div>
+                  <select aria-label="Lọc theo thời gian" value={range} onChange={(e) => setRange(e.target.value as Range)} className={selectCls}>
+                    <option value="all">Thời gian: Tất cả</option>
+                    <option value="30">30 ngày</option>
+                    <option value="90">3 tháng</option>
+                    <option value="180">6 tháng</option>
+                  </select>
+                  <select aria-label="Lọc theo chuyên khoa" value={specialty} onChange={(e) => setSpecialty(e.target.value)} className={selectCls}>
+                    <option value="all">Khoa: Tất cả chuyên khoa</option>
+                    {specialties.map((s) => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+
+                <div className="overflow-hidden rounded-2xl border border-[#DCECF8] bg-white shadow-[0_6px_20px_rgba(28,79,132,0.05)]">
+                {historyGroups.map(([groupKey, appointments]) => {
+                  const groupDate = appointmentDate(appointments[0]);
+                  return (
+                    <section key={groupKey} className="overflow-hidden border-b border-[#DCECF8] last:border-b-0">
+                      <div className="flex items-center justify-between bg-[#EAF4FE] px-4 py-3">
+                        <h2 className="flex items-center gap-2 text-sm font-extrabold capitalize text-[#16345E]">
+                          <Calendar className="h-4 w-4 text-[#0879AA]" />
+                          {groupDate ? monthLabel(groupDate) : "Lịch hẹn khác"}
+                        </h2>
+                        <span className="text-xs font-bold text-[#16345E]">
+                          {appointments.length} lịch hẹn
+                        </span>
+                      </div>
+                      <div className="divide-y divide-[#EAF1F7]">
+                        {appointments.map((appointment) => {
+                          const date = appointmentDate(appointment);
+                          const status = appointment.kind === "completed"
+                            ? historyStatus.completed
+                            : appointment.kind === "cancelled"
+                              ? historyStatus.cancelled
+                              : historyStatus.upcoming;
+                          return (
+                            <article key={appointment.code} className="grid gap-3 px-4 py-3 transition hover:bg-[#F8FCFF] md:grid-cols-[minmax(170px,1.25fr)_minmax(115px,0.9fr)_minmax(130px,1fr)_auto] md:items-center">
+                              <div className="flex min-w-0 items-center gap-3">
+                                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#EAF5FD] text-[#0879AA]">
+                                  <Stethoscope className="h-4 w-4" />
+                                </span>
+                                <div className="min-w-0">
+                                  <p className="truncate text-xs font-extrabold text-[#16345E]">{appointment.doctor.specialty}</p>
+                                  <p className="truncate text-[11px] text-slate-500">{appointment.doctor.name}</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 text-[11px] text-slate-600">
+                                <Calendar className="h-4 w-4 shrink-0 text-[#0879AA]" />
+                                <span>{compactDate(date)}</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-[11px] text-slate-600">
+                                <Clock className="h-4 w-4 shrink-0 text-[#0879AA]" />
+                                <span>{appointment.time} · {appointment.room}</span>
+                              </div>
+                              <div className="flex items-center justify-between gap-2 md:flex-col md:items-end">
+                                <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${status.className}`}>{status.label}</span>
+                                <button type="button" onClick={() => setDetailCode(appointment.code)} className="text-[11px] font-bold text-[#0879AA] hover:underline">
+                                  Xem chi tiết <ChevronRight className="inline h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            </article>
+                          );
+                        })}
+                      </div>
+                    </section>
+                  );
+                })}
+                </div>
+              </div>
+
+              <aside className="space-y-4">
+                <section className="rounded-2xl border border-[#DCECF8] bg-white p-4">
+                  <div className="flex items-start gap-3 border-b border-slate-100 pb-3">
+                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#EAF4FE] text-[#0879AA]"><BarChart className="h-5 w-5" /></span>
+                    <div>
+                      <h2 className="text-sm font-extrabold text-[#16345E]">Thống kê lịch hẹn</h2>
+                      <p className="text-[11px] text-slate-500">Tổng quan lịch hẹn của bạn tại MediConnect</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    {historyStats.map(({ label, count, color, icon: Icon }) => (
+                      <div key={label} className={`rounded-xl p-3 ${color}`}>
+                        <div className="flex items-center gap-2 text-[#0879AA]"><Icon className="h-4 w-4" /><span className="text-lg font-extrabold text-[#16345E]">{count}</span></div>
+                        <p className="mt-1 text-[10px] font-semibold text-slate-600">{label}</p>
+                      </div>
+                    ))}
+                  </div>
                 </section>
-              )}
-              {cancelledHistory.length > 0 && (
-                <section className="rounded-2xl border border-red-100 bg-white/70 p-3 sm:p-4">
-                  <h2 className="mb-3 flex items-center gap-2 px-1 text-sm font-extrabold text-[#16345E]">
-                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-red-500 text-white">
-                      <X className="h-4 w-4" />
-                    </span>
-                    Đã hủy ({cancelledHistory.length})
-                  </h2>
-                  <div className="space-y-3">{cancelledHistory.map((appointment) => card(appointment))}</div>
+
+                <section className="rounded-2xl border border-[#DCECF8] bg-white p-4">
+                  <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                    <Calendar className="h-5 w-5 text-[#0879AA]" />
+                    <h2 className="text-sm font-extrabold text-[#16345E]">Lịch hẹn theo tháng</h2>
+                  </div>
+                  <div className="mt-4 flex items-center justify-between gap-2">
+                    <button type="button" aria-label="Tháng trước" onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))} className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-[#0879AA] hover:bg-blue-50"><ChevronLeft className="h-4 w-4" /></button>
+                    <span className="flex items-center gap-1 text-xs font-extrabold capitalize text-[#16345E]">{monthLabel(calendarMonth)} <ChevronDown className="h-3.5 w-3.5" /></span>
+                    <button type="button" aria-label="Tháng sau" onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))} className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-[#0879AA] hover:bg-blue-50"><ChevronRight className="h-4 w-4" /></button>
+                  </div>
+                  <div className="mt-4 grid grid-cols-7 gap-1 text-center text-[10px] font-bold text-slate-500">
+                    {['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'].map((dayName) => <span key={dayName} className={dayName === 'CN' ? 'text-rose-500' : ''}>{dayName}</span>)}
+                    {calendarDays.map((day, index) => <span key={`${day ?? 'empty'}-${index}`} className={`flex h-7 items-center justify-center rounded-full text-[11px] ${day && calendarAppointmentDays.has(day) ? 'bg-[#D9F1FF] font-extrabold text-[#0879AA]' : 'text-slate-700'} ${index % 7 === 6 ? 'text-rose-500' : ''}`}>{day}</span>)}
+                  </div>
                 </section>
-              )}
-              {otherHistory.length > 0 && (
-                <section className="space-y-3">{otherHistory.map((appointment) => card(appointment))}</section>
-              )}
+              </aside>
             </div>
           )}
         </div>

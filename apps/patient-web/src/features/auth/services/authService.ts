@@ -7,6 +7,7 @@ type ApiResponse<T> = {
 
 type ApiErrorResponse = {
   message?: string | string[];
+  code?: string;
 };
 
 type CurrentUser = {
@@ -20,6 +21,7 @@ export class AuthApiError extends Error {
   constructor(
     message: string,
     readonly status: number,
+    readonly code?: string,
   ) {
     super(message);
   }
@@ -79,7 +81,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     const message = Array.isArray(payload.message)
       ? payload.message.join(", ")
       : payload.message || "Không thể kết nối đến hệ thống";
-    throw new AuthApiError(message, response.status);
+    throw new AuthApiError(message, response.status, payload.code);
   }
   return payload.data;
 }
@@ -141,8 +143,8 @@ export async function changePassword(
   currentPassword: string,
   password: string,
 ) {
-  return request<{ message: string }>('/authentication/change_password', {
-    method: 'POST',
+  return request<{ message: string }>("/authentication/change_password", {
+    method: "POST",
     body: JSON.stringify({ currentPassword, password }),
   });
 }

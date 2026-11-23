@@ -18,13 +18,18 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const response = host.switchToHttp().getResponse<Response>();
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let message: string | string[] = 'Internal server error';
+    let code: string | undefined;
 
     if (exception instanceof HttpException) {
       status = exception.getStatus();
       const body = exception.getResponse();
       if (typeof body === 'string') {
         message = body;
-      } else if ('message' in body) {
+      } else if (
+        typeof body === 'object' &&
+        body !== null &&
+        'message' in body
+      ) {
         const detail: unknown = body.message;
         if (typeof detail === 'string') message = detail;
         else if (
@@ -33,6 +38,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
         ) {
           message = detail;
         }
+        if ('code' in body && typeof body.code === 'string') code = body.code;
       }
     } else if (exception instanceof Prisma.PrismaClientKnownRequestError) {
       if (exception.code === 'P2002') {
@@ -52,6 +58,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
         exception instanceof Error ? exception.stack : undefined,
       );
     }
-    response.status(status).json(new HttpResponseBodyFailDto(status, message));
+    response
+      .status(status)
+      .json(new HttpResponseBodyFailDto(status, message, code));
   }
 }
