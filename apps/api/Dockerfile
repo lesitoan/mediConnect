@@ -9,7 +9,7 @@ RUN turbo prune api --docker
 
 FROM base AS dependencies
 COPY --from=pruner /app/out/json/ .
-RUN npm ci --no-audit --no-fund && npm cache clean --force
+RUN ONNXRUNTIME_NODE_INSTALL_CUDA=skip npm ci --no-audit --no-fund && npm cache clean --force
 
 FROM dependencies AS build
 COPY --from=pruner /app/out/full/ .
@@ -20,7 +20,7 @@ RUN mkdir -p packages \
 
 FROM base AS production-dependencies
 COPY --from=pruner /app/out/json/ .
-RUN npm ci --omit=dev --no-audit --no-fund && npm cache clean --force
+RUN ONNXRUNTIME_NODE_INSTALL_CUDA=skip npm ci --omit=dev --no-audit --no-fund && npm cache clean --force
 
 FROM base AS runtime
 ENV NODE_ENV=production PORT=4000

@@ -1,43 +1,58 @@
 "use client";
 
-import { useMemo, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { getCurrentUser } from "./services/authService";
+import {
+  AUTH_SESSION_EVENT,
+  AUTH_SESSION_KEY,
+  clearStoredSession,
+  saveStoredSession,
+} from "./sessionStore";
 
 export type SessionUser = {
   fullName: string;
   pid?: string;
 };
 
-const KEY = "mc_session_user";
-const EVENT = "mc-auth-change";
 const LOADING = "__loading__";
+let hydrationPromise: Promise<void> | null = null;
 
 export function saveSession(user: SessionUser) {
-  localStorage.setItem(KEY, JSON.stringify(user));
-  window.dispatchEvent(new Event(EVENT));
+  saveStoredSession(user);
 }
 
 export function clearSession() {
-  localStorage.removeItem(KEY);
-  window.dispatchEvent(new Event(EVENT));
+  clearStoredSession();
 }
 
 function subscribe(cb: () => void) {
-  window.addEventListener(EVENT, cb);
+  window.addEventListener(AUTH_SESSION_EVENT, cb);
   window.addEventListener("storage", cb);
   return () => {
-    window.removeEventListener(EVENT, cb);
+    window.removeEventListener(AUTH_SESSION_EVENT, cb);
     window.removeEventListener("storage", cb);
   };
 }
 
 export function useAuth() {
+  const [isHydrated, setIsHydrated] = useState(false);
   const raw = useSyncExternalStore(
     subscribe,
-    () => localStorage.getItem(KEY),
-    () => LOADING, // server + lần render đầu khi hydrate
+    () => localStorage.getItem(AUTH_SESSION_KEY),
+    () => LOADING,
   );
 
-  const ready = raw !== LOADING;
+  useEffect(() => {
+    if (!hydrationPromise) {
+      hydrationPromise = getCurrentUser()
+        .then((user) => saveSession({ fullName: user.name }))
+        .catch(() => clearSession());
+    }
+
+    void hydrationPromise.finally(() => setIsHydrated(true));
+  }, []);
+
+  const ready = raw !== LOADING && isHydrated;
   const user = useMemo<SessionUser | null>(() => {
     if (!ready || !raw) return null;
     try {

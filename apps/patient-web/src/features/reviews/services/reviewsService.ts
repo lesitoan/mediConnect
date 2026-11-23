@@ -1,3 +1,5 @@
+import { authenticatedFetch } from "@/features/auth/services/authenticatedFetch";
+
 type ApiResponse<T> = {
   success: boolean;
   data: T;
@@ -32,9 +34,22 @@ export type ReviewInput = {
   comment?: string;
 };
 
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ||
-  "http://localhost:4000/api/v1";
+export type EligibleVisit = {
+  consultation: {
+    id: string;
+    completedAt: string | null;
+    review: { id: string } | null;
+    careSession: {
+      appointment: { appointmentCode: string };
+      specialty: { name: string; roomCode: string };
+      appointmentSlot: {
+        startsAt: string;
+        doctorSchedule: { doctor: { user: { fullName: string } } };
+      };
+    };
+  };
+  canReview: boolean;
+};
 
 export class ReviewApiError extends Error {
   constructor(
@@ -49,8 +64,8 @@ export async function createReview(
   consultationId: string,
   input: ReviewInput,
 ) {
-  const response = await fetch(
-    `${API_URL}/me/consultations/${consultationId}/review`,
+  const response = await authenticatedFetch(
+    `/me/consultations/${consultationId}/review`,
     {
       method: "POST",
       credentials: "include",
@@ -70,10 +85,23 @@ export async function createReview(
   return payload.data;
 }
 
+export async function getEligibleVisits() {
+  const response = await authenticatedFetch("/me/reviews/eligible-visits");
+  const payload = (await response.json()) as ApiResponse<EligibleVisit[]> & {
+    message?: string | string[];
+  };
+  if (!response.ok) {
+    const message = Array.isArray(payload.message)
+      ? payload.message.join(", ")
+      : payload.message || "KhÃ´ng thá»ƒ táº£i danh sÃ¡ch phiÃªn khÃ¡m.";
+    throw new ReviewApiError(message, response.status);
+  }
+  return payload.data;
+}
+
 export async function getReview(consultationId: string) {
-  const response = await fetch(
-    `${API_URL}/me/consultations/${consultationId}/review`,
-    { credentials: "include" },
+  const response = await authenticatedFetch(
+    `/me/consultations/${consultationId}/review`,
   );
   const payload = (await response.json()) as ApiResponse<ReviewDetails | null> & {
     message?: string | string[];
@@ -91,8 +119,8 @@ export async function updateReview(
   consultationId: string,
   input: ReviewInput,
 ) {
-  const response = await fetch(
-    `${API_URL}/me/consultations/${consultationId}/review`,
+  const response = await authenticatedFetch(
+    `/me/consultations/${consultationId}/review`,
     {
       method: "PATCH",
       credentials: "include",
@@ -111,3 +139,4 @@ export async function updateReview(
   }
   return payload.data;
 }
+

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import ReviewPage from "@/features/review/components/ReviewPage";
+import ReviewPage from "@/features/reviews/components/ReviewPage";
 
 export const metadata: Metadata = {
   title: "Đánh giá phiên khám bệnh | MediConnect",

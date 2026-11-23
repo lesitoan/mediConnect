@@ -13,7 +13,14 @@ import {
   User,
 } from "@/components/layout/icons";
 import { saveSession } from "../useAuth";
-import { authenticatePatient } from "../services/authService";
+import OtpVerifyForm from "./OtpVerifyForm";
+import {
+  authenticatePatient,
+  AuthApiError,
+  getAuthErrorMessage,
+  resendRegistrationOtp,
+  type OtpChallenge,
+} from "../services/authService";
 
 const inputWrap =
   "flex items-center gap-2.5 rounded-xl border border-slate-200 bg-slate-50 px-3.5 transition focus-within:border-[#2B6CB0] focus-within:bg-white focus-within:ring-2 focus-within:ring-[#2B6CB0]/20";
@@ -43,6 +50,10 @@ export default function LoginForm() {
   const [remember, setRemember] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [verificationChallenge, setVerificationChallenge] =
+    useState<OtpChallenge | null>(null);
+  const [verificationMessage, setVerificationMessage] = useState("");
+  const [requiresVerification, setRequiresVerification] = useState(false);
 
   const canSubmit = identifier.trim() !== "" && password.length >= 6;
 
@@ -50,23 +61,70 @@ export default function LoginForm() {
     e.preventDefault();
     if (!canSubmit || loading) return;
     setError("");
+    setVerificationMessage("");
+    setRequiresVerification(false);
     setLoading(true);
     try {
       const user = await authenticatePatient(identifier, password);
       saveSession({ fullName: user.name });
       router.replace(getPostLoginPath());
     } catch (error: unknown) {
-      const message =
-        error instanceof Error ? error.message : "Không thể đăng nhập.";
-      setError(
-        message === "Invalid credentials"
-          ? "Thông tin đăng nhập không chính xác. Vui lòng thử lại."
-          : message,
-      );
+      if (
+        error instanceof AuthApiError &&
+        error.code === "ACCOUNT_VERIFICATION_REQUIRED"
+      ) {
+        setRequiresVerification(true);
+        setError(
+          "Tài khoản chưa được xác thực. Vui lòng gửi lại mã OTP để kích hoạt tài khoản.",
+        );
+      } else {
+        const message =
+          error instanceof Error ? error.message : "Không thể đăng nhập.";
+        setError(
+          message === "Invalid credentials"
+            ? "Thông tin đăng nhập không chính xác. Vui lòng thử lại."
+            : message,
+        );
+      }
     } finally {
       setLoading(false);
     }
   };
+
+  const handleSendVerificationOtp = async () => {
+    if (loading || !identifier.trim()) return;
+    setLoading(true);
+    setError("");
+    try {
+      const challenge = await resendRegistrationOtp(identifier.trim());
+      setVerificationChallenge(challenge);
+    } catch (error: unknown) {
+      setError(getAuthErrorMessage(error, "Không thể gửi lại mã OTP."));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (verificationChallenge) {
+    return (
+      <div className="p-6 md:p-10">
+        <OtpVerifyForm
+          phone={identifier.trim()}
+          challenge={verificationChallenge}
+          onResend={() => resendRegistrationOtp(identifier.trim())}
+          onBack={() => setVerificationChallenge(null)}
+          onSuccess={() => {
+            setVerificationChallenge(null);
+            setRequiresVerification(false);
+            setPassword("");
+            setVerificationMessage(
+              "Xác thực tài khoản thành công. Vui lòng đăng nhập lại.",
+            );
+          }}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col justify-center p-6 md:p-10">
@@ -80,6 +138,15 @@ export default function LoginForm() {
       <p className="mt-2 text-xs text-slate-500">
         Nhập số điện thoại hoặc email đã đăng ký để truy cập hồ sơ bệnh án.
       </p>
+
+      {verificationMessage && (
+        <p
+          role="status"
+          className="mt-4 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700"
+        >
+          {verificationMessage}
+        </p>
+      )}
 
       <form onSubmit={handleSubmit} className="mt-6 space-y-4">
         {/* Định danh */}
@@ -127,7 +194,11 @@ export default function LoginForm() {
               onClick={() => setShowPw((v) => !v)}
               className="text-slate-400 transition hover:text-[#174A8F]"
             >
-              {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              {showPw ? (
+                <EyeOff className="h-4 w-4" />
+              ) : (
+                <Eye className="h-4 w-4" />
+              )}
             </button>
           </div>
         </div>
@@ -142,15 +213,28 @@ export default function LoginForm() {
             />
             Ghi nhớ đăng nhập
           </label>
-          <Link href="/quen-mat-khau" className="font-bold text-[#174A8F] hover:underline">
+          <Link
+            href="/quen-mat-khau"
+            className="font-bold text-[#174A8F] hover:underline"
+          >
             Quên mật khẩu?
           </Link>
         </div>
 
         {error && (
-          <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">
-            {error}
-          </p>
+          <div className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">
+            <p role="alert">{error}</p>
+            {requiresVerification && (
+              <button
+                type="button"
+                onClick={handleSendVerificationOtp}
+                disabled={loading}
+                className="mt-2 font-bold text-[#174A8F] underline disabled:opacity-50"
+              >
+                {loading ? "Đang gửi mã..." : "Gửi lại mã OTP"}
+              </button>
+            )}
+          </div>
         )}
 
         <button

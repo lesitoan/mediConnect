@@ -11,7 +11,7 @@ RUN turbo prune ai --docker
 
 FROM base AS dependencies
 COPY --from=pruner /app/out/json/ ./
-RUN npm ci --workspace=ai --include-workspace-root=false --no-audit --no-fund
+RUN ONNXRUNTIME_NODE_INSTALL_CUDA=skip npm ci --workspace=ai --include-workspace-root=false --no-audit --no-fund
 
 FROM dependencies AS build
 COPY --from=pruner /app/out/full/ ./
@@ -20,7 +20,7 @@ RUN npm run index:knowledge --workspace=ai
 
 FROM base AS production-dependencies
 COPY --from=pruner /app/out/json/ ./
-RUN npm ci --workspace=ai --include-workspace-root=false --omit=dev --no-audit --no-fund \
+RUN ONNXRUNTIME_NODE_INSTALL_CUDA=skip npm ci --workspace=ai --include-workspace-root=false --omit=dev --no-audit --no-fund \
     && npm cache clean --force
 
 FROM base AS runtime

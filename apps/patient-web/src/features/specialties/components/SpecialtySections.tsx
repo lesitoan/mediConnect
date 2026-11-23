@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { openAiChat } from "@/components/layout/aiChat";
 import {
   ArrowRight,
   Bot,
@@ -147,13 +148,14 @@ export function AiSymptomBanner() {
             tới đúng bác sĩ và chuyên khoa phù hợp trong 30 giây.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
-            <Link
-              href="/tro-ly-ai"
+            <button
+              type="button"
+              onClick={openAiChat}
               className="inline-flex items-center gap-2 rounded-full bg-white px-5 py-3 text-xs font-bold text-[#0A5A84] transition hover:bg-blue-50"
             >
               <Bot className="h-4 w-4" />
               Tư vấn cùng MediCare AI ngay
-            </Link>
+            </button>
             <a
               href="tel:1900986868"
               className="inline-flex items-center gap-2 rounded-full bg-white/15 px-5 py-3 text-xs font-bold text-white ring-1 ring-white/25 transition hover:bg-white/25"

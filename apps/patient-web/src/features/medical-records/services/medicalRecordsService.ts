@@ -1,8 +1,10 @@
+import { authenticatedFetch } from "@/features/auth/services/authenticatedFetch";
+
 export type ConsultationMedicalRecord = {
   id: string;
   careSessionId: string;
   clinicalNotes: string | null;
-  prescription: unknown;
+  prescription: string | null;
   labOrderNotes: string | null;
   labResultNotes: string | null;
   followUpDate: string | null;
@@ -50,9 +52,8 @@ export class MedicalRecordsApiError extends Error {
 export async function getMyConsultation(consultationId: string) {
   let response: Response;
   try {
-    response = await fetch(
-      `${API_URL}/me/consultations/${encodeURIComponent(consultationId)}`,
-      { credentials: "include" },
+    response = await authenticatedFetch(
+      `/me/consultations/${encodeURIComponent(consultationId)}`,
     );
   } catch {
     throw new Error(
@@ -72,3 +73,4 @@ export async function getMyConsultation(consultationId: string) {
   }
   return payload.data;
 }
+
