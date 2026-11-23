@@ -205,9 +205,7 @@ function getDaysFromNow(date: Date, now: Date): number {
     date.getDate(),
   );
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  return Math.round(
-    (appointmentDay.getTime() - today.getTime()) / 86_400_000,
-  );
+  return Math.round((appointmentDay.getTime() - today.getTime()) / 86_400_000);
 }
 
 function getInitials(name: string): string {
@@ -244,24 +242,33 @@ function mapPatientAppointment(
   const isIncomplete = appointment.careSessions.some(
     ({ status }) => status === "INCOMPLETE",
   );
+  const isSkipped =
+    session?.status === "SKIPPED" ||
+    (startsAtDate.getTime() < now.getTime() && session?.status === "SCHEDULED");
   const kind =
     appointment.status === "CANCELLED"
       ? "cancelled"
-      : isCompleted
-        ? "completed"
-        : isNoShow
-          ? "no-show"
-          : isIncomplete
-            ? "incomplete"
-        : appointment.status === "PENDING_RESOLUTION"
-          ? "pending"
-          : "confirmed";
+      : session?.status === "WAITING_PAYMENT"
+        ? "waiting-payment"
+        : isCompleted
+          ? "completed"
+          : isNoShow
+            ? "no-show"
+            : isIncomplete
+              ? "incomplete"
+              : isSkipped
+                ? "skipped"
+                : appointment.status === "PENDING_RESOLUTION"
+                ? "pending"
+                : "confirmed";
   const invoice = appointment.invoices[0];
   const amount = invoice ? Number(invoice.totalAmount) : Number.NaN;
   const isPaid =
     !!invoice &&
-    invoice.transactions.reduce((total, transaction) => total + Number(transaction.amount), 0) >=
-      Number(invoice.totalAmount);
+    invoice.transactions.reduce(
+      (total, transaction) => total + Number(transaction.amount),
+      0,
+    ) >= Number(invoice.totalAmount);
   const consultation = session?.consultation;
 
   return {
@@ -308,9 +315,8 @@ function mapPatientAppointment(
 }
 
 export async function getMyAppointments(): Promise<Appointment[]> {
-  const appointments = await request<PatientAppointmentResponse[]>(
-    "/me/appointments",
-  );
+  const appointments =
+    await request<PatientAppointmentResponse[]>("/me/appointments");
   const now = new Date();
   return appointments.map((appointment) =>
     mapPatientAppointment(appointment, now),
@@ -325,10 +331,13 @@ export function respondToScheduleProposal(
   proposalId: string,
   decision: "ACCEPT" | "REJECT",
 ) {
-  return request(`/me/schedule-proposals/${encodeURIComponent(proposalId)}/respond`, {
-    method: "POST",
-    body: JSON.stringify({ decision }),
-  });
+  return request(
+    `/me/schedule-proposals/${encodeURIComponent(proposalId)}/respond`,
+    {
+      method: "POST",
+      body: JSON.stringify({ decision }),
+    },
+  );
 }
 
 export function cancelAppointment(appointmentId: string) {

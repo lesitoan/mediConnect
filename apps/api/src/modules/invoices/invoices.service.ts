@@ -138,7 +138,10 @@ export class InvoicesService {
       INNER JOIN ${doctorSchedules} AS ds ON ds.id = aps.doctor_schedule_id
       INNER JOIN ${doctors} AS d ON d.id = ds.doctor_id
       INNER JOIN ${users} AS u ON u.id = d.user_id
-      WHERE cs.status::text = ${CareSessionStatus.COMPLETED}
+      WHERE cs.status::text IN (
+        ${CareSessionStatus.WAITING_PAYMENT},
+        ${CareSessionStatus.COMPLETED}
+      )
         AND c.completed_at IS NOT NULL
         AND c.locked_at IS NOT NULL
         AND NOT EXISTS (
@@ -245,7 +248,8 @@ export class InvoicesService {
 
       if (!consultation) throw new NotFoundException('Consultation not found');
       if (
-        consultation.careSessionStatus !== CareSessionStatus.COMPLETED ||
+        (consultation.careSessionStatus !== CareSessionStatus.WAITING_PAYMENT &&
+          consultation.careSessionStatus !== CareSessionStatus.COMPLETED) ||
         consultation.completedAt === null ||
         consultation.lockedAt === null
       )

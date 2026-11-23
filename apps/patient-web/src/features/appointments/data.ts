@@ -2,9 +2,11 @@ export type ApptKind =
   | "confirmed"
   | "followup"
   | "pending"
+  | "waiting-payment"
   | "completed"
   | "incomplete"
   | "no-show"
+  | "skipped"
   | "cancelled";
 
 export type Appointment = {
@@ -184,7 +186,8 @@ export const MOCK_RECORDS: MedicalRecord[] = [
           dose: "Liều dùng: Uống 02 gói/ngày sau ăn trưa & tối (hoặc lúc cồn cào).",
         },
       ],
-      advice: "Tái khám sau 2 tuần. Kiêng đồ chua cay, dầu mỡ, cà phê và bia rượu.",
+      advice:
+        "Tái khám sau 2 tuần. Kiêng đồ chua cay, dầu mỡ, cà phê và bia rượu.",
       signature: "Ký số: TS.BS Lê Quang Huy (VNPT-CA)",
     },
     adherence: "Bệnh nhân đã tuân thủ 14/14 ngày dùng thuốc",
@@ -202,7 +205,8 @@ export const MOCK_RECORDS: MedicalRecord[] = [
     room: "Phòng 310, Tầng 3, Tòa B",
     reviewed: false,
     paymentStatus: "paid",
-    conclusion: "Chưa ghi nhận tổn thương thần kinh khu trú, theo dõi và tái khám khi cần.",
+    conclusion:
+      "Chưa ghi nhận tổn thương thần kinh khu trú, theo dõi và tái khám khi cần.",
   },
   {
     type: "lab",
@@ -218,12 +222,29 @@ export const MOCK_RECORDS: MedicalRecord[] = [
     reviewed: false,
     paymentStatus: "paid",
     metrics: [
-      { label: "Đường huyết (HbA1c)", value: "5.4%", note: "Bình thường (4.0 - 5.6%)" },
-      { label: "Cholesterol Toàn phần", value: "4.8 mmol/L", note: "Chỉ số an toàn" },
-      { label: "Men gan (AST / ALT)", value: "24 / 28 U/L", note: "Bình thường" },
-      { label: "Siêu âm ổ bụng", value: "Không khối u", note: "Gan nhiễm mỡ nhẹ độ 1" },
+      {
+        label: "Đường huyết (HbA1c)",
+        value: "5.4%",
+        note: "Bình thường (4.0 - 5.6%)",
+      },
+      {
+        label: "Cholesterol Toàn phần",
+        value: "4.8 mmol/L",
+        note: "Chỉ số an toàn",
+      },
+      {
+        label: "Men gan (AST / ALT)",
+        value: "24 / 28 U/L",
+        note: "Bình thường",
+      },
+      {
+        label: "Siêu âm ổ bụng",
+        value: "Không khối u",
+        note: "Gan nhiễm mỡ nhẹ độ 1",
+      },
     ],
-    attachments: "Đính kèm 03 tệp PDF chẩn đoán hình ảnh và xét nghiệm sinh hóa",
+    attachments:
+      "Đính kèm 03 tệp PDF chẩn đoán hình ảnh và xét nghiệm sinh hóa",
   },
   {
     type: "visit",
@@ -238,6 +259,7 @@ export const MOCK_RECORDS: MedicalRecord[] = [
     room: "Phòng 401, Tầng 4, Tòa A",
     reviewed: true,
     paymentStatus: "paid",
-    conclusion: "Rối loạn tiêu hóa chức năng, điều chỉnh chế độ ăn và theo dõi.",
+    conclusion:
+      "Rối loạn tiêu hóa chức năng, điều chỉnh chế độ ăn và theo dõi.",
   },
 ];

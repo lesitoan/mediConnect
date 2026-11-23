@@ -691,7 +691,7 @@ export default function BookingForm() {
     <div>
       <div className="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-[minmax(0,1.8fr)_minmax(320px,1fr)] lg:gap-5">
         {/* LEFT COLUMN */}
-        <div className="min-w-0 self-stretch rounded-2xl border border-[#DCECF8] bg-white p-4 shadow-[0_8px_28px_rgba(17,74,115,0.07)] sm:p-5 lg:p-6">
+        <div className="patient-content-card min-w-0 self-stretch rounded-2xl bg-white p-4 sm:p-5 lg:p-6">
           {done ? (
             <div className="py-12 text-center">
               <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
@@ -1209,7 +1209,7 @@ export default function BookingForm() {
 
         {/* RIGHT COLUMN */}
         <aside className="relative flex min-w-0 self-stretch flex-col gap-4">
-          <section className="flex-1 rounded-2xl border border-[#DCECF8] bg-white p-4 shadow-[0_8px_28px_rgba(20,73,112,0.07)] sm:p-5">
+          <section className="patient-content-card flex-1 rounded-2xl bg-white p-4 sm:p-5">
             <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-4">
               <h3 className="flex items-center gap-2 text-[14px] font-extrabold text-[#075A81]">
                 <CalendarCheck className="h-5 w-5" />

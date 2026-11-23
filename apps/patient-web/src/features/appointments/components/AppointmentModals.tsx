@@ -72,7 +72,9 @@ export function Modal({
         <header className="flex items-start justify-between gap-3 border-b border-slate-100 px-6 py-4">
           <div className="leading-tight">
             <h3 className="text-lg font-extrabold text-slate-900">{title}</h3>
-            {subtitle && <p className="mt-1 text-xs text-slate-500">{subtitle}</p>}
+            {subtitle && (
+              <p className="mt-1 text-xs text-slate-500">{subtitle}</p>
+            )}
           </div>
           <button
             type="button"
@@ -105,9 +107,14 @@ const KIND_LABEL = {
   confirmed: { text: "Đã xác nhận", cls: "bg-emerald-50 text-emerald-700" },
   followup: { text: "Lịch tái khám", cls: "bg-blue-50 text-[#0A5A84]" },
   pending: { text: "Đang xử lý", cls: "bg-amber-50 text-amber-700" },
+  "waiting-payment": {
+    text: "Chờ thanh toán",
+    cls: "bg-amber-50 text-amber-700",
+  },
   completed: { text: "Đã hoàn tất", cls: "bg-slate-100 text-slate-600" },
   incomplete: { text: "Chưa hoàn tất", cls: "bg-slate-100 text-slate-600" },
   "no-show": { text: "Không đến khám", cls: "bg-amber-50 text-amber-700" },
+  skipped: { text: "Đã bỏ qua", cls: "bg-slate-100 text-slate-600" },
   cancelled: { text: "Đã hủy", cls: "bg-red-50 text-red-600" },
 } as const;
 
@@ -126,7 +133,9 @@ function InfoRow({
         {icon}
       </span>
       <div className="min-w-0 leading-tight">
-        <p className="text-[10px] font-bold uppercase text-slate-500">{label}</p>
+        <p className="text-[10px] font-bold uppercase text-slate-500">
+          {label}
+        </p>
         <div className="mt-1 text-sm font-bold text-slate-800">{children}</div>
       </div>
     </div>
@@ -159,7 +168,11 @@ export function DetailModal({
       }
     >
       <div className="flex items-center justify-between gap-3">
-        <span className={`rounded-md px-2.5 py-1 text-[11px] font-bold ${kind.cls}`}>{kind.text}</span>
+        <span
+          className={`rounded-md px-2.5 py-1 text-[11px] font-bold ${kind.cls}`}
+        >
+          {kind.text}
+        </span>
         {appt.queue && appt.kind === "confirmed" && (
           <span className="flex items-center gap-1.5 rounded-md border border-blue-100 bg-blue-50/70 px-2.5 py-1 text-[11px] font-bold text-[#0A5A84]">
             <Ticket className="h-3.5 w-3.5" />
@@ -176,8 +189,12 @@ export function DetailModal({
           <span className="inline-block rounded bg-white px-2 py-0.5 text-[10px] font-bold text-[#0A5A84]">
             {appt.doctor.specialty}
           </span>
-          <p className="mt-1.5 text-base font-extrabold text-slate-900">{appt.doctor.name}</p>
-          <p className="mt-0.5 text-[11px] text-slate-500">{appt.doctor.title}</p>
+          <p className="mt-1.5 text-base font-extrabold text-slate-900">
+            {appt.doctor.name}
+          </p>
+          <p className="mt-0.5 text-[11px] text-slate-500">
+            {appt.doctor.title}
+          </p>
         </div>
       </div>
 
@@ -188,18 +205,27 @@ export function DetailModal({
         <InfoRow icon={<MapPin className="h-4 w-4" />} label="Phòng khám">
           {appt.room}
         </InfoRow>
-        <InfoRow icon={<ClipboardList className="h-4 w-4" />} label={appt.feeLabel.replace(/:$/, "")}>
+        <InfoRow
+          icon={<ClipboardList className="h-4 w-4" />}
+          label={appt.feeLabel.replace(/:$/, "")}
+        >
           {appt.fee}
           {appt.fee !== "Chưa có" && " VNĐ"}{" "}
           <span className="ml-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
             {appt.feeNote}
           </span>
         </InfoRow>
-        <InfoRow icon={<PhoneCall className="h-4 w-4" />} label="Số điện thoại liên hệ">
+        <InfoRow
+          icon={<PhoneCall className="h-4 w-4" />}
+          label="Số điện thoại liên hệ"
+        >
           {appt.phone}
         </InfoRow>
         {(appt.kind === "confirmed" || appt.kind === "followup") && (
-          <InfoRow icon={<Calendar className="h-4 w-4" />} label="Số lần đã đổi lịch">
+          <InfoRow
+            icon={<Calendar className="h-4 w-4" />}
+            label="Số lần đã đổi lịch"
+          >
             {changes}/{MAX_RESCHEDULE} lần
           </InfoRow>
         )}
@@ -216,8 +242,9 @@ export function DetailModal({
 
       {(appt.kind === "confirmed" || appt.kind === "followup") && (
         <p className="mt-3 text-[11px] leading-relaxed text-slate-500">
-          Chính sách: đổi hoặc hủy lịch tối thiểu {CUTOFF_HOURS} giờ trước giờ khám; mỗi lịch đổi
-          tối đa {MAX_RESCHEDULE} lần; hủy muộn không được hoàn tiền.
+          Chính sách: đổi hoặc hủy lịch tối thiểu {CUTOFF_HOURS} giờ trước giờ
+          khám; mỗi lịch đổi tối đa {MAX_RESCHEDULE} lần; hủy muộn không được
+          hoàn tiền.
         </p>
       )}
     </Modal>
@@ -239,7 +266,9 @@ function fakeQr(seed: string, n = 25): boolean[][] {
     h ^= h >>> 16;
     return (h >>> 0) / 4294967296;
   };
-  const grid = Array.from({ length: n }, () => Array.from({ length: n }, () => rnd() > 0.5));
+  const grid = Array.from({ length: n }, () =>
+    Array.from({ length: n }, () => rnd() > 0.5),
+  );
 
   const finder = (ox: number, oy: number) => {
     for (let y = -1; y <= 7; y++) {
@@ -298,13 +327,22 @@ export function QrModal({
             {grid.map((row, y) =>
               row.map((on, x) =>
                 on ? (
-                  <rect key={`${x}-${y}`} x={x + quiet} y={y + quiet} width="1" height="1" fill="#0f172a" />
+                  <rect
+                    key={`${x}-${y}`}
+                    x={x + quiet}
+                    y={y + quiet}
+                    width="1"
+                    height="1"
+                    fill="#0f172a"
+                  />
                 ) : null,
               ),
             )}
           </svg>
         </div>
-        <p className="mt-3 text-base font-extrabold text-slate-900">#{appt.code}</p>
+        <p className="mt-3 text-base font-extrabold text-slate-900">
+          #{appt.code}
+        </p>
         <p className="mt-0.5 text-[11px] font-bold text-amber-600">
           Mã minh họa giao diện, chưa dùng để quét thật
         </p>
@@ -313,11 +351,15 @@ export function QrModal({
       <dl className="mt-4 space-y-2 rounded-xl border border-blue-100 bg-blue-50/70 p-4 text-xs">
         <div className="flex justify-between gap-3">
           <dt className="text-slate-500">Bác sĩ</dt>
-          <dd className="text-right font-bold text-slate-800">{appt.doctor.name}</dd>
+          <dd className="text-right font-bold text-slate-800">
+            {appt.doctor.name}
+          </dd>
         </div>
         <div className="flex justify-between gap-3">
           <dt className="text-slate-500">Giờ khám</dt>
-          <dd className="text-right font-bold text-[#0A5A84]">{fullText(start)}</dd>
+          <dd className="text-right font-bold text-[#0A5A84]">
+            {fullText(start)}
+          </dd>
         </div>
         <div className="flex justify-between gap-3">
           <dt className="text-slate-500">Phòng</dt>
@@ -327,8 +369,8 @@ export function QrModal({
 
       <p className="mt-3 flex items-start gap-2 text-[11px] leading-relaxed text-slate-500">
         <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#2B6CB0]" />
-        Vui lòng có mặt trước giờ hẹn 15 phút và đưa mã này cho lễ tân để check-in. Mang theo CCCD
-        gắn chip và thẻ BHYT (nếu có).
+        Vui lòng có mặt trước giờ hẹn 15 phút và đưa mã này cho lễ tân để
+        check-in. Mang theo CCCD gắn chip và thẻ BHYT (nếu có).
       </p>
     </Modal>
   );
@@ -435,24 +477,40 @@ export function RescheduleModal({
       onClose={() => !saving && onClose()}
       footer={
         <>
-          <button type="button" disabled={saving} onClick={onClose} className={btnGhost}>
+          <button
+            type="button"
+            disabled={saving}
+            onClick={onClose}
+            className={btnGhost}
+          >
             Hủy bỏ
           </button>
-          <button type="button" disabled={!selectedSlotId || saving} onClick={submit} className={btnPrimary}>
+          <button
+            type="button"
+            disabled={!selectedSlotId || saving}
+            onClick={submit}
+            className={btnPrimary}
+          >
             {saving ? "Đang đổi lịch..." : "Xác nhận đổi lịch"}
           </button>
         </>
       }
     >
       {/* Lịch hiện tại */}
-      <p className="text-[10px] font-bold uppercase text-slate-500">Lịch hiện tại</p>
+      <p className="text-[10px] font-bold uppercase text-slate-500">
+        Lịch hiện tại
+      </p>
       <div className="mt-2 flex flex-wrap items-center gap-4 rounded-xl border border-slate-200 bg-slate-50/70 p-4">
         <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#2B6CB0] to-[#0A5A84] text-sm font-extrabold text-white">
           {appt.doctor.initials}
         </span>
         <div className="min-w-0 flex-1 leading-tight">
-          <p className="text-sm font-extrabold text-slate-900">{appt.doctor.name}</p>
-          <p className="mt-0.5 text-[11px] text-slate-500">{appt.doctor.specialty} • {appt.room}</p>
+          <p className="text-sm font-extrabold text-slate-900">
+            {appt.doctor.name}
+          </p>
+          <p className="mt-0.5 text-[11px] text-slate-500">
+            {appt.doctor.specialty} • {appt.room}
+          </p>
           <p className="mt-1.5 flex items-center gap-1.5 text-xs font-bold text-slate-700">
             <Clock className="h-3.5 w-3.5 text-[#2B6CB0]" />
             {fullText(current)}
@@ -467,7 +525,9 @@ export function RescheduleModal({
       </div>
 
       {/* Chọn lịch mới */}
-      <p className="text-[10px] font-bold uppercase text-slate-500">Chọn lịch mới</p>
+      <p className="text-[10px] font-bold uppercase text-slate-500">
+        Chọn lịch mới
+      </p>
       <div className="mt-2 flex gap-2 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {days.map((d, i) => {
           const active = i === dayIndex;
@@ -488,11 +548,17 @@ export function RescheduleModal({
                   : "border-slate-200 bg-white text-slate-700 hover:border-[#2B6CB0]"
               }`}
             >
-              <span className={`text-[10px] font-bold ${active ? "text-white/80" : "text-slate-400"}`}>
+              <span
+                className={`text-[10px] font-bold ${active ? "text-white/80" : "text-slate-400"}`}
+              >
                 T{d.getDay() + 1}
               </span>
-              <span className="text-xl font-extrabold leading-tight">{d.getDate()}</span>
-              <span className={`text-[10px] ${active ? "text-white/80" : "text-slate-400"}`}>
+              <span className="text-xl font-extrabold leading-tight">
+                {d.getDate()}
+              </span>
+              <span
+                className={`text-[10px] ${active ? "text-white/80" : "text-slate-400"}`}
+              >
                 {pad(d.getDate())}/{pad(d.getMonth() + 1)}
               </span>
             </button>
@@ -501,7 +567,9 @@ export function RescheduleModal({
       </div>
 
       {isLoadingSlots ? (
-        <p className="mt-4 text-xs text-slate-500">Đang tải khung giờ trống...</p>
+        <p className="mt-4 text-xs text-slate-500">
+          Đang tải khung giờ trống...
+        </p>
       ) : availabilityError ? (
         <p role="alert" className="mt-4 text-xs text-red-600">
           {availabilityError}
@@ -541,7 +609,9 @@ export function RescheduleModal({
 
       <div
         className={`mt-5 rounded-xl border px-4 py-3 text-xs ${
-          newStart ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-slate-200 bg-slate-50 text-slate-500"
+          newStart
+            ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+            : "border-slate-200 bg-slate-50 text-slate-500"
         }`}
       >
         {newStart ? (
@@ -560,12 +630,15 @@ export function RescheduleModal({
 
       <p className="mt-3 flex items-start gap-2 text-[11px] leading-relaxed text-slate-500">
         <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#2B6CB0]" />
-        Yêu cầu đổi lịch cần được thực hiện ít nhất {CUTOFF_HOURS} giờ trước giờ khám ban đầu.
-        Khung giờ cũ được giải phóng sau khi đổi lịch thành công.
+        Yêu cầu đổi lịch cần được thực hiện ít nhất {CUTOFF_HOURS} giờ trước giờ
+        khám ban đầu. Khung giờ cũ được giải phóng sau khi đổi lịch thành công.
       </p>
 
       {error && (
-        <p role="alert" className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">
+        <p
+          role="alert"
+          className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600"
+        >
           {error}
         </p>
       )}
@@ -607,7 +680,12 @@ export function CancelModal({
       onClose={() => !busy && onClose()}
       footer={
         <>
-          <button type="button" disabled={busy} onClick={onClose} className={btnGhost}>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onClose}
+            className={btnGhost}
+          >
             Giữ lịch
           </button>
           <button
@@ -623,14 +701,18 @@ export function CancelModal({
     >
       <p className="text-sm leading-relaxed text-slate-600">
         Bạn sắp hủy phiếu <b>#{appt.code}</b> với <b>{appt.doctor.name}</b> lúc{" "}
-        <b>{fullText(start)}</b>. Khung giờ sẽ được giải phóng và không thể hoàn tác.
+        <b>{fullText(start)}</b>. Khung giờ sẽ được giải phóng và không thể hoàn
+        tác.
       </p>
       <p className="mt-3 flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-slate-700">
         <Info className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
         Hủy muộn có thể không được hoàn tiền theo chính sách của phòng khám.
       </p>
       {error && (
-        <p role="alert" className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">
+        <p
+          role="alert"
+          className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600"
+        >
           {error}
         </p>
       )}
