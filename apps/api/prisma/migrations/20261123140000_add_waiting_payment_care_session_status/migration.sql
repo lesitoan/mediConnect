@@ -1,0 +1,1 @@
+ALTER TYPE "CareSessionStatus" ADD VALUE 'WAITING_PAYMENT';

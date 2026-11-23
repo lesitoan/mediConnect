@@ -12,6 +12,7 @@ import {
   PaymentTransactionStatus,
   PaymentTransactionType,
   Prisma,
+  CareSessionStatus,
   UserRole,
 } from '../../generated/prisma/client';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
@@ -133,6 +134,21 @@ export class ManualPaymentsService {
             tx,
           );
         const summary = await this.invoices.summary(tx, invoiceId);
+        if (Number(summary.outstandingAmount) <= 0 && !previous) {
+          const invoice = await tx.invoice.findUnique({
+            where: { id: invoiceId },
+            select: { consultationId: true },
+          });
+          if (invoice?.consultationId) {
+            await tx.careSession.updateMany({
+              where: {
+                consultation: { id: invoice.consultationId },
+                status: CareSessionStatus.WAITING_PAYMENT,
+              },
+              data: { status: CareSessionStatus.COMPLETED },
+            });
+          }
+        }
         return {
           created: !previous,
           payment: {

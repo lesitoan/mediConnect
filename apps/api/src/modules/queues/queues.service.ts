@@ -634,7 +634,7 @@ export class QueuesService {
           const completedAt = getCurrentTime();
           await tx.careSession.update({
             where: { id: current.id },
-            data: { status: CareSessionStatus.COMPLETED },
+            data: { status: CareSessionStatus.WAITING_PAYMENT },
           });
           await tx.consultation.upsert({
             where: { careSessionId: current.id },
@@ -658,7 +658,7 @@ export class QueuesService {
               targetType: 'CARE_SESSION',
               targetId: current.id,
               result: 'SUCCESS',
-              after: { status: CareSessionStatus.COMPLETED },
+              after: { status: CareSessionStatus.WAITING_PAYMENT },
             },
             tx,
           );
@@ -670,7 +670,7 @@ export class QueuesService {
       await this.throwTransitionError(
         error,
         careSessionId,
-        CareSessionStatus.COMPLETED,
+        CareSessionStatus.WAITING_PAYMENT,
         'Lượt khám vừa được hoàn thành bởi yêu cầu khác.',
       );
     }

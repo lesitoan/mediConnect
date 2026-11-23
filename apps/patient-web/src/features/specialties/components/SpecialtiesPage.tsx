@@ -101,7 +101,7 @@ export default function SpecialtiesPage() {
         />
 
         {/* Bộ lọc */}
-        <div id="list" className="scroll-mt-32 rounded-2xl bg-white p-5 shadow-[0_6px_24px_rgba(10,90,132,0.08)]">
+        <div id="list" className="patient-content-card scroll-mt-32 rounded-2xl bg-white p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex w-full max-w-xl items-center gap-2.5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 focus-within:border-[#2B6CB0] focus-within:bg-white focus-within:ring-2 focus-within:ring-[#2B6CB0]/20">
               <Search className="h-4 w-4 text-slate-400" />

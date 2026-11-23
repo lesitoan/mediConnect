@@ -27,7 +27,7 @@ import type {
 import { createPatientAllergy } from "../services/patientProfileService";
 
 const card =
-  "h-full scroll-mt-32 rounded-2xl border border-white/80 bg-white p-5 shadow-[0_8px_28px_rgba(10,90,132,0.09)] sm:p-6 lg:p-7";
+  "patient-content-card h-full scroll-mt-32 rounded-2xl bg-white p-5 sm:p-6 lg:p-7";
 const input =
   "w-full rounded-xl border border-slate-200 bg-blue-50/50 px-4 py-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-[#2B6CB0] focus:bg-white focus:ring-2 focus:ring-[#2B6CB0]/20";
 const locked =

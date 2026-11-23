@@ -18,7 +18,14 @@ export const EXAMINATION_STATUS: Record<
     className: "bg-primary-light text-primary",
   },
   PAUSED: { label: "Tạm dừng", className: "bg-warning-bg text-warning" },
-  INCOMPLETE: { label: "Chưa hoàn chỉnh", className: "bg-warning-bg text-warning" },
+  WAITING_PAYMENT: {
+    label: "Chờ thanh toán",
+    className: "bg-warning-bg text-warning",
+  },
+  INCOMPLETE: {
+    label: "Chưa hoàn chỉnh",
+    className: "bg-warning-bg text-warning",
+  },
   COMPLETED: { label: "Hoàn tất", className: "bg-neutral-bg text-muted" },
 };
 

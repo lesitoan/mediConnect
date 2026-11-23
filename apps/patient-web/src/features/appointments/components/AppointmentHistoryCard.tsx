@@ -78,7 +78,7 @@ export default function AppointmentHistoryCard({
     : `Lịch này đã đổi tối đa ${MAX_RESCHEDULE} lần`;
 
   return (
-    <article className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-[0_5px_18px_rgba(28,79,132,0.08)] transition hover:shadow-[0_8px_22px_rgba(28,79,132,0.12)] sm:p-5">
+    <article className="patient-content-card rounded-2xl bg-white p-4 transition hover:-translate-y-0.5 hover:shadow-[0_12px_30px_rgba(28,79,132,0.14)] sm:p-5">
       <div className="grid gap-4 lg:grid-cols-[minmax(220px,1.05fr)_minmax(280px,1.3fr)_minmax(280px,350px)] lg:items-center">
         <div className="flex min-w-0 items-center gap-3 border-b border-slate-100 pb-3 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-4">
           <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#E5F1FC] to-[#D5E8F8] text-base font-extrabold text-[#0A5A84]">

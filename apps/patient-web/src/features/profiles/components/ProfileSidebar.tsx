@@ -24,7 +24,7 @@ type Props = {
 };
 
 const card =
-  "overflow-hidden rounded-2xl border border-white/80 bg-white shadow-[0_8px_28px_rgba(10,90,132,0.09)]";
+  "patient-content-card overflow-hidden rounded-2xl bg-white";
 
 export default function ProfileSidebar({
   profile,

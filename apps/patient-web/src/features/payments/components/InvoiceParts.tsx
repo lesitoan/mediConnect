@@ -21,7 +21,7 @@ const ITEM_ICON = {
   drug: Pill,
 } as const satisfies Record<ItemIcon, unknown>;
 
-const card = "rounded-2xl bg-white p-6 shadow-[0_6px_24px_rgba(10,90,132,0.08)]";
+const card = "patient-content-card rounded-2xl bg-white p-6";
 
 /* ---------- Cột trái ---------- */
 
