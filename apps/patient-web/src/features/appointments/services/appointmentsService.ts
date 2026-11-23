@@ -1,4 +1,5 @@
 import type { Appointment } from "../data";
+import { authenticatedFetch } from "@/features/auth/services/authenticatedFetch";
 
 export type AvailabilitySlot = {
   id: string;
@@ -120,7 +121,7 @@ const API_URL =
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;
   try {
-    response = await fetch(`${API_URL}${path}`, {
+    response = await authenticatedFetch(path, {
       ...init,
       credentials: "include",
       headers: {

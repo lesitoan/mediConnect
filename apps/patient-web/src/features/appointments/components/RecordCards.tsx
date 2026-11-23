@@ -15,7 +15,7 @@ import {
   ShoppingBag,
   Star,
 } from "@/components/layout/icons";
-import { usePaidVisits } from "@/features/payment/paidStore";
+import { usePaidVisits } from "@/features/payments/paidStore";
 import type { LabRecord, MedicalRecord, VisitRecord } from "../data";
 import { cardFoot, cardHead, cardShell, panelBlue } from "./cardStyles";
 

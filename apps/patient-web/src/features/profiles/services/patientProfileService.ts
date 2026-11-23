@@ -1,4 +1,5 @@
 import type { IdentityForm, PatientGender } from "../data";
+import { authenticatedFetch } from "@/features/auth/services/authenticatedFetch";
 
 type ApiResponse<T> = {
   success: boolean;
@@ -59,7 +60,7 @@ async function request<T>(
 ): Promise<ApiResponse<T>> {
   let response: Response;
   try {
-    response = await fetch(`${API_URL}${path}`, {
+    response = await authenticatedFetch(path, {
       ...init,
       credentials: "include",
       headers: {

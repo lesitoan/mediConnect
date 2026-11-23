@@ -1,3 +1,5 @@
+import { authenticatedFetch } from "./authenticatedFetch";
+
 type ApiResponse<T> = {
   success: boolean;
   data: T;
@@ -11,6 +13,8 @@ type CurrentUser = {
   name: string;
   role: string;
 };
+
+export type AuthenticatedUser = CurrentUser;
 
 export class AuthApiError extends Error {
   constructor(
@@ -56,7 +60,7 @@ const API_URL =
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;
   try {
-    response = await fetch(`${API_URL}${path}`, {
+    response = await authenticatedFetch(path, {
       ...init,
       credentials: "include",
       headers: {
@@ -78,6 +82,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new AuthApiError(message, response.status);
   }
   return payload.data;
+}
+
+export async function getCurrentUser() {
+  return request<AuthenticatedUser>("/me");
 }
 
 export async function registerPatient(input: {
@@ -122,7 +130,7 @@ export async function authenticatePatient(
     }),
   });
 
-  const user = await request<CurrentUser>("/me");
+  const user = await getCurrentUser();
   if (user.role !== "PATIENT") {
     throw new Error("Tài khoản này không có quyền truy cập cổng bệnh nhân.");
   }
@@ -136,5 +144,12 @@ export async function changePassword(
   return request<{ message: string }>('/authentication/change_password', {
     method: 'POST',
     body: JSON.stringify({ currentPassword, password }),
+  });
+}
+
+export async function logoutPatient() {
+  return request<{ message: string }>("/authentication/logout", {
+    method: "POST",
+    body: JSON.stringify({}),
   });
 }

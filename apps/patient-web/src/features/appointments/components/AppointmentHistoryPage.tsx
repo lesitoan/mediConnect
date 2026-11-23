@@ -16,10 +16,10 @@ import {
 } from "@/components/layout/icons";
 import SecurityNotice from "@/components/layout/SecurityNotice";
 import { useAuth } from "@/features/auth/useAuth";
-import ReviewForm from "@/features/review/components/ReviewForm";
-import VisitSummaryCard from "@/features/review/components/VisitSummaryCard";
-import { getVisit } from "@/features/review/data";
-import { getReview, type ReviewDetails } from "@/features/review/services/reviewsService";
+import ReviewForm from "@/features/reviews/components/ReviewForm";
+import VisitSummaryCard from "@/features/reviews/components/VisitSummaryCard";
+import { getVisit } from "@/features/reviews/data";
+import { getReview, type ReviewDetails } from "@/features/reviews/services/reviewsService";
 import {
   getMyConsultation,
   type ConsultationMedicalRecord,
@@ -134,9 +134,12 @@ export default function AppointmentHistoryPage() {
   useEffect(() => {
     if (!medicalRecordId) return;
     let isCurrent = true;
-    setMedicalRecord(null);
-    setMedicalRecordError(null);
-    setIsMedicalRecordLoading(true);
+    queueMicrotask(() => {
+      if (!isCurrent) return;
+      setMedicalRecord(null);
+      setMedicalRecordError(null);
+      setIsMedicalRecordLoading(true);
+    });
     getMyConsultation(medicalRecordId)
       .then((record) => {
         if (isCurrent) setMedicalRecord(record);

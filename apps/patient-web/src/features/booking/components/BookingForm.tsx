@@ -38,7 +38,7 @@ import {
   getPatientProfile,
   PatientProfileApiError,
   type PatientProfile,
-} from "@/features/profile/services/patientProfileService";
+} from "@/features/profiles/services/patientProfileService";
 
 /* ---------- Hằng số & tiện ích ---------- */
 
@@ -243,12 +243,28 @@ export default function BookingForm() {
                 if (isCancelled) return;
                 setSpecialties(specialtyItems);
                 setDoctorsCatalog(doctorItems);
-                const requestedSpecialtyId = new URLSearchParams(
-                    window.location.search,
-                ).get("specialty");
-                if (specialtyItems.some(({ id }) => id === requestedSpecialtyId)) {
-                    setSpecialtyId(requestedSpecialtyId ?? "");
-                }
+                const query = new URLSearchParams(window.location.search);
+                const requestedSpecialty = query.get("specialty");
+                const requestedDoctor = query.get("doctor");
+                const slugify = (value: string) =>
+                    value
+                        .normalize("NFD")
+                        .replace(/[\u0300-\u036f]/g, "")
+                        .toLowerCase()
+                        .replace(/[^a-z0-9]+/g, "-")
+                        .replace(/^-|-$/g, "");
+                const specialty = specialtyItems.find(
+                    (item) =>
+                        item.id === requestedSpecialty ||
+                        slugify(item.name) === requestedSpecialty,
+                );
+                const doctor = doctorItems.find(
+                    (item) =>
+                        item.id === requestedDoctor ||
+                        slugify(item.user.fullName).endsWith(requestedDoctor ?? ""),
+                );
+                setSpecialtyId(specialty?.id ?? doctor?.specialty.id ?? "");
+                setDoctorId(doctor?.id ?? "");
                 setCatalogError("");
             })
             .catch((error: unknown) => {
