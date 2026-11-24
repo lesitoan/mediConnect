@@ -5,7 +5,19 @@ import {
   IsOptional,
   IsString,
   MaxLength,
+  IsArray,
+  ValidateNested,
+  IsBoolean,
 } from 'class-validator';
+import { Type } from 'class-transformer';
+
+export class DiagnosticResultImageDto {
+  @ApiProperty() @IsString() @IsNotEmpty() url!: string;
+  @ApiProperty() @IsString() @IsNotEmpty() publicId!: string;
+  @ApiProperty() @IsString() @IsNotEmpty() name!: string;
+  @ApiProperty() @IsDateString() uploadedAt!: string;
+  @ApiProperty() @IsString() @IsNotEmpty() uploadedBy!: string;
+}
 
 export class RecordLabResultDto {
   @ApiProperty({ maxLength: 150 })
@@ -35,4 +47,16 @@ export class RecordLabResultDto {
   @IsNotEmpty()
   @IsDateString()
   expectedUpdatedAt!: string;
+
+  @ApiPropertyOptional({ type: [DiagnosticResultImageDto] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => DiagnosticResultImageDto)
+  images?: DiagnosticResultImageDto[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  completeOrder?: boolean;
 }

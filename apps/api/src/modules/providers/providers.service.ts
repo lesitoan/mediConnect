@@ -65,6 +65,12 @@ const ACTIVE_DOCTOR_WHERE = {
   },
 } satisfies Prisma.DoctorWhereInput;
 
+type PublicDoctorRating = {
+  doctorId: string;
+  rating: number | null;
+  reviewCount: number;
+};
+
 function activePauseAt(now: Date): Prisma.LeaveRequestWhereInput {
   return {
     source: 'ADMIN_PAUSE',
@@ -91,6 +97,12 @@ export class ProvidersService {
     const page = new PaginationUtils().extractSkipTakeFromPagination(query);
     const now = new Date();
     const activePause = activePauseAt(now);
+    const availabilityStart = query.availabilityDate
+      ? new Date(`${query.availabilityDate}T00:00:00+07:00`)
+      : undefined;
+    const availabilityEnd = availabilityStart
+      ? new Date(availabilityStart.getTime() + 24 * 60 * 60 * 1000)
+      : undefined;
     const where: Prisma.DoctorWhereInput = {
       ...(isAdmin
         ? {}
@@ -99,6 +111,34 @@ export class ProvidersService {
             leaveRequests: { none: activePause },
           }),
       ...(query.specialtyId ? { specialtyId: query.specialtyId } : {}),
+      ...(query.hasAcademicTitle === undefined
+        ? {}
+        : {
+            academicTitle: query.hasAcademicTitle ? { not: null } : null,
+          }),
+      ...(availabilityStart && availabilityEnd
+        ? {
+            schedules: {
+              some: {
+                status: 'PUBLISHED',
+                startsAt: { lt: availabilityEnd },
+                endsAt: { gt: availabilityStart },
+                slots: {
+                  some: {
+                    isBlocked: false,
+                    startsAt: { gte: now, lt: availabilityEnd },
+                    careSessions: {
+                      none: {
+                        status: { notIn: ['CANCELLED', 'NO_SHOW'] },
+                        appointment: { status: { not: 'CANCELLED' } },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          }
+        : {}),
       ...(query.search
         ? {
             OR: [
@@ -106,6 +146,17 @@ export class ProvidersService {
               {
                 user: {
                   fullName: { contains: query.search, mode: 'insensitive' },
+                },
+              },
+              {
+                qualification: {
+                  contains: query.search,
+                  mode: 'insensitive',
+                },
+              },
+              {
+                specialty: {
+                  name: { contains: query.search, mode: 'insensitive' },
                 },
               },
             ],
@@ -120,22 +171,56 @@ export class ProvidersService {
         take: 1,
       },
     } as const;
-    const [items, total] = await this.prisma.$transaction([
+    const [matchedItems, total] = await this.prisma.$transaction([
       this.prisma.doctor.findMany({
         where,
         select,
-        skip: page.skip,
-        take: page.take,
+        ...(query.sortBy ? {} : { skip: page.skip, take: page.take }),
         orderBy: [{ doctorCode: 'asc' }, { id: 'asc' }],
       }),
       this.prisma.doctor.count({ where }),
     ]);
+    const ratings = isAdmin
+      ? new Map<string, PublicDoctorRating>()
+      : await this.getPublicRatings(matchedItems.map((doctor) => doctor.id));
+    if (!isAdmin && query.sortBy === 'RATING') {
+      matchedItems.sort((first, second) => {
+        const ratingDifference =
+          (ratings.get(second.id)?.rating ?? -1) -
+          (ratings.get(first.id)?.rating ?? -1);
+        return (
+          ratingDifference ||
+          (ratings.get(second.id)?.reviewCount ?? 0) -
+            (ratings.get(first.id)?.reviewCount ?? 0) ||
+          first.doctorCode.localeCompare(second.doctorCode) ||
+          first.id.localeCompare(second.id)
+        );
+      });
+    } else if (!isAdmin && query.sortBy === 'EXPERIENCE') {
+      matchedItems.sort((first, second) =>
+        first.doctorCode.localeCompare(second.doctorCode) ||
+        first.id.localeCompare(second.id),
+      );
+    }
+    const items = query.sortBy
+      ? matchedItems.slice(page.skip, page.skip + page.take)
+      : matchedItems;
     return {
-      items: items.map(({ leaveRequests, ...doctor }) => ({
-        ...doctor,
-        isActive: doctor.isActive && leaveRequests.length === 0,
-        isPaused: leaveRequests.length > 0,
-      })),
+      items: items.map(({ leaveRequests, ...doctor }) => {
+        const result = {
+          ...doctor,
+          isActive: doctor.isActive && leaveRequests.length === 0,
+          isPaused: leaveRequests.length > 0,
+        };
+        if (isAdmin) return result;
+        return {
+          ...result,
+          ...this.getPublicProfileFields(
+            doctor.id,
+            ratings,
+          ),
+        };
+      }),
       pagination: page.convertPaginationResponseDtoFromTotalRecords(total),
     };
   }
@@ -168,10 +253,55 @@ export class ProvidersService {
     });
     if (!doctor) throw new NotFoundException('Doctor not found');
     const { leaveRequests, ...profile } = doctor;
-    return {
+    const result = {
       ...profile,
       isActive: profile.isActive && leaveRequests.length === 0,
       isPaused: leaveRequests.length > 0,
+    };
+    if (isAdmin) return result;
+    const ratings = await this.getPublicRatings([profile.id]);
+    return {
+      ...result,
+      ...this.getPublicProfileFields(profile.id, ratings),
+    };
+  }
+
+  private async getPublicRatings(doctorIds: string[]) {
+    if (doctorIds.length === 0) return new Map<string, PublicDoctorRating>();
+    const rows = await this.prisma.$queryRaw<PublicDoctorRating[]>(Prisma.sql`
+      SELECT
+        ds.doctor_id AS "doctorId",
+        AVG(r.doctor_rating)::float8 AS rating,
+        COUNT(r.id)::int AS "reviewCount"
+      FROM ${sqlTable(this.prisma.schemaName, 'reviews')} r
+      JOIN ${sqlTable(this.prisma.schemaName, 'consultations')} c
+        ON c.id = r.consultation_id
+      JOIN ${sqlTable(this.prisma.schemaName, 'care_sessions')} cs
+        ON cs.id = c.care_session_id
+      JOIN ${sqlTable(this.prisma.schemaName, 'appointment_slots')} slot
+        ON slot.id = cs.appointment_slot_id
+      JOIN ${sqlTable(this.prisma.schemaName, 'doctor_schedules')} ds
+        ON ds.id = slot.doctor_schedule_id
+      WHERE ds.doctor_id IN (${Prisma.join(doctorIds)})
+      GROUP BY ds.doctor_id
+    `);
+    return new Map(rows.map((row) => [row.doctorId, row]));
+  }
+
+  private getPublicProfileFields(
+    doctorId: string,
+    ratings: Map<string, PublicDoctorRating>,
+  ) {
+    const rating = ratings.get(doctorId);
+    return {
+      position: null,
+      hospitalName: null,
+      experienceYears: null,
+      treatedCases: null,
+      clinicAddress: null,
+      strengths: null,
+      rating: rating?.rating ?? null,
+      reviewCount: rating?.reviewCount ?? 0,
     };
   }
 

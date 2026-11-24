@@ -88,7 +88,7 @@ const DEMO_QUEUE = [
     doctorCode: 'SEED-GEN-01',
     status: 'WAITING_LAB',
     priorityType: 'APPOINTMENT_ON_TIME',
-    isPastAppointment: true,
+    hasLabResult: true,
   },
   {
     appointmentNumber: 10,
@@ -133,6 +133,22 @@ const DEMO_QUEUE = [
     status: 'CANCELLED',
     appointmentStatus: 'CANCELLED',
     priorityType: 'APPOINTMENT_ON_TIME',
+  },
+  {
+    appointmentNumber: 16,
+    patientNumber: 16,
+    doctorCode: 'SEED-GEN-02',
+    status: 'WAITING_LAB',
+    priorityType: 'APPOINTMENT_ON_TIME',
+    hasCompleteLabResults: true,
+  },
+  {
+    appointmentNumber: 17,
+    patientNumber: 17,
+    doctorCode: 'SEED-GEN-01',
+    status: 'WAITING_LAB',
+    priorityType: 'APPOINTMENT_ON_TIME',
+    singleLabOrder: true,
   },
   {
     appointmentNumber: 16,
@@ -201,7 +217,9 @@ async function cleanup(prisma: PrismaClient): Promise<void> {
     },
   });
   const appointmentIds = appointments.map(({ id }) => id);
-  const patientIds = [...new Set(appointments.map(({ patientId }) => patientId))];
+  const patientIds = [
+    ...new Set(appointments.map(({ patientId }) => patientId)),
+  ];
   const sessionIds = appointments.flatMap(({ careSessions }) =>
     careSessions.map(({ id }) => id),
   );
@@ -594,7 +612,10 @@ async function seed(
     });
     const patientMedicalRecords = DEMO_PATIENT_MEDICAL_RECORDS.filter(
       ({ patientNumber }) => patientNumber === item.patientNumber,
-    ).map(({ patientNumber, ...record }) => record);
+    ).map(({ patientNumber, ...record }) => {
+      void patientNumber;
+      return record;
+    });
     for (const record of patientMedicalRecords) {
       await prisma.patientMedicalRecord.upsert({
         where: { id: record.id },
@@ -716,31 +737,67 @@ async function seed(
                   orders: [
                     {
                       orderRef: 'XN-SH-09',
+                      status:
+                        'hasCompleteLabResults' in item &&
+                        item.hasCompleteLabResults
+                          ? 'COMPLETED'
+                          : 'hasLabResult' in item && item.hasLabResult
+                            ? 'IN_PROGRESS'
+                            : 'WAITING',
                       service: 'Troponin T định lượng (hs-cTnT)',
                       purpose: 'Q-DEMO chest discomfort evaluation',
                       instructions: 'Q-DEMO collect one blood sample.',
                     },
                     {
                       orderRef: 'TDCN-01',
+                      status:
+                        'hasCompleteLabResults' in item &&
+                        item.hasCompleteLabResults
+                          ? 'COMPLETED'
+                          : 'WAITING',
                       service: 'Điện tâm đồ thường (ECG 12 chuyển đạo)',
                       purpose: 'Q-DEMO chest discomfort evaluation',
                       instructions: 'Q-DEMO record a resting ECG.',
                     },
-                  ],
+                  ].filter(
+                    (order) =>
+                      !('singleLabOrder' in item && item.singleLabOrder) ||
+                      order.orderRef === 'XN-SH-09',
+                  ),
                   reason: 'Q-DEMO chest discomfort evaluation',
                   notes: 'Q-DEMO lab order fixture.',
                   results:
-                    'hasLabResult' in item && item.hasLabResult
+                    'hasCompleteLabResults' in item &&
+                    item.hasCompleteLabResults
                       ? [
                           {
                             orderRef: 'XN-SH-09',
-                            result: 'Q-DEMO Troponin T: within reference range.',
+                            result:
+                              'Q-DEMO Troponin T: within reference range.',
                             source: 'Q-DEMO local laboratory',
                             returnedAt: now.toISOString(),
                             recordedBy: admin.id,
                           },
+                          {
+                            orderRef: 'TDCN-01',
+                            result: 'Q-DEMO ECG: normal sinus rhythm.',
+                            source: 'Q-DEMO diagnostic laboratory',
+                            returnedAt: now.toISOString(),
+                            recordedBy: admin.id,
+                          },
                         ]
-                      : [],
+                      : 'hasLabResult' in item && item.hasLabResult
+                        ? [
+                            {
+                              orderRef: 'XN-SH-09',
+                              result:
+                                'Q-DEMO Troponin T: within reference range.',
+                              source: 'Q-DEMO local laboratory',
+                              returnedAt: now.toISOString(),
+                              recordedBy: admin.id,
+                            },
+                          ]
+                        : [],
                   orderedAt: now.toISOString(),
                 })
               : item.status === 'PAUSED'
@@ -763,7 +820,8 @@ async function seed(
                     diagnosisCode: 'I10',
                     diagnosisName: 'Tăng huyết áp vô căn (nguyên phát)',
                     isPrimary: true,
-                    notes: 'Q-DEMO seeded primary diagnosis for examination tests.',
+                    notes:
+                      'Q-DEMO seeded primary diagnosis for examination tests.',
                   },
                 },
               }),

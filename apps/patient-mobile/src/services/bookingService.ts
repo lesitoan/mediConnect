@@ -1,11 +1,7 @@
+import { requestApi } from './apiClient';
+
 export type CreateAppointmentPayload = {
-  profileId: string;
-  serviceId: string;
-  doctorId: string;
-  dateKey: string;
-  slotId: string;
-  startTime: string;
-  endTime: string;
+  appointmentSlotId: string;
   note: string;
 };
 
@@ -17,8 +13,22 @@ export type CreatedAppointment = {
 export async function createAppointment(
   payload: CreateAppointmentPayload,
 ): Promise<CreatedAppointment> {
+  const response = await requestApi<{
+    id: string;
+    appointmentCode: string;
+  }>(
+    '/me/appointments',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        appointmentSlotId: payload.appointmentSlotId,
+        reason: payload.note || undefined,
+      }),
+    },
+    true,
+  );
   return {
-    id: `appointment-${payload.slotId}`,
-    code: `LK-${String(Date.now()).slice(-6)}`,
+    id: response.id,
+    code: response.appointmentCode,
   };
 }

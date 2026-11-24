@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Platform,
@@ -16,6 +17,8 @@ import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import ScreenContainer from '../../components/ScreenContainer';
 import { ArrowLeftIcon, type IconProps } from '../../components/icons';
 import { COLORS, FONTS } from '../../constants/theme';
+import { ApiRequestError } from '../../services/apiClient';
+import { changePassword } from '../../services/authService';
 
 function Text(props: TextProps) {
   return <RNText allowFontScaling={false} {...props} />;
@@ -111,6 +114,35 @@ function LockBadgeIcon({ size = 20, color = '#8A97A8' }: IconProps) {
 const HEADER_BLUE = '#1B5FB4';
 const REQUIRED_RED = '#D92D20';
 
+function getPasswordChangeErrorMessage(error: unknown): string {
+  if (error instanceof ApiRequestError) {
+    const message = error.message.toLowerCase();
+    if (error.status === 401) {
+      return message.includes('mật khẩu hiện tại')
+        ? 'Mật khẩu hiện tại không chính xác.'
+        : 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.';
+    }
+    if (error.status === 400) {
+      if (message.includes('khác mật khẩu')) {
+        return 'Mật khẩu mới phải khác mật khẩu hiện tại.';
+      }
+      if (message.includes('password must contain')) {
+        return 'Mật khẩu mới phải có chữ hoa, chữ thường, số và ký tự đặc biệt.';
+      }
+      if (message.includes('longer than or equal to 8')) {
+        return 'Mật khẩu mới phải có ít nhất 8 ký tự.';
+      }
+      if (message.includes('byte length') || message.includes('72')) {
+        return 'Mật khẩu mới không được dài quá 72 byte.';
+      }
+      return 'Mật khẩu mới chưa đáp ứng yêu cầu. Vui lòng kiểm tra lại.';
+    }
+    return 'Không thể đổi mật khẩu lúc này. Vui lòng thử lại sau.';
+  }
+  if (error instanceof Error && error.message) return error.message;
+  return 'Không thể đổi mật khẩu lúc này. Vui lòng thử lại sau.';
+}
+
 type PasswordFieldProps = {
   label: string;
   placeholder: string;
@@ -179,7 +211,7 @@ type ChangePasswordPayload = {
 type ChangePasswordScreenProps = {
   onPressBack?: () => void;
   onPressForgotPassword?: () => void;
-  onSubmit?: (payload: ChangePasswordPayload) => void;
+  onSubmit?: (payload: ChangePasswordPayload) => void | Promise<void>;
 };
 
 type FieldErrors = {
@@ -195,6 +227,7 @@ const getRules = (password: string, confirm: string) => [
   { key: 'lower', label: 'Chứa ít nhất 1 chữ thường', isMet: /[a-z]/.test(password) },
   { key: 'upper', label: 'Chứa ít nhất 1 chữ hoa', isMet: /[A-Z]/.test(password) },
   { key: 'digit', label: 'Chứa ít nhất 1 chữ số', isMet: /\d/.test(password) },
+  { key: 'special', label: 'Chứa ít nhất 1 ký tự đặc biệt', isMet: /[^a-zA-Z0-9]/.test(password) },
   {
     key: 'match',
     label: 'Xác nhận mật khẩu trùng khớp',
@@ -207,11 +240,12 @@ export default function ChangePasswordScreen({
   onPressForgotPassword,
   onSubmit,
 }: ChangePasswordScreenProps) {
-  const navigation = useNavigation(); // FIX
+  const navigation = useNavigation();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [errors, setErrors] = useState<FieldErrors>(NO_ERRORS);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const rules = getRules(newPassword, confirmPassword);
 
@@ -237,10 +271,11 @@ export default function ChangePasswordScreen({
       if (errors[field]) setErrors({ ...errors, [field]: '' });
     };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    if (isSubmitting) return;
     const nextErrors: FieldErrors = { ...NO_ERRORS };
     if (!currentPassword) nextErrors.current = 'Vui lòng nhập mật khẩu hiện tại';
-    if (!rules.slice(0, 4).every((rule) => rule.isMet)) {
+    if (!rules.slice(0, 5).every((rule) => rule.isMet)) {
       nextErrors.next = 'Mật khẩu mới chưa đáp ứng yêu cầu';
     } else if (newPassword === currentPassword) {
       nextErrors.next = 'Mật khẩu mới phải khác mật khẩu hiện tại';
@@ -250,11 +285,32 @@ export default function ChangePasswordScreen({
     setErrors(nextErrors);
     if (nextErrors.current || nextErrors.next || nextErrors.confirm) return;
 
-    if (onSubmit) {
-      onSubmit({ currentPassword, newPassword });
-      return;
+    setIsSubmitting(true);
+    try {
+      if (onSubmit) {
+        await onSubmit({ currentPassword, newPassword });
+      } else {
+        await changePassword(currentPassword, newPassword);
+      }
+      Alert.alert('Thành công', 'Mật khẩu đã được cập nhật.', [
+        { text: 'OK', onPress: handleBack },
+      ]);
+    } catch (error: unknown) {
+      const message = getPasswordChangeErrorMessage(error);
+      if (
+        error instanceof ApiRequestError &&
+        error.status === 401 &&
+        message === 'Mật khẩu hiện tại không chính xác.'
+      ) {
+        setErrors((previous) => ({ ...previous, current: message }));
+      } else if (error instanceof ApiRequestError && error.status === 400) {
+        setErrors((previous) => ({ ...previous, next: message }));
+      } else {
+        Alert.alert('Không thể đổi mật khẩu', message);
+      }
+    } finally {
+      setIsSubmitting(false);
     }
-    Alert.alert('Đổi mật khẩu', 'Thông tin hợp lệ');
   };
 
   return (
@@ -335,8 +391,17 @@ export default function ChangePasswordScreen({
         </ScrollView>
 
         <View style={styles.footer}>
-          <TouchableOpacity style={styles.submitButton} activeOpacity={0.85} onPress={handleSubmit}>
-            <Text style={styles.submitText}>Cập nhật mật khẩu</Text>
+          <TouchableOpacity
+            style={styles.submitButton}
+            activeOpacity={0.85}
+            onPress={handleSubmit}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? (
+              <ActivityIndicator color={COLORS.SURFACE} />
+            ) : (
+              <Text style={styles.submitText}>Cập nhật mật khẩu</Text>
+            )}
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>

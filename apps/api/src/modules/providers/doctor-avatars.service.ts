@@ -11,6 +11,12 @@ export interface DoctorAvatarFile {
   buffer: Buffer;
   mimetype: string;
   size: number;
+  originalname?: string;
+}
+
+export interface CloudinaryImage {
+  url: string;
+  publicId: string;
 }
 
 function signature(params: Record<string, string>, secret: string): string {
@@ -97,6 +103,111 @@ export class DoctorAvatarsService {
       if (error instanceof BadRequestException) throw error;
       throw new ServiceUnavailableException(
         'Không thể tải ảnh lên Cloudinary. Vui lòng thử lại.',
+      );
+    }
+  }
+
+  async uploadDiagnosticImage(
+    file: DoctorAvatarFile,
+  ): Promise<CloudinaryImage> {
+    const cloudName = this.config.get<string>('CLOUDINARY_CLOUD_NAME');
+    const apiKey = this.config.get<string>('CLOUDINARY_API_KEY');
+    const apiSecret = this.config.get<string>('CLOUDINARY_API_SECRET');
+    if (!cloudName || !apiKey || !apiSecret)
+      throw new ServiceUnavailableException('Cloudinary is not configured.');
+    const params = {
+      allowed_formats: 'jpg,png,webp',
+      folder: `${this.config.get<string>('CLOUDINARY_UPLOAD_FOLDER') || 'mediconnect'}/diagnostic-results`,
+      overwrite: 'false',
+      public_id: randomUUID(),
+      timestamp: String(Math.floor(Date.now() / 1000)),
+      transformation: 'c_limit,w_2048,h_2048/f_webp',
+    };
+    const form = new FormData();
+    for (const [key, value] of Object.entries(params)) form.set(key, value);
+    form.set('api_key', apiKey);
+    form.set('signature', signature(params, apiSecret));
+    form.set(
+      'file',
+      new Blob([new Uint8Array(file.buffer)], { type: file.mimetype }),
+      file.mimetype,
+    );
+    try {
+      const response = await fetch(
+        `https://api.cloudinary.com/v1_1/${encodeURIComponent(cloudName)}/image/upload`,
+        { method: 'POST', body: form, signal: AbortSignal.timeout(10000) },
+      );
+      if (!response.ok) throw new Error('Cloudinary upload rejected');
+      const data: unknown = await response.json();
+      if (
+        !data ||
+        typeof data !== 'object' ||
+        !('secure_url' in data) ||
+        typeof data.secure_url !== 'string' ||
+        !('public_id' in data) ||
+        typeof data.public_id !== 'string' ||
+        !('version' in data) ||
+        !Number.isSafeInteger(data.version) ||
+        !('signature' in data) ||
+        typeof data.signature !== 'string' ||
+        !/^[a-f0-9]{40}$/i.test(data.signature)
+      )
+        throw new Error('Invalid Cloudinary response');
+      const expected = signature(
+        { public_id: data.public_id, version: String(data.version) },
+        apiSecret,
+      );
+      const url = new URL(data.secure_url);
+      if (
+        !timingSafeEqual(
+          Buffer.from(expected, 'hex'),
+          Buffer.from(data.signature, 'hex'),
+        ) ||
+        url.protocol !== 'https:' ||
+        url.hostname !== 'res.cloudinary.com' ||
+        !url.pathname.startsWith(`/${cloudName}/image/upload/`) ||
+        data.secure_url.length > 500
+      )
+        throw new Error('Invalid Cloudinary asset');
+      return { url: data.secure_url, publicId: data.public_id };
+    } catch {
+      throw new ServiceUnavailableException(
+        'Unable to upload image to Cloudinary.',
+      );
+    }
+  }
+
+  async deleteDiagnosticImage(publicId: string): Promise<void> {
+    const cloudName = this.config.get<string>('CLOUDINARY_CLOUD_NAME');
+    const apiKey = this.config.get<string>('CLOUDINARY_API_KEY');
+    const apiSecret = this.config.get<string>('CLOUDINARY_API_SECRET');
+    if (!cloudName || !apiKey || !apiSecret)
+      throw new ServiceUnavailableException('Cloudinary is not configured.');
+    const params = {
+      public_id: publicId,
+      timestamp: String(Math.floor(Date.now() / 1000)),
+    };
+    const form = new FormData();
+    for (const [key, value] of Object.entries(params)) form.set(key, value);
+    form.set('api_key', apiKey);
+    form.set('signature', signature(params, apiSecret));
+    try {
+      const response = await fetch(
+        `https://api.cloudinary.com/v1_1/${encodeURIComponent(cloudName)}/image/destroy`,
+        { method: 'POST', body: form, signal: AbortSignal.timeout(10000) },
+      );
+      if (!response.ok) throw new Error('Cloudinary deletion rejected');
+      const data: unknown = await response.json();
+      if (
+        !data ||
+        typeof data !== 'object' ||
+        !('result' in data) ||
+        !['ok', 'not found'].includes(String(data.result))
+      )
+        throw new Error('Invalid Cloudinary deletion response');
+    } catch {
+      throw new ServiceUnavailableException(
+        'Unable to delete image from Cloudinary.',
       );
     }
   }

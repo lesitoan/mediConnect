@@ -9,6 +9,7 @@ import {
 } from '../../generated/prisma/enums';
 import { RoleEnum } from './constants/roles.constant';
 import type { Prisma } from '../../generated/prisma/client';
+import { normalizePhone } from '../../common/utils/normalize-phone';
 
 const AUTHORIZATION_INCLUDE = {
   role: {
@@ -29,10 +30,37 @@ export class UsersRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   findByContact(contact: { email?: string; phone?: string }) {
-    return this.prisma.user.findUnique({
-      where: contact.email
-        ? { email: contact.email }
-        : { phone: contact.phone! },
+    if (contact.email) {
+      return this.prisma.user.findUnique({
+        where: { email: contact.email },
+        include: AUTHORIZATION_INCLUDE,
+      });
+    }
+    if (contact.phone) {
+      const phone = normalizePhone(contact.phone) as string;
+      const phonePatterns = new Set<string>();
+      phonePatterns.add(phone);
+      if (phone.startsWith('+84')) {
+        phonePatterns.add('84' + phone.slice(2));
+        phonePatterns.add('0' + phone.slice(2));
+      } else if (phone.startsWith('84')) {
+        phonePatterns.add('+' + phone);
+        phonePatterns.add('0' + phone.slice(1));
+      } else if (phone.startsWith('0')) {
+        phonePatterns.add('+84' + phone.slice(1));
+        phonePatterns.add('84' + phone.slice(1));
+      }
+      // Dùng findFirst thay cho findUnique khi query theo OR nhiều điều kiện
+      return this.prisma.user.findFirst({
+        where: {
+          OR: Array.from(phonePatterns).map((p) => ({ phone: p })),
+        },
+        include: AUTHORIZATION_INCLUDE,
+      });
+    }
+    // Trường hợp không có contact truyền vào, dùng findFirst với điều kiện rỗng
+    return this.prisma.user.findFirst({
+      where: {},
       include: AUTHORIZATION_INCLUDE,
     });
   }
