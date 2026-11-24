@@ -71,6 +71,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 type NormalizedDiagnosis = { code: string; name: string };
 
+type ParsedLabOrders = {
+  orders: Record<string, unknown>[];
+  reason: string;
+  notes: string;
+  results: Record<string, unknown>[];
+  orderedAt?: string | null;
+};
+
 function validateDiagnosisInput(dto: UpdateExaminationDto) {
   const errors: string[] = [];
   let primary: NormalizedDiagnosis | null | undefined;
@@ -283,7 +291,7 @@ function validatePrescriptionItems(
   return items.filter((item) => item !== null);
 }
 
-function parseLabOrders(value: string | null) {
+function parseLabOrders(value: string | null): ParsedLabOrders {
   if (!value) return { orders: [], reason: '', notes: '', results: [] };
   try {
     const parsed: unknown = JSON.parse(value);
@@ -293,7 +301,7 @@ function parseLabOrders(value: string | null) {
       !Array.isArray(parsed)
     ) {
       const data = parsed as Record<string, unknown>;
-      const orders = Array.isArray(data.orders)
+      const orders: Record<string, unknown>[] = Array.isArray(data.orders)
         ? data.orders.filter(
             (entry): entry is Record<string, unknown> =>
               typeof entry === 'object' &&
@@ -460,8 +468,44 @@ export class ExaminationsService {
     return sessions.map((session) => this.present(session));
   }
 
+  async listDiagnosticQueue(date: string | undefined, user: CurrentUserDto) {
+    const queueDate = clinicDate(date);
+    const sessions = await this.prisma.careSession.findMany({
+      where: {
+        queueDate,
+        status: {
+          in: [
+            CareSessionStatus.IN_CONSULTATION,
+            CareSessionStatus.WAITING_LAB,
+            CareSessionStatus.PAUSED,
+            CareSessionStatus.WAITING_PAYMENT,
+            CareSessionStatus.COMPLETED,
+          ],
+        },
+        appointmentSlot: {
+          doctorSchedule: {
+            doctor:
+              user.role === UserRole.ADMIN ||
+              user.role === UserRole.RECEPTIONIST
+                ? undefined
+                : { userId: user.id },
+          },
+        },
+      },
+      orderBy: [{ queuePosition: 'asc' }, { createdAt: 'asc' }],
+      include: this.include(),
+    });
+    return sessions
+      .map((session) => this.present(session))
+      .filter((session) => session.labOrderItems.length > 0);
+  }
+
   async get(careSessionId: string, user: CurrentUserDto) {
     await this.queues.assertCanAccessSession(careSessionId, user);
+    return this.getPresented(careSessionId);
+  }
+
+  private async getPresented(careSessionId: string) {
     const session = await this.prisma.careSession.findUnique({
       where: { id: careSessionId },
       include: this.include(),
@@ -1147,7 +1191,12 @@ export class ExaminationsService {
     dto: RecordLabResultDto,
     user: CurrentUserDto,
   ) {
-    await this.assertDoctorWrite(careSessionId, user);
+    if (user.role === UserRole.DOCTOR)
+      await this.assertDoctorWrite(careSessionId, user);
+    else if (user.role === UserRole.ADMIN)
+      await this.queues.assertCanAccessSession(careSessionId, user);
+    else if (user.role !== UserRole.RECEPTIONIST)
+      throw new ForbiddenException('You cannot record diagnostic results');
     if (!dto.expectedUpdatedAt)
       throw new BadRequestException(['expectedUpdatedAt should not be empty']);
     try {
@@ -1179,6 +1228,10 @@ export class ExaminationsService {
             throw new BadRequestException(
               'orderRef does not match an ordered service',
             );
+          if (order.status !== 'IN_PROGRESS')
+            throw new ConflictException(
+              'The lab order must be received before recording a result',
+            );
           if (
             session.consultation.updatedAt.toISOString() !==
             dto.expectedUpdatedAt
@@ -1190,12 +1243,32 @@ export class ExaminationsService {
           const previousResults = readUnknownArray(current.results).filter(
             isRecord,
           );
+          const images = readUnknownArray(current.resultFiles)
+            .filter(
+              (file): file is Record<string, unknown> =>
+                isRecord(file) &&
+                file.orderRef === dto.orderRef &&
+                typeof file.id === 'string' &&
+                typeof file.name === 'string' &&
+                typeof file.mimeType === 'string' &&
+                typeof file.size === 'number' &&
+                typeof file.uploadedAt === 'string',
+            )
+            .map((file) => ({
+              id: file.id,
+              name: file.name,
+              mimeType: file.mimeType,
+              size: file.size,
+              uploadedAt: file.uploadedAt,
+            }));
           const nextResult = {
             orderRef: dto.orderRef,
             result: dto.result,
             source: dto.source,
             returnedAt,
             recordedBy: user.id,
+            recordedByName: user.name,
+            images,
           };
           const existingResult = previousResults.findIndex(
             (entry) => entry.orderRef === dto.orderRef,
@@ -1211,15 +1284,43 @@ export class ExaminationsService {
             JSON.stringify(previousResults[existingResult]) ===
               JSON.stringify(nextResult);
           if (isUnchanged) return;
+          const nextOrders = orders.map((entry) =>
+            entry === order
+              ? {
+                  ...entry,
+                  status: 'COMPLETED',
+                  completedAt: returnedAt,
+                  draftResult: '',
+                }
+              : entry,
+          );
           await tx.consultation.update({
             where: { id: session.consultation.id },
             data: {
               labOrderNotes: JSON.stringify({
                 ...current,
+                orders: nextOrders,
                 results,
               }),
             },
           });
+          await this.auditLogs?.record(
+            {
+              actor: {
+                type: 'USER',
+                id: user.id,
+                name: user.name,
+                role: user.role as UserRole,
+              },
+              actionCode: 'DIAGNOSTIC_RESULT_RECORDED',
+              module: 'DIAGNOSTIC_RESULTS',
+              targetType: 'CARE_SESSION',
+              targetId: careSessionId,
+              result: AuditLogResult.SUCCESS,
+              after: { orderRef: dto.orderRef, status: 'COMPLETED' },
+            },
+            tx,
+          );
         },
         { isolationLevel: 'Serializable', timeout: 15000 },
       );
@@ -1231,7 +1332,7 @@ export class ExaminationsService {
         throw new ConflictException('Examination was updated concurrently');
       throw error;
     }
-    return this.get(careSessionId, user);
+    return this.getPresented(careSessionId);
   }
 
   async history(careSessionId: string, user: CurrentUserDto) {
@@ -1481,7 +1582,83 @@ export class ExaminationsService {
     const historyRecords = session.appointment.patient.medicalRecords.filter(
       (record) => record.recordType === 'MEDICAL_HISTORY',
     );
+    const labData = this.readLabData(consultation?.labOrderNotes ?? null);
     const lab = parseLabOrders(consultation?.labOrderNotes ?? null);
+    const resultFiles = readUnknownArray(labData.resultFiles).filter(isRecord);
+    const labResults: Record<string, unknown>[] = readUnknownArray(lab.results)
+      .filter(isRecord)
+      .map(
+        (result): Record<string, unknown> => ({
+          ...result,
+          images: resultFiles
+            .filter((file) => file.orderRef === result.orderRef)
+            .map((file) => ({
+              id: file.id,
+              name: file.name,
+              mimeType: file.mimeType,
+              size: file.size,
+              uploadedAt: file.uploadedAt,
+              orderRef: file.orderRef,
+            })),
+        }),
+      );
+    const labOrderItems = lab.orders.map((order) => {
+      const service =
+        typeof order.service === 'string' ? order.service : '';
+      const result = labResults.find((entry) => entry.orderRef === service);
+      const status =
+        result || order.status === 'COMPLETED'
+          ? 'COMPLETED'
+          : order.status === 'IN_PROGRESS'
+            ? 'IN_PROGRESS'
+            : 'WAITING';
+      return {
+        orderRef: service,
+        service,
+        purpose: typeof order.purpose === 'string' ? order.purpose : '',
+        instructions:
+          typeof order.instructions === 'string' ? order.instructions : '',
+        status,
+        orderedAt:
+          typeof order.orderedAt === 'string'
+            ? order.orderedAt
+            : typeof labData.orderedAt === 'string'
+              ? labData.orderedAt
+              : session.createdAt.toISOString(),
+        receivedAt:
+          typeof order.receivedAt === 'string' ? order.receivedAt : undefined,
+        result:
+          typeof result?.result === 'string' ? result.result : '',
+        draftResult:
+          typeof order.draftResult === 'string' ? order.draftResult : '',
+        source:
+          typeof result?.source === 'string' ? result.source : '',
+        returnedAt:
+          typeof result?.returnedAt === 'string'
+            ? result.returnedAt
+            : typeof order.completedAt === 'string'
+              ? order.completedAt
+              : undefined,
+        recordedBy:
+          typeof result?.recordedBy === 'string'
+            ? result.recordedBy
+            : undefined,
+        recordedByName:
+          typeof result?.recordedByName === 'string'
+            ? result.recordedByName
+            : undefined,
+        images: resultFiles
+          .filter((file) => file.orderRef === service)
+          .map((file) => ({
+            id: file.id,
+            name: file.name,
+            mimeType: file.mimeType,
+            size: file.size,
+            uploadedAt: file.uploadedAt,
+            orderRef: file.orderRef,
+          })),
+      };
+    });
     const date = session.queueDate
       ? clinicDateString(session.queueDate)
       : clinicDateString();
@@ -1562,13 +1739,10 @@ export class ExaminationsService {
         )
         .filter(Boolean)
         .join('; '),
+      labOrderItems,
       labReason: lab.reason,
       labNotes: lab.notes,
-      labResults: Array.isArray(
-        this.readLabData(consultation?.labOrderNotes ?? null).results,
-      )
-        ? this.readLabData(consultation?.labOrderNotes ?? null).results
-        : [],
+      labResults,
       followUpReason:
         typeof this.readLabData(consultation?.labOrderNotes ?? null)
           .followUpReason === 'string'
@@ -1637,11 +1811,26 @@ export class ExaminationsService {
       ...(orders === null
         ? {}
         : {
-            orders: orders.map((order) => ({
-              service: order.service,
-              purpose: order.purpose || reason,
-              instructions: order.instructions || notes,
-            })),
+            orders: orders.map((order) => {
+              const existingOrder = readUnknownArray(previous.orders)
+                .filter(isRecord)
+                .find((entry) => entry.service === order.service);
+              const hasResult = readUnknownArray(previous.results)
+                .filter(isRecord)
+                .some((entry) => entry.orderRef === order.service);
+              return {
+                ...existingOrder,
+                service: order.service,
+                purpose: order.purpose || reason,
+                instructions: order.instructions || notes,
+                status:
+                  typeof existingOrder?.status === 'string'
+                    ? existingOrder.status
+                    : hasResult
+                      ? 'COMPLETED'
+                      : 'WAITING',
+              };
+            }),
             reason,
             notes,
             orderedAt: previous.orderedAt ?? new Date().toISOString(),
