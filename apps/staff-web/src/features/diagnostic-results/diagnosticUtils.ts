@@ -30,16 +30,6 @@ export function getCompletionError(order: DiagnosticOrder): string | null {
     return "Nhập nhận xét hoặc kết luận trước khi hoàn tất.";
   return null;
 }
-export function getPublishedDiagnosticResults(
-  orders: readonly DiagnosticOrder[],
-  careSessionId: string,
-) {
-  return orders.filter(
-    (order) =>
-      order.visit.careSessionId === careSessionId &&
-      order.status === "COMPLETED",
-  );
-}
 export function formatDiagnosticTime(value: string) {
   return new Intl.DateTimeFormat("vi-VN", {
     dateStyle: "short",

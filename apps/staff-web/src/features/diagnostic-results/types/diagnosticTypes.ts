@@ -1,6 +1,17 @@
 export type DiagnosticCategory = "LAB" | "IMAGING" | "FUNCTION";
 export type DiagnosticStatus = "WAITING" | "IN_PROGRESS" | "COMPLETED";
-export interface DiagnosticVisit {
+export interface DiagnosticImage {
+  id: string;
+  name: string;
+  url?: string;
+  fileId?: string;
+  orderRef?: string;
+  mimeType?: string;
+  size: number;
+  uploadedAt?: string;
+}
+export interface DiagnosticOrder {
+  id: string;
   careSessionId: string;
   examinationCode: string;
   patientName: string;
@@ -9,22 +20,15 @@ export interface DiagnosticVisit {
   room: string;
   reason: string;
   instructions: string;
-}
-export interface DiagnosticImage {
-  id: string;
-  name: string;
-  url: string;
-  size: number;
-}
-export interface DiagnosticOrder {
-  id: string;
-  visit: DiagnosticVisit;
+  expectedUpdatedAt: string;
+  orderRef: string;
   service: string;
   serviceCode: string;
   category: DiagnosticCategory;
   status: DiagnosticStatus;
   orderedAt: string;
   conclusion: string;
+  source?: string;
   images: DiagnosticImage[];
   completedAt?: string;
   recordedBy?: string;
