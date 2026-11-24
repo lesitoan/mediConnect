@@ -311,8 +311,9 @@ export function DiagnosticResultsView() {
                       source: order.source ?? "CLS",
                       returnedAt: order.completedAt ?? order.orderedAt,
                       recordedBy: order.recordedBy ?? "",
-                      images: order.images.map((image) => ({
+                       images: order.images.map((image) => ({
                         ...image,
+                        mimeType: image.mimeType ?? "image/jpeg",
                         uploadedAt: image.uploadedAt ?? "",
                         orderRef: order.orderRef,
                       })),
