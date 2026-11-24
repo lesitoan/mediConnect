@@ -1,5 +1,4 @@
 "use client";
-import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
@@ -24,8 +23,7 @@ import {
 import { Pagination } from "@/components/shared/Pagination";
 import { useModal } from "@/hooks/useModal";
 import { useTableFilters } from "@/hooks/useTableFilters";
-import { useDiagnosticPreview } from "../hooks/useDiagnosticPreview";
-import { ensureDiagnosticDemoOrders } from "../services/diagnosticPreviewStore";
+import { useDiagnosticResults } from "../hooks/useDiagnosticResults";
 import {
   DIAGNOSTIC_CATEGORY_LABELS,
   DIAGNOSTIC_STATUS_LABELS,
@@ -43,25 +41,22 @@ const DEFAULT_FILTERS = {
 };
 const PAGE_SIZES = [10, 20] as const;
 export function DiagnosticResultsView() {
-  const orders = useDiagnosticPreview();
+  const { orders, isLoading, error, refetch } = useDiagnosticResults();
   const { filters, setFilter, resetFilters } = useTableFilters(
     DEFAULT_FILTERS,
     "replace",
   );
   const editor = useModal<string>();
   const record = useModal<string>();
-  useEffect(() => {
-    ensureDiagnosticDemoOrders();
-  }, []);
   const normalized = filters.search.trim().toLocaleLowerCase("vi");
   const filtered = orders.filter(
     (order) =>
       (filters.category === "ALL" || order.category === filters.category) &&
       (filters.status === "ALL" || order.status === filters.status) &&
       [
-        order.visit.patientName,
-        order.visit.patientCode,
-        order.visit.examinationCode,
+        order.patientName,
+        order.patientCode,
+        order.examinationCode,
         order.service,
         order.serviceCode,
       ].some((value) => value.toLocaleLowerCase("vi").includes(normalized)),
@@ -70,12 +65,16 @@ export function DiagnosticResultsView() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / size));
   const page = Math.min(totalPages, Math.max(1, Math.floor(filters.page) || 1));
   const selectedVisit = orders.find(
-    (order) => order.visit.careSessionId === record.data,
-  )?.visit;
+    (order) => order.careSessionId === record.data,
+  );
   const viewRecord = (id: string) => {
     editor.close();
     record.open(id);
   };
+  const selectedOrder = orders.find((order) => order.id === editor.data);
+  const visitOrders = orders.filter(
+    (order) => order.careSessionId === record.data,
+  );
   return (
     <div className="mx-auto w-full max-w-7xl space-y-5">
       <header className="flex flex-wrap items-start justify-between gap-3">
@@ -86,18 +85,15 @@ export function DiagnosticResultsView() {
             hồ sơ khám.
           </p>
         </div>
-        <Badge variant="brand">Giao diện minh họa</Badge>
       </header>
-      <div className="rounded-app-xl border border-primary/20 bg-primary-light p-4 text-body">
-        <p className="font-semibold text-primary">
-          Bản UI xem thử — chưa kết nối trả kết quả thật
+      {error && (
+        <p
+          role="alert"
+          className="rounded-app-xl border border-error-border bg-error-bg p-4 text-body text-error"
+        >
+          {error}
         </p>
-        <p className="mt-1 text-muted">
-          Dữ liệu và ảnh chỉ giữ trong tab hiện tại. Tải lại trang sẽ mất bản
-          nháp và kết quả minh họa. Các phiên khám có chỉ định đã mở trong tab
-          này sẽ xuất hiện ở danh sách.
-        </p>
-      </div>
+      )}
       <div className="grid gap-3 sm:grid-cols-3">
         {(["WAITING", "IN_PROGRESS", "COMPLETED"] as const).map((status) => (
           <Card key={status} className="p-4">
@@ -176,9 +172,9 @@ export function DiagnosticResultsView() {
             {filtered.slice((page - 1) * size, page * size).map((order) => (
               <TableRow key={order.id}>
                 <TableCell>
-                  <p className="font-semibold">{order.visit.patientName}</p>
+                  <p className="font-semibold">{order.patientName}</p>
                   <p className="mt-1 text-caption text-muted">
-                    {order.visit.patientCode} · {order.visit.examinationCode}
+                    {order.patientCode} · {order.examinationCode}
                   </p>
                 </TableCell>
                 <TableCell className="max-w-xs whitespace-normal">
@@ -227,7 +223,7 @@ export function DiagnosticResultsView() {
                     <Button
                       size="sm"
                       variant="ghost"
-                      onClick={() => record.open(order.visit.careSessionId)}
+                      onClick={() => record.open(order.careSessionId)}
                     >
                       Hồ sơ khám
                     </Button>
@@ -237,9 +233,18 @@ export function DiagnosticResultsView() {
             ))}
           </TableBody>
         </Table>
+        {isLoading && !orders.length && (
+          <p role="status" className="p-6 text-center text-body text-muted">
+            Đang tải hàng chờ CLS...
+          </p>
+        )}
         {!filtered.length && (
           <div className="space-y-3 p-10 text-center">
-            <p className="text-body text-muted">Không có chỉ định phù hợp.</p>
+            <p className="text-body text-muted">
+              {isLoading
+                ? "Đang tải chỉ định..."
+                : "Không có chỉ định phù hợp."}
+            </p>
             <Button variant="outline" onClick={resetFilters}>
               Bỏ bộ lọc
             </Button>
@@ -256,12 +261,13 @@ export function DiagnosticResultsView() {
           onPageSizeChange={(value) => setFilter("pageSize", value)}
         />
       </Card>
-      {editor.isOpen && editor.data && (
+      {editor.isOpen && selectedOrder && (
         <DiagnosticResultEditor
-          key={editor.data}
-          orderId={editor.data}
+          key={selectedOrder.id}
+          order={selectedOrder}
           onClose={editor.close}
           onViewRecord={viewRecord}
+          onRefresh={refetch}
         />
       )}
       <Drawer
@@ -274,8 +280,7 @@ export function DiagnosticResultsView() {
           <DrawerHeader>
             <DrawerTitle>Hồ sơ bệnh án đang khám</DrawerTitle>
             <DrawerDescription>
-              Xem kết quả đã trả về đúng bệnh nhân và phiên khám · Minh họa
-              trong tab hiện tại
+              Xem kết quả đã trả về đúng bệnh nhân và phiên khám.
             </DrawerDescription>
           </DrawerHeader>
           <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5">
@@ -298,6 +303,21 @@ export function DiagnosticResultsView() {
                 </Card>
                 <DiagnosticResultsPanel
                   careSessionId={selectedVisit.careSessionId}
+                  serverResults={visitOrders
+                    .filter((order) => order.status === "COMPLETED")
+                    .map((order) => ({
+                      orderRef: order.orderRef,
+                      result: order.conclusion,
+                      source: order.source ?? "CLS",
+                      returnedAt: order.completedAt ?? order.orderedAt,
+                      recordedBy: order.recordedBy ?? "",
+                       images: order.images.map((image) => ({
+                        ...image,
+                        mimeType: image.mimeType ?? "image/jpeg",
+                        uploadedAt: image.uploadedAt ?? "",
+                        orderRef: order.orderRef,
+                      })),
+                    }))}
                 />
               </>
             )}

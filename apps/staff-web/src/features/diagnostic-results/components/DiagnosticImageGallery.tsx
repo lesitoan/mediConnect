@@ -1,4 +1,5 @@
 "use client";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import { useModal } from "@/hooks/useModal";
 import { Button } from "@/components/ui/button";
@@ -10,20 +11,79 @@ import {
   DialogDescription,
 } from "@/components/ui/Dialog";
 import type { DiagnosticImage } from "../types/diagnosticTypes";
+import { getDiagnosticResultImage } from "../services/diagnosticResultsApi";
 export function DiagnosticImageGallery({
   images,
+  careSessionId,
   onRemove,
   disabled = false,
 }: {
   images: readonly DiagnosticImage[];
-  onRemove?: (id: string) => void;
+  careSessionId?: string;
+  onRemove?: (id: string) => void | Promise<void>;
   disabled?: boolean;
 }) {
   const preview = useModal<DiagnosticImage>();
+  const [loadedImages, setLoadedImages] = useState<readonly DiagnosticImage[]>(
+    images,
+  );
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let isCurrent = true;
+    const objectUrls: string[] = [];
+    setIsLoading(true);
+    setError("");
+    void Promise.all(
+      images.map(async (image) => {
+        const fileId = image.fileId ?? image.id;
+        if (image.url || !image.orderRef || !careSessionId)
+          return image;
+        const blob = await getDiagnosticResultImage(
+          careSessionId,
+          image.orderRef,
+          fileId,
+        );
+        const url = URL.createObjectURL(blob);
+        objectUrls.push(url);
+        return { ...image, url };
+      }),
+    )
+      .then((result) => {
+        if (isCurrent) setLoadedImages(result);
+      })
+      .catch((error: unknown) => {
+        if (isCurrent)
+          setError(
+            error instanceof Error
+              ? error.message
+              : "Không thể tải ảnh kết quả.",
+          );
+      })
+      .finally(() => {
+        if (isCurrent) setIsLoading(false);
+      });
+    return () => {
+      isCurrent = false;
+      objectUrls.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [images, careSessionId]);
+
   return (
     <>
+      {isLoading && (
+        <p role="status" className="text-caption text-muted">
+          Đang tải ảnh kết quả...
+        </p>
+      )}
+      {error && (
+        <p role="alert" className="text-caption text-error">
+          {error}
+        </p>
+      )}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        {images.map((image) => (
+        {loadedImages.map((image) => (
           <div
             key={image.id}
             className="min-w-0 rounded-app-lg border border-border bg-surface p-2"
@@ -33,15 +93,18 @@ export function DiagnosticImageGallery({
               className="block w-full rounded-app-md focus-visible:outline-2 focus-visible:outline-primary"
               aria-label={"Xem ảnh " + image.name}
               onClick={() => preview.open(image)}
+              disabled={!image.url}
             >
-              <Image
-                unoptimized
-                src={image.url}
-                width={240}
-                height={160}
-                alt={image.name}
-                className="aspect-video w-full rounded-app-md bg-background object-contain"
-              />
+              {image.url && (
+                <Image
+                  unoptimized
+                  src={image.url}
+                  width={240}
+                  height={160}
+                  alt={image.name}
+                  className="aspect-video w-full rounded-app-md bg-background object-contain"
+                />
+              )}
             </button>
             <p
               className="mt-2 truncate text-caption text-muted"
@@ -76,7 +139,7 @@ export function DiagnosticImageGallery({
             <DialogTitle>Ảnh kết quả</DialogTitle>
             <DialogDescription>{preview.data?.name}</DialogDescription>
           </DialogHeader>
-          {preview.data && (
+          {preview.data?.url && (
             <Image
               unoptimized
               src={preview.data.url}
