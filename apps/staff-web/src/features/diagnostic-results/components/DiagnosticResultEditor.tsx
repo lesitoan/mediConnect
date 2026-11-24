@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import {
   Drawer,
@@ -21,19 +21,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { Badge } from "@/components/ui/Badge";
-import { useGetAuthUserQuery } from "@/features/auth/services/authApi";
-import { useDiagnosticPreview } from "../hooks/useDiagnosticPreview";
 import {
-  appendDiagnosticImages,
   completeDiagnosticOrder,
   receiveDiagnosticOrder,
-  removeDiagnosticImage,
-  updateDiagnosticConclusion,
-} from "../services/diagnosticPreviewStore";
+  removeDiagnosticResultFile,
+  saveDiagnosticResultDraft,
+  uploadDiagnosticResultFiles,
+} from "../services/diagnosticResultsApi";
 import {
   DIAGNOSTIC_CATEGORY_LABELS,
   DIAGNOSTIC_STATUS_LABELS,
-  type DiagnosticImage,
+  type DiagnosticOrder,
 } from "../types/diagnosticTypes";
 import {
   getCompletionError,
@@ -42,69 +40,149 @@ import {
 import { DiagnosticImageGallery } from "./DiagnosticImageGallery";
 
 export function DiagnosticResultEditor({
-  orderId,
+  order,
   onClose,
   onViewRecord,
+  onRefresh,
 }: {
-  orderId: string;
+  order: DiagnosticOrder;
   onClose: () => void;
   onViewRecord: (sessionId: string) => void;
+  onRefresh: () => Promise<void>;
 }) {
-  const order = useDiagnosticPreview().find((order) => order.id === orderId);
-  const { data: user } = useGetAuthUserQuery();
-  const [isUploading, setIsUploading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
   const [error, setError] = useState("");
-  if (!order) return null;
+  const [conclusion, setConclusion] = useState(order.conclusion);
+  useEffect(() => {
+    setConclusion(order.conclusion);
+  }, [order.id, order.conclusion]);
   const isReadOnly = order.status !== "IN_PROGRESS";
-  const completionError = getCompletionError(order);
+  const completionError = getCompletionError({ ...order, conclusion });
+  const persistDraft = async () => {
+    if (isReadOnly || conclusion === order.conclusion)
+      return order.expectedUpdatedAt;
+    setError("");
+    try {
+      const updatedAt = await saveDiagnosticResultDraft(
+        order.careSessionId,
+        order.orderRef,
+        conclusion,
+        order.expectedUpdatedAt,
+      );
+      await onRefresh();
+      return updatedAt;
+    } catch (error) {
+      setError(
+        error instanceof Error ? error.message : "Không thể lưu bản nháp.",
+      );
+      throw error;
+    }
+  };
+  const closeEditor = async () => {
+    if (isSaving) return;
+    setIsSaving(true);
+    try {
+      await persistDraft();
+      onClose();
+    } catch {
+      return;
+    } finally {
+      setIsSaving(false);
+    }
+  };
   const addImages = async (files: File[]) => {
     const invalid = validateDiagnosticFiles(files, order.images.length);
     if (invalid) {
       setError(invalid);
       return;
     }
-    setIsUploading(true);
+    setIsSaving(true);
     setError("");
-    const images: DiagnosticImage[] = [];
     try {
-      for (const file of files) {
-        const bitmap = await createImageBitmap(file);
-        bitmap.close();
-        images.push({
-          id: crypto.randomUUID(),
-          url: URL.createObjectURL(file),
-          name: file.name,
-          size: file.size,
-        });
-      }
-      appendDiagnosticImages(orderId, images);
-    } catch {
-      images.forEach((image) => URL.revokeObjectURL(image.url));
+      const expectedUpdatedAt = await persistDraft();
+      await uploadDiagnosticResultFiles(
+        order.careSessionId,
+        order.orderRef,
+        expectedUpdatedAt,
+        files,
+      );
+      await onRefresh();
+    } catch (error) {
       setError(
-        "Không thể đọc ảnh. Chọn ảnh JPG, PNG hoặc WebP hợp lệ và thử lại.",
+        error instanceof Error ? error.message : "Không thể tải ảnh lên.",
       );
     } finally {
-      setIsUploading(false);
+      setIsSaving(false);
     }
   };
-  const complete = () => {
+  const receive = async () => {
+    setIsSaving(true);
+    setError("");
     try {
-      completeDiagnosticOrder(orderId, user?.name || "Nhân viên trả kết quả");
+      await receiveDiagnosticOrder(
+        order.careSessionId,
+        order.orderRef,
+        order.expectedUpdatedAt,
+      );
+      await onRefresh();
+    } catch (error) {
+      setError(
+        error instanceof Error ? error.message : "Không thể tiếp nhận chỉ định.",
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+  const removeImage = async (fileId: string) => {
+    setIsSaving(true);
+    setError("");
+    try {
+      const expectedUpdatedAt = await persistDraft();
+      await removeDiagnosticResultFile(
+        order.careSessionId,
+        fileId,
+        order.orderRef,
+        expectedUpdatedAt,
+      );
+      await onRefresh();
+    } catch (error) {
+      setError(
+        error instanceof Error ? error.message : "Không thể xóa ảnh kết quả.",
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+  const complete = async () => {
+    setIsSaving(true);
+    setError("");
+    try {
+      const expectedUpdatedAt = await persistDraft();
+      await completeDiagnosticOrder(
+        order.careSessionId,
+        order.orderRef,
+        conclusion.trim(),
+        "CLS",
+        expectedUpdatedAt,
+      );
       setIsConfirming(false);
-      toast.success("Đã hoàn tất kết quả minh họa.");
+      toast.success("Đã lưu và trả kết quả CLS.");
+      await onRefresh();
     } catch (error) {
       setIsConfirming(false);
       setError(
         error instanceof Error ? error.message : "Không thể hoàn tất kết quả.",
       );
+    } finally {
+      setIsSaving(false);
     }
   };
   return (
     <Drawer
       open
       onOpenChange={(open) => {
-        if (!open && !isUploading && !isConfirming) onClose();
+        if (!open && !isSaving && !isConfirming) void closeEditor();
       }}
     >
       <DrawerContent className="w-full max-w-3xl">
@@ -115,8 +193,8 @@ export function DiagnosticResultEditor({
               : "Trả kết quả chỉ định"}
           </DrawerTitle>
           <DrawerDescription>
-            {order.visit.patientName} · {order.visit.patientCode} · Phiên{" "}
-            {order.visit.examinationCode}
+            {order.patientName} · {order.patientCode} · Phiên{" "}
+            {order.examinationCode}
           </DrawerDescription>
         </DrawerHeader>
         <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5 sm:p-6">
@@ -139,19 +217,19 @@ export function DiagnosticResultEditor({
             </div>
             <h2 className="text-title font-bold">{order.service}</h2>
             <p className="mt-1 text-caption text-muted">
-              {order.serviceCode} · {order.visit.demographics} · Phòng khám{" "}
-              {order.visit.room}
+              {order.serviceCode} · {order.demographics} · Phòng khám{" "}
+              {order.room}
             </p>
             <dl className="mt-4 space-y-2 text-body">
               <div>
                 <dt className="text-muted">Lý do chỉ định</dt>
-                <dd>{order.visit.reason || "Chưa ghi nhận"}</dd>
+                <dd>{order.reason || "Chưa ghi nhận"}</dd>
               </div>
-              {order.visit.instructions && (
+              {order.instructions && (
                 <div>
                   <dt className="text-muted">Lưu ý thực hiện</dt>
                   <dd className="whitespace-pre-wrap">
-                    {order.visit.instructions}
+                    {order.instructions}
                   </dd>
                 </div>
               )}
@@ -178,7 +256,7 @@ export function DiagnosticResultEditor({
                       type="file"
                       accept="image/jpeg,image/png,image/webp"
                       multiple
-                      disabled={isUploading}
+                      disabled={isSaving}
                       onChange={(event) => {
                         const files = Array.from(event.target.files ?? []);
                         event.target.value = "";
@@ -187,18 +265,19 @@ export function DiagnosticResultEditor({
                     />
                   </label>
                 )}
-                {isUploading && (
+                {isSaving && (
                   <p role="status" className="text-body text-primary">
-                    Đang đọc ảnh...
+                    Đang lưu thay đổi...
                   </p>
                 )}
                 <DiagnosticImageGallery
                   images={order.images}
-                  disabled={isUploading}
+                  careSessionId={order.careSessionId}
+                  disabled={isSaving}
                   onRemove={
                     isReadOnly
                       ? undefined
-                      : (id) => removeDiagnosticImage(orderId, id)
+                      : removeImage
                   }
                 />
                 {!order.images.length && (
@@ -208,22 +287,19 @@ export function DiagnosticResultEditor({
               <label className="block space-y-2 text-body font-semibold">
                 Nhận xét / Kết luận
                 <Textarea
-                  value={order.conclusion}
+                  value={conclusion}
                   readOnly={isReadOnly}
-                  disabled={isUploading}
+                  disabled={isSaving}
                   rows={5}
                   maxLength={10000}
                   className="read-only:bg-neutral-bg read-only:text-muted"
                   placeholder="Nhập nhận xét hoặc kết luận kèm ảnh kết quả..."
-                  onChange={(event) =>
-                    updateDiagnosticConclusion(orderId, event.target.value)
-                  }
+                  onChange={(event) => setConclusion(event.target.value)}
                 />
               </label>
               {!isReadOnly && (
                 <p className="text-caption text-muted">
-                  Bản nháp được giữ khi đổi chỉ định. Chỉ kết quả đã hoàn tất
-                  mới hiện trong hồ sơ khám.
+                  Chỉ kết quả đã hoàn tất mới hiển thị trong hồ sơ khám.
                 </p>
               )}
             </>
@@ -241,20 +317,24 @@ export function DiagnosticResultEditor({
           )}
         </div>
         <DrawerFooter className="flex-wrap gap-2">
-          <Button variant="outline" disabled={isUploading} onClick={onClose}>
+          <Button
+            variant="outline"
+            disabled={isSaving}
+            onClick={() => void closeEditor()}
+          >
             Đóng
           </Button>
           {order.status === "WAITING" ? (
-            <Button onClick={() => receiveDiagnosticOrder(orderId)}>
-              Tiếp nhận chỉ định
+            <Button disabled={isSaving} onClick={() => void receive()}>
+              {isSaving ? "Đang tiếp nhận..." : "Tiếp nhận chỉ định"}
             </Button>
           ) : order.status === "COMPLETED" ? (
-            <Button onClick={() => onViewRecord(order.visit.careSessionId)}>
+            <Button onClick={() => onViewRecord(order.careSessionId)}>
               Xem trong hồ sơ khám
             </Button>
           ) : (
             <Button
-              disabled={isUploading || !!completionError}
+              disabled={isSaving || !!completionError}
               onClick={() => setIsConfirming(true)}
             >
               Hoàn tất & Trả kết quả
@@ -271,22 +351,23 @@ export function DiagnosticResultEditor({
             </DialogHeader>
             <div className="space-y-2 p-5 text-body">
               <p className="font-bold">
-                {order.visit.patientName} · {order.visit.patientCode}
+                {order.patientName} · {order.patientCode}
               </p>
-              <p>Phiên khám: {order.visit.examinationCode}</p>
+              <p>Phiên khám: {order.examinationCode}</p>
               <p>
                 {order.service} · {order.images.length} ảnh
               </p>
               <p className="text-muted">
-                Kết quả sẽ được hiển thị trong hồ sơ đúng phiên khám này. Bản
-                minh họa chưa ghi dữ liệu vào hệ thống.
+                Kết quả sẽ được lưu và hiển thị trong hồ sơ đúng phiên khám này.
               </p>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsConfirming(false)}>
                 Kiểm tra lại
               </Button>
-              <Button onClick={complete}>Xác nhận hoàn tất</Button>
+              <Button disabled={isSaving} onClick={() => void complete()}>
+                Xác nhận hoàn tất
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

@@ -76,6 +76,8 @@ next-env.d.ts
 apps/ai/models/
 apps/ai/storage/
 apps/api/dist-seed/
+apps/api/uploads/diagnostic-results/
+**/uploads/diagnostic-results/
 package-lock.json.*
 
 # Local E2E testing

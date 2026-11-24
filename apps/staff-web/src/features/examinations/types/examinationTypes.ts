@@ -37,6 +37,32 @@ export interface LabResult {
   source: string;
   returnedAt: string;
   recordedBy: string;
+  recordedByName?: string;
+  images?: LabResultImage[];
+}
+export interface LabResultImage {
+  id: string;
+  name: string;
+  mimeType: string;
+  size: number;
+  uploadedAt: string;
+  orderRef: string;
+}
+export interface LabOrderItem {
+  orderRef: string;
+  service: string;
+  purpose: string;
+  instructions: string;
+  status: "WAITING" | "IN_PROGRESS" | "COMPLETED";
+  orderedAt: string;
+  receivedAt?: string;
+  draftResult?: string;
+  result: string;
+  source: string;
+  returnedAt?: string;
+  recordedBy?: string;
+  recordedByName?: string;
+  images: LabResultImage[];
 }
 export interface Examination {
   id: string;
@@ -82,6 +108,7 @@ export interface Examination {
   phone?: string;
   nationalId?: string;
   appointmentTime?: string;
+  labOrderItems?: LabOrderItem[];
   labResults?: LabResult[];
   prescriptionItems?: PrescriptionItem[];
 }

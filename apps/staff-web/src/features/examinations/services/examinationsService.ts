@@ -32,6 +32,7 @@ interface ApiExamination {
   labOrders: string | null;
   labReason?: string | null;
   labNotes?: string | null;
+  labOrderItems?: Examination["labOrderItems"] | null;
   followUpDate: string | null;
   transfer: string | null;
   historyConditions?: Examination["historyConditions"] | null;
@@ -92,6 +93,7 @@ export function mapExamination(item: ApiExamination): Examination {
     labOrders: item.labOrders ?? "",
     labReason: item.labReason ?? "",
     labNotes: item.labNotes ?? "",
+    labOrderItems: item.labOrderItems ?? [],
     followUpDate: item.followUpDate ?? "",
     transfer: item.transfer ?? "",
     historyConditions: item.historyConditions ?? [],

@@ -27,6 +27,10 @@ const ENVIRONMENT_SCHEMA = Joi.object<Record<string, unknown>>({
   CLOUDINARY_API_KEY: Joi.string().empty('').optional(),
   CLOUDINARY_API_SECRET: Joi.string().empty('').optional(),
   CLOUDINARY_UPLOAD_FOLDER: Joi.string().max(200).empty('').optional(),
+  DIAGNOSTIC_RESULTS_STORAGE_DIR: Joi.string()
+    .max(1000)
+    .empty('')
+    .optional(),
   AI_SERVICE_URL: Joi.string()
     .uri({ scheme: ['http', 'https'] })
     .default('http://127.0.0.1:4100'),
