@@ -1,4 +1,4 @@
-import { getMyAppointments } from "@/features/appointments/services/appointmentsService";
+import { getEligibleVisits } from "./services/reviewsService";
 
 export type Visit = {
   code: string;
@@ -19,37 +19,51 @@ function initialsOf(name: string) {
   return last.charAt(0).toUpperCase();
 }
 
-// TODO: thay toàn bộ hàm này bằng API: GET /visits/:code
-// (backend kiểm tra phiên khám thuộc bệnh nhân đang đăng nhập, đã "Hoàn thành",
-// và chưa được đánh giá; trả 404 nếu không hợp lệ)
 export async function getVisit(code: string): Promise<Visit | null> {
-  const appointments = await getMyAppointments();
-  const appt = appointments.find((appointment) => appointment.code === code);
-  if (!appt) return null;
+  const eligibleVisits = await getEligibleVisits();
+  const item = eligibleVisits.find(
+    ({ consultation }) =>
+      consultation.careSession.appointment.appointmentCode === code,
+  );
+  if (!item) return null;
+
+  const { consultation } = item;
+  const { careSession } = consultation;
+  const doctor = careSession.appointmentSlot.doctorSchedule.doctor;
+  const startsAt = new Date(careSession.appointmentSlot.startsAt);
+  const completedAt = consultation.completedAt
+    ? new Date(consultation.completedAt)
+    : startsAt;
+
   return {
     code,
-    status: appt.kind === "completed" ? "completed" : "other",
-    alreadyReviewed: appt.hasReview ?? false,
-    consultationId: appt.consultationId ?? null,
-    isPaid: appt.isPaid ?? false,
+    status: "completed",
+    alreadyReviewed: !item.canReview || !!consultation.review,
+    consultationId: consultation.id,
+    isPaid: true,
     doctor: {
-      name: appt.doctor.name,
-      specialty: appt.doctor.specialty,
+      name: doctor.user.fullName,
+      specialty: careSession.specialty.name,
       clinic: CLINIC,
-      initials: appt.doctor.initials,
+      initials: initialsOf(doctor.user.fullName),
     },
-    time: `${appt.time} - ${appt.bookedAt}`,
+    time: `${startsAt.toLocaleTimeString("vi-VN", {
+      hour: "2-digit",
+      minute: "2-digit",
+    })} - ${completedAt.toLocaleDateString("vi-VN")}`,
     diagnosis: "Theo hồ sơ phiên khám",
-    room: appt.room,
+    room: careSession.specialty.roomCode
+      ? `Phòng ${careSession.specialty.roomCode}`
+      : "Chưa cập nhật",
   };
 }
 
 export const MOODS = [
-  { value: 5, icon: "✨", label: "Tuyệt vời" },
-  { value: 4, icon: "😊", label: "Rất tốt" },
-  { value: 3, icon: "🙂", label: "Bình thường" },
-  { value: 2, icon: "😕", label: "Chưa ưng" },
-  { value: 1, icon: "⚠️", label: "Thất vọng" },
+  { value: 5, icon: "", label: "Tuyệt vời" },
+  { value: 4, icon: "", label: "Rất tốt" },
+  { value: 3, icon: "", label: "Bình thường" },
+  { value: 2, icon: "", label: "Chưa ưng" },
+  { value: 1, icon: "", label: "Thất vọng" },
 ] as const;
 
 export const OVERALL_TEXT: Record<number, { title: string; desc: string }> = {

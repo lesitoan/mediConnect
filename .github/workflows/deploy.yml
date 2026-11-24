@@ -44,7 +44,7 @@ jobs:
         with:
           node-version: "24"
           cache: npm
-      - run: npm ci --no-audit --no-fund
+      - run: ONNXRUNTIME_NODE_INSTALL_CUDA=skip npm ci --no-audit --no-fund
       - name: Generate Prisma Client và build API
         run: npx turbo run build --filter=api
       - name: Build AI service

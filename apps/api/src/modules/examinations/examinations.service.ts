@@ -58,6 +58,8 @@ function mapStatus(status: CareSessionStatus) {
   if (status === CareSessionStatus.WAITING_LAB)
     return 'WAITING_RESULTS' as const;
   if (status === CareSessionStatus.PAUSED) return 'PAUSED' as const;
+  if (status === CareSessionStatus.WAITING_PAYMENT)
+    return 'WAITING_PAYMENT' as const;
   if (status === CareSessionStatus.COMPLETED) return 'COMPLETED' as const;
   if (status === CareSessionStatus.INCOMPLETE) return 'INCOMPLETE' as const;
   return 'IN_PROGRESS' as const;
@@ -447,6 +449,7 @@ export class ExaminationsService {
             CareSessionStatus.IN_CONSULTATION,
             CareSessionStatus.WAITING_LAB,
             CareSessionStatus.PAUSED,
+            CareSessionStatus.WAITING_PAYMENT,
             CareSessionStatus.COMPLETED,
           ],
         },

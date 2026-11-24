@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { openAiChat } from "@/components/layout/aiChat";
 import {
   ArrowRight,
   Bot,
@@ -73,7 +74,7 @@ export function Hero({
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <div className="rounded-2xl bg-white p-5 shadow-[0_6px_24px_rgba(10,90,132,0.08)]">
+        <div className="patient-content-card rounded-2xl bg-white p-5">
           <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100 text-[#0A5A84]">
             <Plus className="h-5 w-5" />
           </span>
@@ -85,7 +86,7 @@ export function Hero({
             Danh sách chuyên khoa hiện có trên hệ thống.
           </p>
         </div>
-        <div className="rounded-2xl bg-white p-5 shadow-[0_6px_24px_rgba(10,90,132,0.08)]">
+        <div className="patient-content-card rounded-2xl bg-white p-5">
           <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100 text-[#0A5A84]">
             <Users className="h-5 w-5" />
           </span>
@@ -147,13 +148,14 @@ export function AiSymptomBanner() {
             tới đúng bác sĩ và chuyên khoa phù hợp trong 30 giây.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
-            <Link
-              href="/tro-ly-ai"
+            <button
+              type="button"
+              onClick={openAiChat}
               className="inline-flex items-center gap-2 rounded-full bg-white px-5 py-3 text-xs font-bold text-[#0A5A84] transition hover:bg-blue-50"
             >
               <Bot className="h-4 w-4" />
               Tư vấn cùng MediCare AI ngay
-            </Link>
+            </button>
             <a
               href="tel:1900986868"
               className="inline-flex items-center gap-2 rounded-full bg-white/15 px-5 py-3 text-xs font-bold text-white ring-1 ring-white/25 transition hover:bg-white/25"
@@ -169,7 +171,7 @@ export function AiSymptomBanner() {
             e.preventDefault();
             setResult(suggestSpecialties(text));
           }}
-          className="rounded-2xl bg-white p-5 text-slate-800 shadow-xl"
+          className="patient-content-card rounded-2xl bg-white p-5 text-slate-800 shadow-xl"
         >
           <p className="flex items-center gap-2 text-sm font-extrabold text-[#0A5A84]">
             <Stethoscope className="h-4 w-4" />
@@ -287,7 +289,7 @@ export function Journey() {
         {STEPS.map(({ n, icon: Ico, title, desc, foot, footIcon: FIco }) => (
           <div
             key={n}
-            className="flex flex-col rounded-2xl bg-white p-5 shadow-[0_6px_24px_rgba(10,90,132,0.07)]"
+          className="patient-content-card flex flex-col rounded-2xl bg-white p-5"
           >
             <div className="flex items-start justify-between">
               <span className="text-4xl font-extrabold text-[#0A5A84]">{n}</span>
@@ -310,7 +312,7 @@ export function Journey() {
 
 export function ConciergeBar() {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-white p-5 shadow-[0_6px_24px_rgba(10,90,132,0.07)]">
+    <div className="patient-content-card flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-white p-5">
       <div className="flex items-center gap-4">
         <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-sky-100 text-[#0A5A84]">
           <Headset className="h-5 w-5" />

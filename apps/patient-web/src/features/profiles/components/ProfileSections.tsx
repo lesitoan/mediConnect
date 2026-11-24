@@ -27,7 +27,7 @@ import type {
 import { createPatientAllergy } from "../services/patientProfileService";
 
 const card =
-  "scroll-mt-32 rounded-2xl border border-white/80 bg-white p-5 shadow-[0_8px_28px_rgba(10,90,132,0.09)] sm:p-6 lg:p-7";
+  "patient-content-card h-full scroll-mt-32 rounded-2xl bg-white p-5 sm:p-6 lg:p-7";
 const input =
   "w-full rounded-xl border border-slate-200 bg-blue-50/50 px-4 py-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-[#2B6CB0] focus:bg-white focus:ring-2 focus:ring-[#2B6CB0]/20";
 const locked =
@@ -81,13 +81,23 @@ export function IdentitySection({
   profile,
   form,
   isEditing,
+  isDirty,
+  isIdentityValid,
+  isSaving,
   onEdit,
+  onSave,
+  onCancel,
   onChange,
 }: {
   profile: PatientProfile;
   form: IdentityForm;
   isEditing: boolean;
+  isDirty: boolean;
+  isIdentityValid: boolean;
+  isSaving: boolean;
   onEdit: () => void;
+  onSave: () => void;
+  onCancel: () => void;
   onChange: <K extends keyof IdentityForm>(k: K, v: IdentityForm[K]) => void;
 }) {
   return (
@@ -206,23 +216,31 @@ export function IdentitySection({
         </div>
       </div>
 
-      <div className="mt-4 border-t border-slate-100 pt-5">
-        <p className="text-sm font-extrabold text-slate-900">Trạng thái hồ sơ</p>
-        <div className="mt-3 grid gap-3 md:grid-cols-2">
-          <div className="rounded-xl bg-emerald-50 px-4 py-3">
-            <p className="text-xs font-bold text-emerald-700">Tài khoản đã xác minh</p>
-            <p className="mt-1 text-[11px] text-emerald-700/80">
-              Hồ sơ đang được bảo vệ và chỉ hiển thị cho tài khoản bệnh nhân.
-            </p>
-          </div>
-          <div className="rounded-xl bg-blue-50 px-4 py-3">
-            <p className="text-xs font-bold text-[#0A5A84]">Ngày tham gia</p>
-            <p className="mt-1 text-sm font-extrabold text-slate-800">
-              {formatProfileDate(profile.createdAt)}
-            </p>
+      {(isEditing || isDirty) && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-blue-100 bg-blue-50/40 p-4">
+          <p className="flex items-center gap-2 text-[11px] text-slate-500">
+            <Lock className="h-3.5 w-3.5 text-[#2B6CB0]" />
+            Thông tin được cập nhật an toàn theo tài khoản đang đăng nhập.
+          </p>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="rounded-xl bg-blue-50 px-6 py-3 text-xs font-bold text-[#0A5A84] transition hover:bg-blue-100"
+            >
+              Hủy bỏ
+            </button>
+            <button
+              type="button"
+              onClick={onSave}
+              disabled={!isDirty || !isIdentityValid || isSaving}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#0A5A84] px-6 py-3 text-xs font-bold text-white shadow transition hover:bg-[#08486B] disabled:cursor-not-allowed disabled:bg-slate-300"
+            >
+              {isSaving ? "Đang lưu..." : "Lưu thay đổi hồ sơ"}
+            </button>
           </div>
         </div>
-      </div>
+      )}
 
     </section>
   );
@@ -555,13 +573,15 @@ export function SecuritySection() {
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const isSamePassword = Boolean(currentPassword && password && currentPassword === password);
   const isValid =
     password.length >= 8 &&
     /[a-z]/.test(password) &&
     /[A-Z]/.test(password) &&
     /\d/.test(password) &&
     /[^a-zA-Z0-9]/.test(password) &&
-    password === confirmation;
+    password === confirmation &&
+    !isSamePassword;
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -598,16 +618,17 @@ export function SecuritySection() {
       <form className="mt-6 max-w-2xl space-y-4" onSubmit={submit}>
         <div>
           <Label>Mật khẩu hiện tại</Label>
-          <input className={input} type="password" autoComplete="current-password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} required />
+          <input className={input} type="password" autoComplete="current-password" value={currentPassword} onChange={(event) => { setCurrentPassword(event.target.value); setError(null); }} required />
         </div>
         <div>
           <Label>Mật khẩu mới</Label>
-          <input className={input} type="password" autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} required />
+          <input className={input} type="password" autoComplete="new-password" value={password} onChange={(event) => { setPassword(event.target.value); setError(null); }} required />
           <p className="mt-1.5 text-[11px] text-slate-500">Tối thiểu 8 ký tự, gồm chữ hoa, chữ thường, số và ký tự đặc biệt.</p>
+          {isSamePassword && <p className="mt-1.5 text-xs font-bold text-red-600" role="alert">Mật khẩu mới phải khác mật khẩu hiện tại. Vui lòng đặt mật khẩu khác.</p>}
         </div>
         <div>
           <Label>Nhập lại mật khẩu mới</Label>
-          <input className={input} type="password" autoComplete="new-password" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} required />
+          <input className={input} type="password" autoComplete="new-password" value={confirmation} onChange={(event) => { setConfirmation(event.target.value); setError(null); }} required />
         </div>
         {error && <p className="text-xs font-bold text-red-600" role="alert">{error}</p>}
         {message && <p className="text-xs font-bold text-emerald-700" role="status">{message}</p>}

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { clearSession, type SessionUser } from "@/features/auth/useAuth";
+import { logoutPatient } from "@/features/auth/services/authService";
 import { openAiChat } from "./aiChat";
 import {
   Asterisk,
@@ -51,8 +52,12 @@ export default function AuthedHeader({ user }: { user: SessionUser }) {
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
 
-  const handleLogout = () => {
-    clearSession();
+  const handleLogout = async () => {
+    try {
+      await logoutPatient();
+    } finally {
+      clearSession();
+    }
     setMenuOpen(false);
     router.push("/");
   };

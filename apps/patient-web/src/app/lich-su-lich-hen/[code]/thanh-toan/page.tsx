@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import PaymentPage from "@/features/payment/components/PaymentPage";
+import PaymentPage from "@/features/payments/components/PaymentPage";
 
 export const metadata: Metadata = {
   title: "Thanh toán viện phí | MediConnect",

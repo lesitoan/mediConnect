@@ -11,7 +11,7 @@ export default function SpecialtyCard({
   doctors: PublicDoctor[];
 }) {
   return (
-    <article className="flex flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_6px_24px_rgba(10,90,132,0.07)] transition duration-200 hover:-translate-y-1 hover:shadow-[0_12px_32px_rgba(10,90,132,0.14)]">
+    <article className="patient-content-card flex flex-col overflow-hidden rounded-2xl bg-white transition duration-200 hover:-translate-y-1 hover:shadow-[0_12px_32px_rgba(10,90,132,0.14)]">
       <div className="h-1.5 bg-[#0A5A84]" />
       <div className="flex flex-1 flex-col p-5">
         <div className="flex items-start justify-between gap-2">

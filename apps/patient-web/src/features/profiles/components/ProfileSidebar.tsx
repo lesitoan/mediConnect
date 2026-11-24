@@ -24,7 +24,7 @@ type Props = {
 };
 
 const card =
-  "overflow-hidden rounded-2xl border border-white/80 bg-white shadow-[0_8px_28px_rgba(10,90,132,0.09)]";
+  "patient-content-card overflow-hidden rounded-2xl bg-white";
 
 export default function ProfileSidebar({
   profile,
@@ -52,7 +52,7 @@ export default function ProfileSidebar({
           ? "Khác"
           : "Chưa cập nhật";
   return (
-    <div className={card}>
+    <div className={`${card} h-full`}>
       <div className="p-5 text-center">
         <div className="relative mx-auto h-24 w-24">
           <span className="flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-[#2B6CB0] to-[#0A5A84] text-3xl font-extrabold text-white ring-4 ring-blue-100">

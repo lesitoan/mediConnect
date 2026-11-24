@@ -25,7 +25,8 @@ export function applyExaminationChanges(
   item: Examination,
   changes: Partial<Examination>,
 ): Examination {
-  if (item.status === "COMPLETED") return item;
+  if (item.status === "COMPLETED" || item.status === "WAITING_PAYMENT")
+    return item;
   if (changes.status === "COMPLETED" && !canCompleteExamination(item))
     return item;
   return { ...item, ...changes, id: item.id };

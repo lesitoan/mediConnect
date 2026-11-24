@@ -1,4 +1,5 @@
 import type { Appointment } from "../data";
+import { authenticatedFetch } from "@/features/auth/services/authenticatedFetch";
 
 export type AvailabilitySlot = {
   id: string;
@@ -31,8 +32,6 @@ type AppointmentAvailabilityResponse = {
     };
   }>;
 };
-
-const AVAILABILITY_PAGE_SIZE = 50;
 
 type PatientAppointmentResponse = {
   id: string;
@@ -122,7 +121,7 @@ const API_URL =
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;
   try {
-    response = await fetch(`${API_URL}${path}`, {
+    response = await authenticatedFetch(path, {
       ...init,
       credentials: "include",
       headers: {
@@ -153,23 +152,16 @@ export async function getAppointmentAvailability(
   specialtyId?: string,
   signal?: AbortSignal,
 ) {
-  const query = new URLSearchParams({
-    dateFrom: date,
-    dateTo: date,
-    page: "1",
-    limit: String(AVAILABILITY_PAGE_SIZE),
-  });
+  const query = new URLSearchParams({ date });
   if (doctorId) query.set("doctorId", doctorId);
   if (specialtyId) query.set("specialtyId", specialtyId);
 
   const availability: AppointmentAvailabilityResponse["items"] = [];
-  let page = 1;
   let total = 0;
 
-  do {
-    query.set("page", String(page));
+  {
     const response = await request<AppointmentAvailabilityResponse>(
-      `/schedules/ai-availability?${query}`,
+      `/appointments/availability?${query}`,
       { signal },
     );
     if (!Number.isInteger(response.total) || response.total < 0) {
@@ -178,11 +170,10 @@ export async function getAppointmentAvailability(
 
     availability.push(...response.items);
     total = response.total;
-    page += 1;
     if (response.items.length === 0 && availability.length < total) {
       throw new Error("API không trả đủ các trang khung giờ khám.");
     }
-  } while (availability.length < total);
+  }
 
   return availability.map(({ doctor, ...slot }) => ({
     ...slot,
@@ -214,9 +205,7 @@ function getDaysFromNow(date: Date, now: Date): number {
     date.getDate(),
   );
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  return Math.round(
-    (appointmentDay.getTime() - today.getTime()) / 86_400_000,
-  );
+  return Math.round((appointmentDay.getTime() - today.getTime()) / 86_400_000);
 }
 
 function getInitials(name: string): string {
@@ -253,24 +242,33 @@ function mapPatientAppointment(
   const isIncomplete = appointment.careSessions.some(
     ({ status }) => status === "INCOMPLETE",
   );
+  const isSkipped =
+    session?.status === "SKIPPED" ||
+    (startsAtDate.getTime() < now.getTime() && session?.status === "SCHEDULED");
   const kind =
     appointment.status === "CANCELLED"
       ? "cancelled"
-      : isCompleted
-        ? "completed"
-        : isNoShow
-          ? "no-show"
-          : isIncomplete
-            ? "incomplete"
-        : appointment.status === "PENDING_RESOLUTION"
-          ? "pending"
-          : "confirmed";
+      : session?.status === "WAITING_PAYMENT"
+        ? "waiting-payment"
+        : isCompleted
+          ? "completed"
+          : isNoShow
+            ? "no-show"
+            : isIncomplete
+              ? "incomplete"
+              : isSkipped
+                ? "skipped"
+                : appointment.status === "PENDING_RESOLUTION"
+                ? "pending"
+                : "confirmed";
   const invoice = appointment.invoices[0];
   const amount = invoice ? Number(invoice.totalAmount) : Number.NaN;
   const isPaid =
     !!invoice &&
-    invoice.transactions.reduce((total, transaction) => total + Number(transaction.amount), 0) >=
-      Number(invoice.totalAmount);
+    invoice.transactions.reduce(
+      (total, transaction) => total + Number(transaction.amount),
+      0,
+    ) >= Number(invoice.totalAmount);
   const consultation = session?.consultation;
 
   return {
@@ -317,9 +315,8 @@ function mapPatientAppointment(
 }
 
 export async function getMyAppointments(): Promise<Appointment[]> {
-  const appointments = await request<PatientAppointmentResponse[]>(
-    "/me/appointments",
-  );
+  const appointments =
+    await request<PatientAppointmentResponse[]>("/me/appointments");
   const now = new Date();
   return appointments.map((appointment) =>
     mapPatientAppointment(appointment, now),
@@ -334,10 +331,13 @@ export function respondToScheduleProposal(
   proposalId: string,
   decision: "ACCEPT" | "REJECT",
 ) {
-  return request(`/me/schedule-proposals/${encodeURIComponent(proposalId)}/respond`, {
-    method: "POST",
-    body: JSON.stringify({ decision }),
-  });
+  return request(
+    `/me/schedule-proposals/${encodeURIComponent(proposalId)}/respond`,
+    {
+      method: "POST",
+      body: JSON.stringify({ decision }),
+    },
+  );
 }
 
 export function cancelAppointment(appointmentId: string) {

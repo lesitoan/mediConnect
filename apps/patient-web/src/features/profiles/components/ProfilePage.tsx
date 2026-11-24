@@ -3,13 +3,11 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import {
-  ChevronRight,
-  Home,
-  Lock,
   ShieldCheck,
   Check,
 } from "@/components/layout/icons";
 import { clearSession, useAuth } from "@/features/auth/useAuth";
+import PatientBreadcrumb from "@/components/layout/PatientBreadcrumb";
 import { formatProfileDate, type IdentityForm } from "../data";
 import {
   getPatientMedicalRecords,
@@ -203,38 +201,10 @@ export default function ProfilePage() {
     );
   }
 
-  const saveBtn = (cls: string, label: string) => (
-    <button
-      type="button"
-      onClick={save}
-      disabled={!isDirty || !isIdentityValid || isSaving}
-      className={`inline-flex items-center justify-center gap-2 rounded-xl bg-[#0A5A84] px-6 py-3 text-xs font-bold text-white shadow transition hover:bg-[#08486B] disabled:cursor-not-allowed disabled:bg-slate-300 ${cls}`}
-    >
-      {isSaving ? "Đang lưu..." : label}
-    </button>
-  );
-
   return (
     <section className="bg-gradient-to-b from-[#EAF3FD] to-[#F6FAFE] pb-14">
-      <div className="mx-auto max-w-7xl px-4">
-        {/* Breadcrumb */}
-        <nav aria-label="Breadcrumb" className="pt-5 text-xs text-slate-500">
-          <ol className="flex flex-wrap items-center gap-1.5">
-            <li>
-              <Link
-                href="/"
-                className="flex items-center gap-1 hover:text-[#0A5A84]"
-              >
-                <Home className="h-3.5 w-3.5" />
-                Trang chủ
-              </Link>
-            </li>
-            <ChevronRight className="h-3 w-3" />
-            <li className="font-bold text-[#0A5A84]">
-              Thông tin cá nhân &amp; Hồ sơ y tế
-            </li>
-          </ol>
-        </nav>
+      <PatientBreadcrumb currentPage="profile" />
+      <div className="w-full px-4 sm:px-6 lg:px-10 2xl:px-16">
 
         {/* Tiêu đề */}
         <div className="mt-5 flex flex-wrap items-end justify-between gap-4">
@@ -254,10 +224,6 @@ export default function ProfilePage() {
                 <b className="text-slate-700">
                   {formatProfileDate(profile.updatedAt)}
                 </b>
-              </span>
-              <span className="inline-flex items-center gap-1 font-bold text-[#0A5A84]">
-                <Lock className="h-3 w-3" />
-                Hồ sơ cá nhân
               </span>
             </p>
           </div>
@@ -282,8 +248,8 @@ export default function ProfilePage() {
         )}
 
         {/* Nội dung */}
-        <div className="mt-6 grid items-start gap-5 lg:grid-cols-[280px_minmax(0,1fr)] lg:gap-7">
-          <aside>
+        <div className="mt-6 grid items-stretch gap-5 lg:grid-cols-[280px_minmax(0,1fr)] lg:gap-7">
+          <aside className="h-full">
             <ProfileSidebar
               profile={profile}
               dateOfBirth={form.dateOfBirth}
@@ -300,7 +266,16 @@ export default function ProfilePage() {
                 profile={profile}
                 form={form}
                 isEditing={isEditing}
+                isDirty={isDirty}
+                isIdentityValid={isIdentityValid}
+                isSaving={isSaving}
                 onEdit={() => setIsEditing(true)}
+                onSave={save}
+                onCancel={() => {
+                  setForm(saved);
+                  setIsEditing(false);
+                  setMsg(null);
+                }}
                 onChange={onChange}
               />
             )}
@@ -312,29 +287,6 @@ export default function ProfilePage() {
             )}
             {active === "security" && <SecuritySection />}
 
-            {active === "identity" && (isEditing || isDirty) && (
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-blue-100 bg-white p-4 shadow-[0_8px_28px_rgba(10,90,132,0.08)]">
-                <p className="flex items-center gap-2 text-[11px] text-slate-500">
-                  <Lock className="h-3.5 w-3.5 text-[#2B6CB0]" />
-                  Thông tin được cập nhật an toàn theo tài khoản đang đăng nhập.
-                </p>
-                <div className="flex gap-3">
-                  <button
-                    type="button"
-                    disabled={!isDirty || isSaving}
-                    onClick={() => {
-                      setForm(saved);
-                      setIsEditing(false);
-                      setMsg(null);
-                    }}
-                    className="rounded-xl bg-blue-50 px-6 py-3 text-xs font-bold text-[#0A5A84] transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    Hủy bỏ
-                  </button>
-                  {saveBtn("", "Lưu thay đổi hồ sơ")}
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </div>

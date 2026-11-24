@@ -10,6 +10,7 @@ export class HttpResponseBodyDto<T = undefined> {
   message?: string | string[];
   @ApiPropertyOptional() statusCode?: number;
   @ApiPropertyOptional() error?: string;
+  @ApiPropertyOptional() code?: string;
   @ApiPropertyOptional({ type: PaginationResponseDto })
   pagination?: PaginationResponseDto;
 }

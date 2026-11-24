@@ -1,5 +1,7 @@
 import {
+  BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
   UnauthorizedException,
@@ -14,7 +16,11 @@ import {
   timingSafeEqual,
 } from 'node:crypto';
 import { isIP } from 'node:net';
-import { AuthSessionClientType } from '../../../generated/prisma/enums';
+import {
+  AuthSessionClientType,
+  RoleStatusEnum,
+  UserStatus,
+} from '../../../generated/prisma/enums';
 import { UsersService } from '../../users/services/users.service';
 import { UserSessionsService } from '../../users/services/user-sessions.service';
 import { OtpService } from './otp.service';
@@ -50,15 +56,25 @@ export class AuthenticationService {
     metadata: SessionMetadata = {},
   ): Promise<AuthenticationTokens> {
     const user = await this.usersService.findForAuthentication(input);
-    if (
-      !user?.passwordHash ||
-      !this.usersService.isAllowedToAuthenticate(user)
-    ) {
+    if (!user?.passwordHash || user.deletedAt !== null || !user.role) {
       throw new UnauthorizedException('Invalid credentials');
     }
     const isPasswordValid = await compare(input.password, user.passwordHash);
     if (!isPasswordValid)
       throw new UnauthorizedException('Invalid credentials');
+    if (
+      user.status === UserStatus.PENDING_VERIFICATION &&
+      user.role.status === RoleStatusEnum.ACTIVE &&
+      user.role.deletedAt === null
+    ) {
+      throw new ForbiddenException({
+        code: 'ACCOUNT_VERIFICATION_REQUIRED',
+        message: 'Tài khoản chưa được xác thực.',
+      });
+    }
+    if (!this.usersService.isAllowedToAuthenticate(user)) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
     return this.usersService.withLockedAccount(user.id, async (tx) => {
       const current = await tx.user.findUnique({
         where: { id: user.id },
@@ -290,8 +306,16 @@ export class AuthenticationService {
       });
       if (!user || !this.usersService.isAllowedToAuthenticate(user))
         throw new UnauthorizedException('Account is unavailable');
-      if (!user.passwordHash || !(await compare(currentPassword, user.passwordHash)))
+      if (
+        !user.passwordHash ||
+        !(await compare(currentPassword, user.passwordHash))
+      )
         throw new UnauthorizedException('Current password is incorrect');
+      if (await compare(nextPassword, user.passwordHash)) {
+        throw new BadRequestException(
+          'Mật khẩu mới phải khác mật khẩu hiện tại. Vui lòng đặt mật khẩu khác.',
+        );
+      }
       const passwordHash = await hash(nextPassword, 12);
       await this.usersService.changePassword(
         tx,

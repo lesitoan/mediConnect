@@ -3,6 +3,7 @@ export type ExaminationStatus =
   | "IN_PROGRESS"
   | "WAITING_RESULTS"
   | "PAUSED"
+  | "WAITING_PAYMENT"
   | "INCOMPLETE"
   | "COMPLETED";
 export interface Diagnosis {
